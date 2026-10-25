@@ -2,10 +2,10 @@
 
 import { useImperativeHandle, useRef, type Ref } from "react";
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
-import { drawSkeleton, type SkeletonStyle } from "@/lib/pose/drawSkeleton";
+import { drawSkeleton, type SkeletonExtras, type SkeletonStyle } from "@/lib/pose/drawSkeleton";
 
 export interface SkeletonOverlayHandle {
-  draw: (pose: NormalizedLandmark[] | undefined) => void;
+  draw: (pose: NormalizedLandmark[] | undefined, extras?: SkeletonExtras) => void;
 }
 
 interface Props {
@@ -25,9 +25,9 @@ export function SkeletonOverlay({ ref, width, height, style, mirrored }: Props) 
   const { showLegs, minVisibility } = style;
 
   useImperativeHandle(ref, () => ({
-    draw(pose) {
+    draw(pose, extras) {
       const ctx = canvasRef.current?.getContext("2d");
-      if (ctx) drawSkeleton(ctx, pose, { showLegs, minVisibility });
+      if (ctx) drawSkeleton(ctx, pose, { showLegs, minVisibility }, extras);
     },
   }), [showLegs, minVisibility]);
 

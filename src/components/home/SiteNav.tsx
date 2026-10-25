@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
 
 const LEFT = [
-  { href: "/lab", label: "Play" },
+  { href: "/play", label: "Play" },
+  { href: "/lab", label: "Lab" },
   { href: "/#how", label: "How it works" },
 ];
 const RIGHT = [
@@ -30,7 +31,7 @@ export function SiteNav({ tone = "light" }: { tone?: "light" | "dark" }) {
               {l.label}
             </Link>
           ))}
-          <Link href="/lab" className="rounded-full bg-hoop px-4 py-1.5 text-[11px] font-bold tracking-[0.14em] text-cream uppercase sm:hidden">
+          <Link href="/play" className="rounded-full bg-hoop px-4 py-1.5 text-[11px] font-bold tracking-[0.14em] text-cream uppercase sm:hidden">
             Play
           </Link>
         </div>

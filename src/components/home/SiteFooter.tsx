@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SplitText } from "@/components/motion/SplitText";
 
 const MODES = ["Free Play", "Timed", "Streak", "Shootout"];
 const LINKS = [
@@ -49,9 +50,9 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <Link href="/lab" className="group mt-14 block" aria-label="Play AirHoops">
+        <Link href="/play" className="group mt-14 block" aria-label="Play AirHoops">
           <span className="display block text-[15vw] leading-[0.8] whitespace-nowrap text-hoop transition-colors group-hover:text-hoop-soft xl:text-[12.8rem]">
-            / Take the shot
+            <SplitText text="/ Take the shot" stagger={0.04} />
           </span>
         </Link>
 

@@ -105,6 +105,21 @@ body {
 }
 .animate-pulse-ring { animation: pulse-ring 1.6s ease-out infinite; }
 
+@keyframes count-pop {
+  from { transform: scale(1.8); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.animate-count-pop { animation: count-pop 0.45s cubic-bezier(.2,.8,.2,1); }
+
+@keyframes throw-flash {
+  0% { opacity: 0; transform: scale(0.6); }
+  15% { opacity: 1; transform: scale(1.05); }
+  25% { transform: scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-20px); }
+}
+.animate-throw-flash { animation: throw-flash 1.1s cubic-bezier(.2,.8,.2,1) forwards; }
+
 @keyframes bob {
   0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); }
   50% { transform: translateY(-10px) rotate(var(--r, 0deg)); }
@@ -124,6 +139,6 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-marquee, .animate-pulse-ring, .animate-bob { animation: none; }
+  .animate-marquee, .animate-pulse-ring, .animate-bob, .animate-count-pop, .animate-throw-flash { animation: none; }
   .reveal { opacity: 1; transform: none; transition: none; }
 }

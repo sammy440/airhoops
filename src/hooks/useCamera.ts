@@ -39,7 +39,14 @@ function classify(err: unknown): CameraErrorKind {
  * Owns the webcam stream and attaches it to the given <video>.
  * Nothing here ever leaves the browser.
  */
-export function useCamera(videoRef: RefObject<HTMLVideoElement | null>, deviceId?: string) {
+export function useCamera(
+  videoRef: RefObject<HTMLVideoElement | null>,
+  deviceId?: string,
+  enabled = true,
+  /** Requested capture size. The pose model downsamples to 256 px, so the game asks for less. */
+  resolution: { width: number; height: number } = { width: 1280, height: 720 },
+) {
+  const { width: reqW, height: reqH } = resolution;
   const [state, setState] = useState<CameraState>({ status: "requesting" });
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [attempt, setAttempt] = useState(0);
@@ -52,6 +59,7 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>, deviceId
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
     const video = videoRef.current;
 
@@ -64,8 +72,8 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>, deviceId
           // `ideal` so a stale saved device falls back to the default camera.
           deviceId: deviceId ? { ideal: deviceId } : undefined,
           facingMode: deviceId ? undefined : "user",
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: reqW },
+          height: { ideal: reqH },
           frameRate: { ideal: 60, max: 60 },
         },
       });
@@ -104,7 +112,7 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>, deviceId
       streamRef.current = null;
       if (video) video.srcObject = null;
     };
-  }, [videoRef, deviceId, attempt, refreshDevices]);
+  }, [videoRef, deviceId, attempt, refreshDevices, enabled, reqW, reqH]);
 
   useEffect(() => {
     const md = navigator.mediaDevices;
@@ -118,5 +126,6 @@ export function useCamera(videoRef: RefObject<HTMLVideoElement | null>, deviceId
     setAttempt((n) => n + 1);
   }, []);
 
-  return { state, devices, retry };
+  // Disabled = camera off (keyboard-only play): report idle, never "requesting".
+  return { state: enabled ? state : ({ status: "idle" } as CameraState), devices, retry };
 }

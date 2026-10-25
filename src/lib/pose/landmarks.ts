@@ -68,16 +68,21 @@ export type FramingIssue = "no_person" | "too_close" | "too_far" | "off_center" 
 
 /**
  * Quick framing check so the UI can coach the player into position.
- * Thresholds are deliberately loose; they get tuned in Week 5.
+ * Uses torso length (shoulders → hips), which stays stable when the player
+ * turns side-on; shoulder width does not. Thresholds get tuned in Week 5.
  */
 export function framingIssue(pose: NormalizedLandmark[] | undefined): FramingIssue | null {
   if (!pose) return "no_person";
   const ls = pose[LM.LEFT_SHOULDER];
   const rs = pose[LM.RIGHT_SHOULDER];
   if (trackingConfidence(pose) < 0.55) return "low_visibility";
-  const shoulderWidth = Math.hypot(ls.x - rs.x, ls.y - rs.y);
-  if (shoulderWidth > 0.42) return "too_close";
-  if (shoulderWidth < 0.1) return "too_far";
+  const lh = pose[LM.LEFT_HIP];
+  const rh = pose[LM.RIGHT_HIP];
+  // Hips out of view (or torso filling the frame) means the player is too close.
+  if (visibilityOf(lh) < 0.5 || visibilityOf(rh) < 0.5) return "too_close";
+  const torso = Math.hypot((ls.x + rs.x - lh.x - rh.x) / 2, (ls.y + rs.y - lh.y - rh.y) / 2);
+  if (torso > 0.5) return "too_close";
+  if (torso < 0.15) return "too_far";
   const centerX = (ls.x + rs.x) / 2;
   if (centerX < 0.25 || centerX > 0.75) return "off_center";
   return null;

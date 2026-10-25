@@ -78,3 +78,42 @@ export function Stat({ label, value, unit, tone = "default" }: { label: string; 
     </div>
   );
 }
+
+export function Slider({
+  label,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+  format = (v) => v.toFixed(2),
+  hint,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (v: number) => void;
+  format?: (v: number) => string;
+  hint?: string;
+}) {
+  return (
+    <label className="block py-1.5">
+      <span className="flex items-baseline justify-between text-sm">
+        <span>{label}</span>
+        <span className="font-mono text-xs text-muted tabular-nums">{format(value)}</span>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="mt-2 w-full accent-hoop"
+      />
+      {hint && <span className="mt-0.5 block text-[11px] text-muted">{hint}</span>}
+    </label>
+  );
+}

@@ -12,8 +12,18 @@ export interface LoadedLandmarker {
 /** Served from /public, copied there by scripts/copy-mediapipe.mjs. */
 const WASM_PATH = "/mediapipe/wasm";
 
-const modelUrl = (model: PoseModel) =>
+const cdnModelUrl = (model: PoseModel) =>
   `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_${model}/float16/latest/pose_landmarker_${model}.task`;
+/** Self-hosted copy (scripts/copy-mediapipe.mjs): same origin, cacheable, works offline in dev. */
+const localModelUrl = (model: PoseModel) => `/mediapipe/models/pose_landmarker_${model}.task`;
+
+async function modelUrl(model: PoseModel) {
+  try {
+    const res = await fetch(localModelUrl(model), { method: "HEAD" });
+    if (res.ok) return localModelUrl(model);
+  } catch {}
+  return cdnModelUrl(model);
+}
 
 let filesetPromise: ReturnType<typeof FilesetResolver.forVisionTasks> | null = null;
 
@@ -31,9 +41,10 @@ export async function createPoseLandmarker(model: PoseModel = "lite"): Promise<L
     throw err;
   }
 
+  const modelAssetPath = await modelUrl(model);
   const create = (delegate: Delegate) =>
     PoseLandmarker.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: modelUrl(model), delegate },
+      baseOptions: { modelAssetPath, delegate },
       runningMode: "VIDEO",
       numPoses: 1,
       minPoseDetectionConfidence: 0.5,
