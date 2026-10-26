@@ -2,6 +2,28 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Player profile & avatar
+- `/profile` ("Your player"): name, body (male/female), 8 skin tones, 6 hair styles + colour, jersey colour
+  and number, shorts and sneaker colours (every colour also has a custom picker), Ready/Shooting preview,
+  randomize, reset. Stored on this device (`airhoops.profile`); synced to the server for multiplayer guests.
+- `drawPlayer.ts`: the player renderer, shared by the game, the profile preview and `AvatarCanvas` badges.
+- Play draws your look; the start menu shows it with an "Edit look" link.
+- Multiplayer: nickname is prefilled from the profile, lobby cards show each player's avatar, edits made while
+  in a room appear for everyone right away, and in a shootout the court shows whoever is shooting, in their look.
+- Avatars from other players are always passed through `sanitizeAvatar` before drawing (server validates too).
+
+## Week 7 — Multiplayer matches
+- Backend referees every shot (see backend README). `src/lib/game/parity.gen.test.ts` exports physics
+  fixtures for the Python port: run with `GEN_PARITY=1` after touching physics, mapping, difficulty or scoring.
+- `RoomSocket`: clock sync (Cristian's algorithm on pongs, best-RTT sample) → `serverNow()`; new message types.
+- `useRoom`: match state (start, scoreboard, turn, last shot, result, forfeits); remembers departed players' names.
+- `Game`: `setPhaseSource()` (moving hoop follows the server's match clock), `playSim()` (animate a server shot),
+  time-based path lookup (server paths are 60 Hz).
+- `MatchView`: full-screen match: instant local prediction + server verdict, opponent shot replays (shootout),
+  scoreboard, turn banner + shot clock, race timer, synced countdown, results + rematch.
+- `/multiplayer` lobby: Shootout / Race (30 s – 2 min) + difficulty.
+- `CameraPip`: camera preview shared by `/play` and matches.
+
 ## Week 6 — Multiplayer foundations
 - New backend repo `airhoops-backend` (FastAPI, SQLModel, Alembic, Postgres). See its README.
 - `lib/net/api.ts`: REST client + guest session on-device; `lib/net/socket.ts`: room socket with 10 s

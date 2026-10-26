@@ -1,5 +1,7 @@
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import { DEFAULT_COURT, hoopOffset, simulateShot, type Court, type Launch, type ShotEvent, type ShotSim } from "./physics";
+import { DEFAULT_AVATAR, type Avatar } from "./avatar";
+import { DEFAULT_POSE, drawPlayer, type Vec } from "./drawPlayer";
 import { sfx } from "./sfx";
 
 /**
@@ -51,26 +53,7 @@ const C = {
   sun: "#f6a13a",
   ink: "#0e0e0d",
 };
-const SKIN = { base: "#8a5530", light: "#b07446" };
 const RESPAWN_MS = 650;
-
-interface Vec {
-  x: number;
-  y: number;
-}
-
-/** Natural set-shot pose (world meters), used for any joint the camera can't see. */
-const DEFAULT_POSE: Record<number, Vec> = {
-  0: { x: -0.3, y: 1.74 },
-  11: { x: -0.42, y: 1.5 },
-  12: { x: -0.18, y: 1.5 },
-  13: { x: -0.37, y: 1.78 },
-  14: { x: -0.05, y: 1.72 },
-  15: { x: -0.1, y: 2.04 },
-  16: { x: 0.08, y: 2.0 },
-  23: { x: -0.4, y: 0.95 },
-  24: { x: -0.2, y: 0.95 },
-};
 const HAND_BLEND_S = 0.12;
 
 /** Seeded PRNG so the crowd looks the same every visit. */
@@ -124,6 +107,8 @@ export class Game {
   /** Screen pixels on the left covered by UI (camera preview); the court fits beside it. */
   private leftInset = 0;
   private charge: number | null = null;
+  /** Body, skin, hair and kit (see avatar.ts). */
+  private look: Avatar = DEFAULT_AVATAR;
   private loaded = false;
 
   constructor(
@@ -188,6 +173,20 @@ export class Game {
     return this.now / 1000;
   }
 
+  /**
+   * Hoop-motion phase (s). Multiplayer points this at the server's match
+   * clock so a moving hoop is in the same place for everyone.
+   */
+  private phaseSource: (() => number | null) | null = null;
+
+  setPhaseSource(fn: (() => number | null) | null) {
+    this.phaseSource = fn;
+  }
+
+  get hoopPhase() {
+    return this.phaseSource?.() ?? this.clock;
+  }
+
   stop() {
     cancelAnimationFrame(this.raf);
   }
@@ -204,9 +203,24 @@ export class Game {
   /** Simulates and launches a shot. Returns the simulation, or null if a ball is in flight. */
   throwBall(launch: Launch): ShotSim | null {
     if (!this.canThrow()) return null;
-    const sim = simulateShot(launch, this.court, { wind: this.wind, phase: this.clock });
+    const sim = simulateShot(launch, this.court, { wind: this.wind, phase: this.hoopPhase });
     const hands = this.handsWorld();
-    this.handOffset = { x: hands.x, y: hands.y - this.court.releaseHeight };
+    this.play(sim, { x: hands.x, y: hands.y - this.court.releaseHeight });
+    return sim;
+  }
+
+  /**
+   * Animates a shot simulated elsewhere (e.g. an opponent's shot, straight
+   * from the server). Returns false if a ball is already in the air.
+   */
+  playSim(sim: ShotSim): boolean {
+    if (this.phase === "flying") return false;
+    this.play(sim, { x: 0, y: 0 });
+    return true;
+  }
+
+  private play(sim: ShotSim, handOffset: { x: number; y: number }) {
+    this.handOffset = handOffset;
     this.sim = sim;
     this.launchedAt = this.now;
     this.eventIdx = 0;
@@ -215,7 +229,6 @@ export class Game {
     this.trail = [];
     sfx.release();
     this.cb.onLaunch?.(sim);
-    return sim;
   }
 
   /** Live (smoothed) pose: drives the shooter silhouette and where the ball sits. */
@@ -226,6 +239,10 @@ export class Game {
   /** Reserve `px` on the left (e.g. under the camera preview) so it never covers the player. */
   setLeftInset(px: number) {
     this.leftInset = Math.max(0, Math.min(px, this.w * 0.45));
+  }
+
+  setAvatar(look: Avatar) {
+    this.look = look;
   }
 
   /** Keyboard charge 0..1 (null = not charging). */
@@ -242,7 +259,7 @@ export class Game {
 
   /** Hoop centre right now (moves on harder levels). */
   private get hoopX() {
-    return this.court.hoopDistance + hoopOffset(this.court, this.clock);
+    return this.court.hoopDistance + hoopOffset(this.court, this.hoopPhase);
   }
 
   private get boardX() {
@@ -330,7 +347,16 @@ export class Game {
 
   private sample(t: number) {
     const path = this.sim!.path;
-    const i = Math.min(path.length - 2, Math.max(0, Math.floor(t * 120)));
+    if (path.length < 2) return { x: path[0][1], y: path[0][2] };
+    // Binary search by time: works for local 120 Hz paths and server 60 Hz ones.
+    let lo = 0;
+    let hi = path.length - 2;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (path[mid][0] <= t) lo = mid;
+      else hi = mid - 1;
+    }
+    const i = lo;
     const [t0, x0, y0] = path[i];
     const [t1, x1, y1] = path[i + 1];
     const k = t1 > t0 ? Math.min(1, Math.max(0, (t - t0) / (t1 - t0))) : 1;
@@ -715,200 +741,9 @@ export class Game {
     ctx.stroke();
   }
 
-  /**
-   * A stylized player: sneakers, shorts, #23 jersey, shaded limbs and a head,
-   * rim-lit by the arena spotlight. Upper body follows the live pose; legs
-   * always stand on the floor (they're rarely in the camera frame).
-   */
+  /** The player (look from the profile), upper body following the live pose. */
   private drawAvatar(s: number) {
-    const { ctx } = this;
-    const { pts } = this.avatar();
-    const P = (v: Vec) => [this.X(v.x), this.Y(v.y)] as const;
-    const add = (v: Vec, dx: number, dy: number): Vec => ({ x: v.x + dx, y: v.y + dy });
-    const mid = (a: Vec, b: Vec): Vec => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-
-    const limb = (a: Vec, b: Vec, width: number, color: string, shine = SKIN.light) => {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = width * s;
-      ctx.beginPath();
-      ctx.moveTo(...P(a));
-      ctx.lineTo(...P(b));
-      ctx.stroke();
-      // Highlight along the lit edge gives the limb some volume.
-      ctx.save();
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = shine;
-      ctx.lineWidth = width * s * 0.28;
-      ctx.beginPath();
-      ctx.moveTo(...P(add(a, width * 0.22, width * 0.12)));
-      ctx.lineTo(...P(add(b, width * 0.22, width * 0.12)));
-      ctx.stroke();
-      ctx.restore();
-    };
-
-    // Hips: keep a believable stance even if the camera squeezes them together.
-    let hipL = pts[23];
-    let hipR = pts[24];
-    const hipMid = mid(hipL, hipR);
-    if (Math.abs(hipR.x - hipL.x) < 0.2) {
-      hipL = { x: hipMid.x - 0.1, y: hipMid.y };
-      hipR = { x: hipMid.x + 0.1, y: hipMid.y };
-    }
-    const hipY = Math.max(0.75, Math.min(1.15, hipMid.y));
-    hipL = { ...hipL, y: hipY };
-    hipR = { ...hipR, y: hipY };
-    const kneeL = { x: hipL.x - 0.04, y: hipY * 0.5 };
-    const kneeR = { x: hipR.x + 0.06, y: hipY * 0.5 };
-    const ankleL = { x: hipL.x - 0.08, y: 0.1 };
-    const ankleR = { x: hipR.x + 0.1, y: 0.1 };
-
-    ctx.save();
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.shadowColor = "rgba(246,161,58,0.45)";
-    ctx.shadowBlur = 16;
-
-    // Legs + sneakers
-    limb(hipL, kneeL, 0.15, SKIN.base);
-    limb(kneeL, ankleL, 0.115, SKIN.base);
-    limb(hipR, kneeR, 0.15, SKIN.base);
-    limb(kneeR, ankleR, 0.115, SKIN.base);
-    for (const [ankle, dir] of [[ankleL, -1], [ankleR, 1]] as const) {
-      ctx.fillStyle = C.cream;
-      ctx.beginPath();
-      ctx.ellipse(this.X(ankle.x + dir * 0.05), this.Y(0.055), 0.14 * s, 0.06 * s, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = C.hoop;
-      ctx.fillRect(this.X(ankle.x + dir * 0.05) - 0.12 * s, this.Y(0.03), 0.24 * s, 0.025 * s);
-    }
-
-    // Shorts
-    const waistL = add(hipL, -0.05, 0.08);
-    const waistR = add(hipR, 0.05, 0.08);
-    ctx.fillStyle = "#17110d";
-    ctx.beginPath();
-    ctx.moveTo(...P(waistL));
-    ctx.lineTo(...P(waistR));
-    ctx.lineTo(...P(add(kneeR, 0.1, 0.18)));
-    ctx.lineTo(...P(add(kneeR, -0.08, 0.16)));
-    ctx.lineTo(...P({ x: hipMid.x, y: hipY - 0.12 }));
-    ctx.lineTo(...P(add(kneeL, 0.08, 0.16)));
-    ctx.lineTo(...P(add(kneeL, -0.1, 0.18)));
-    ctx.closePath();
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = C.hoop;
-    ctx.lineWidth = Math.max(1.5, 0.02 * s);
-    ctx.beginPath();
-    ctx.moveTo(...P(add(waistL, 0.01, -0.02)));
-    ctx.lineTo(...P(add(kneeL, -0.09, 0.2)));
-    ctx.moveTo(...P(add(waistR, -0.01, -0.02)));
-    ctx.lineTo(...P(add(kneeR, 0.09, 0.2)));
-    ctx.stroke();
-    ctx.shadowBlur = 16;
-
-    // Neck (under the jersey collar)
-    const sL = pts[11];
-    const sR = pts[12];
-    const sMid = mid(sL, sR);
-    const head = pts[0] ? add(pts[0], 0, 0.04) : add(sMid, 0, 0.27);
-    limb(sMid, mid(sMid, head), 0.1, SKIN.base);
-
-    // Jersey: sleeveless, V-neck, slightly tapered.
-    const halfW = Math.max(0.17, Math.abs(sR.x - sL.x) / 2 + 0.05);
-    const tilt = Math.atan2(sR.y - sL.y, sR.x - sL.x);
-    const shL = { x: sMid.x - halfW * Math.cos(tilt), y: sMid.y - halfW * Math.sin(tilt) };
-    const shR = { x: sMid.x + halfW * Math.cos(tilt), y: sMid.y + halfW * Math.sin(tilt) };
-    const jersey = ctx.createLinearGradient(this.X(sMid.x), this.Y(sMid.y), this.X(hipMid.x), this.Y(hipY));
-    jersey.addColorStop(0, "#ff5a33");
-    jersey.addColorStop(1, "#b9240f");
-    ctx.fillStyle = jersey;
-    ctx.beginPath();
-    ctx.moveTo(...P(shL));
-    ctx.lineTo(...P(add(sMid, -0.06, 0.02)));
-    ctx.lineTo(...P(add(sMid, 0, -0.08)));
-    ctx.lineTo(...P(add(sMid, 0.06, 0.02)));
-    ctx.lineTo(...P(shR));
-    ctx.quadraticCurveTo(...P(add(shR, -0.02, -0.12)), ...P(add(shR, -0.05, -0.17)));
-    ctx.lineTo(...P(add(waistR, -0.01, 0.02)));
-    ctx.lineTo(...P(add(waistL, 0.01, 0.02)));
-    ctx.lineTo(...P(add(shL, 0.05, -0.17)));
-    ctx.quadraticCurveTo(...P(add(shL, 0.02, -0.12)), ...P(shL));
-    ctx.closePath();
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    // Trim + number
-    ctx.strokeStyle = C.cream;
-    ctx.lineWidth = Math.max(1.5, 0.018 * s);
-    ctx.beginPath();
-    ctx.moveTo(...P(add(sMid, -0.06, 0.02)));
-    ctx.lineTo(...P(add(sMid, 0, -0.08)));
-    ctx.lineTo(...P(add(sMid, 0.06, 0.02)));
-    ctx.stroke();
-    const chest = mid(sMid, { x: hipMid.x, y: hipY });
-    ctx.save();
-    ctx.translate(...P(add(chest, 0, 0.04)));
-    ctx.rotate(-tilt);
-    ctx.fillStyle = C.cream;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `${Math.round(0.17 * s)}px ${this.font}`;
-    ctx.fillText("23", 0, 0);
-    ctx.restore();
-    ctx.shadowBlur = 16;
-
-    // Head: skin, ears, hair cap, headband
-    const hx = this.X(head.x);
-    const hy = this.Y(head.y);
-    ctx.fillStyle = SKIN.base;
-    for (const dir of [-1, 1]) {
-      ctx.beginPath();
-      ctx.ellipse(hx + dir * 0.1 * s, hy + 0.01 * s, 0.025 * s, 0.04 * s, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    const face = ctx.createRadialGradient(hx + 0.03 * s, hy - 0.04 * s, 0.01 * s, hx, hy, 0.13 * s);
-    face.addColorStop(0, SKIN.light);
-    face.addColorStop(1, SKIN.base);
-    ctx.fillStyle = face;
-    ctx.beginPath();
-    ctx.ellipse(hx, hy, 0.1 * s, 0.125 * s, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#1a120c";
-    ctx.beginPath();
-    ctx.ellipse(hx, hy - 0.03 * s, 0.105 * s, 0.1 * s, 0, Math.PI, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = C.hoop;
-    ctx.fillRect(hx - 0.105 * s, hy - 0.04 * s, 0.21 * s, 0.03 * s);
-    ctx.shadowBlur = 16;
-
-    // Arms last, so raised arms read in front of the body.
-    for (const [sh, el, wr] of [[11, 13, 15], [12, 14, 16]] as const) {
-      const shoulder = pts[sh];
-      const elbow = pts[el];
-      const wrist = pts[wr];
-      limb(shoulder, elbow, 0.105, SKIN.base);
-      limb(elbow, wrist, 0.085, SKIN.base);
-      // Hand: a little past the wrist along the forearm.
-      const dx = wrist.x - elbow.x;
-      const dy = wrist.y - elbow.y;
-      const len = Math.hypot(dx, dy) || 1;
-      const hand = add(wrist, (dx / len) * 0.05, (dy / len) * 0.05);
-      ctx.fillStyle = SKIN.base;
-      ctx.beginPath();
-      ctx.arc(...P(hand), 0.055 * s, 0, Math.PI * 2);
-      ctx.fill();
-      // Wristband
-      ctx.strokeStyle = C.cream;
-      ctx.lineWidth = 0.09 * s;
-      ctx.lineCap = "butt";
-      ctx.beginPath();
-      ctx.moveTo(...P(add(wrist, (-dx / len) * 0.03, (-dy / len) * 0.03)));
-      ctx.lineTo(...P(add(wrist, (-dx / len) * 0.08, (-dy / len) * 0.08)));
-      ctx.stroke();
-      ctx.lineCap = "round";
-    }
-    ctx.restore();
+    drawPlayer(this.ctx, this.avatar().pts, this.look, { X: (x) => this.X(x), Y: (y) => this.Y(y), s, font: this.font });
   }
 
   private drawBallShadow(s: number, floorY: number) {

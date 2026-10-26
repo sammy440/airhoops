@@ -1,17 +1,30 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { SiteNav } from "@/components/home/SiteNav";
+import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
 import { useRoom, type Toast } from "@/hooks/useRoom";
+import { loadProfile, saveProfile } from "@/lib/game/avatar";
 import { DIFFICULTIES, DIFFICULTY_ORDER, type DifficultyId } from "@/lib/game/difficulty";
-import { MODES, MODE_ORDER, type ModeId } from "@/lib/game/modes";
-import { api, ApiError, loadGuest, saveGuest, type GuestSession, type RoomPhase, type RoomPlayer } from "@/lib/net/api";
-import type { SocketStatus } from "@/lib/net/socket";
+import { formatDuration } from "@/lib/game/modes";
+import { api, ApiError, extractRoomCode, loadGuest, ROOM_CODE_LENGTH, saveGuest, type GuestSession, type RoomPhase, type RoomPlayer } from "@/lib/net/api";
+import type { MatchMode, SocketStatus } from "@/lib/net/socket";
+import { MatchView } from "./MatchView";
+
+const MATCH_MODES: { id: MatchMode; name: string; blurb: string }[] = [
+  { id: "shootout", name: "Shootout", blurb: "Take turns, 5 shots each. Most makes wins; ties go to sudden death." },
+  { id: "race", name: "Race", blurb: "Everyone shoots at once. Most points before the buzzer wins." },
+];
+const RACE_LENGTHS = [30, 60, 90, 120];
+
+const modeLabel = (mode: string, raceSeconds?: number) =>
+  mode === "shootout" ? "Shootout" : mode === "race" ? `Race · ${formatDuration(raceSeconds ?? 60)}` : mode;
 
 const PHASE_COPY: Record<RoomPhase, { label: string; hint: string }> = {
   lobby: { label: "Lobby", hint: "Waiting for everyone to ready up (2+ players)." },
   ready: { label: "Ready", hint: "Everyone's set. The host can start." },
-  in_progress: { label: "In progress", hint: "Match running. Gameplay lands in Week 7." },
+  in_progress: { label: "In progress", hint: "Match running." },
   finished: { label: "Finished", hint: "Match over. The host can start a rematch." },
 };
 
@@ -45,7 +58,17 @@ export function MultiplayerClient() {
     }
     api
       .me(g.token)
-      .then((user) => setGuest({ ...g, user }))
+      .then(async (user) => {
+        // This device's profile is the source of truth for your look; bring the server up to date.
+        const profile = loadProfile();
+        if (JSON.stringify(user.avatar ?? null) !== JSON.stringify(profile.avatar)) {
+          user = (await api.updateProfile(g.token, { avatar: profile.avatar }).catch(() => null)) ?? user;
+        }
+        if (!profile.name) saveProfile({ ...profile, name: user.nickname });
+        const next = { ...g, user };
+        saveGuest(next);
+        setGuest(next);
+      })
       .catch((e: unknown) => {
         if (e instanceof ApiError && e.status === 401) saveGuest(null);
         else setGuest(g); // server offline: keep the session, show the error on next action
@@ -79,7 +102,9 @@ export function MultiplayerClient() {
     setBusy(true);
     setError(null);
     try {
-      const g = await api.createGuest(nickname);
+      const profile = loadProfile();
+      const g = await api.createGuest(nickname, profile.avatar);
+      saveProfile({ ...profile, name: g.user.nickname });
       saveGuest(g);
       setGuest(g);
     } catch (e) {
@@ -89,12 +114,12 @@ export function MultiplayerClient() {
     }
   };
 
-  const create = async (mode: ModeId, difficulty: DifficultyId) => {
+  const create = async (mode: MatchMode, difficulty: DifficultyId, raceSeconds: number) => {
     if (!guest) return;
     setBusy(true);
     setError(null);
     try {
-      const room = await api.createRoom(guest.token, mode, difficulty);
+      const room = await api.createRoom(guest.token, mode, difficulty, raceSeconds);
       setCode(room.code);
       setUrlRoom(room.code);
     } catch (e) {
@@ -110,7 +135,7 @@ export function MultiplayerClient() {
   };
 
   return (
-    <div className="min-h-full flex-1 bg-ink text-cream">
+    <div className="min-h-screen flex-1 bg-ink text-cream">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(60%_50%_at_70%_0%,rgba(234,58,29,.18),transparent_70%)]" />
       <SiteNav tone="light" />
       <main className="relative mx-auto max-w-5xl px-5 pb-16 sm:px-8">
@@ -140,7 +165,9 @@ export function MultiplayerClient() {
 /* ───────── Nickname ───────── */
 
 function NicknameForm({ busy, onSubmit }: { busy: boolean; onSubmit: (n: string) => void }) {
-  const [name, setName] = useState("");
+  // Rendered only after hydration, so reading this device's profile is safe.
+  const [profile] = useState(loadProfile);
+  const [name, setName] = useState(profile.name);
   return (
     <form
       className="max-w-md rounded-3xl border border-cream/10 bg-white/[0.03] p-6"
@@ -149,6 +176,15 @@ function NicknameForm({ busy, onSubmit }: { busy: boolean; onSubmit: (n: string)
         onSubmit(name);
       }}
     >
+      <div className="mb-4 flex items-center gap-3">
+        <AvatarCanvas avatar={profile.avatar} crop="bust" className="size-14 rounded-2xl bg-white/5" />
+        <p className="text-sm text-cream/65">
+          Friends will see this player.{" "}
+          <Link href="/profile" className="font-semibold text-hoop hover:underline">
+            Customize
+          </Link>
+        </p>
+      </div>
       <label htmlFor="nick" className="text-sm text-cream/80">
         Pick a nickname
       </label>
@@ -179,10 +215,11 @@ function Hub({
 }: {
   guest: GuestSession;
   busy: boolean;
-  onCreate: (m: ModeId, d: DifficultyId) => void;
+  onCreate: (m: MatchMode, d: DifficultyId, raceSeconds: number) => void;
   onJoin: (code: string) => void;
 }) {
-  const [mode, setMode] = useState<ModeId>("timed");
+  const [mode, setMode] = useState<MatchMode>("shootout");
+  const [raceSeconds, setRaceSeconds] = useState(60);
   const [difficulty, setDifficulty] = useState<DifficultyId>("starter");
   const [joinCode, setJoinCode] = useState("");
 
@@ -190,19 +227,46 @@ function Hub({
     <div className="grid gap-5 md:grid-cols-2">
       <section className="rounded-3xl border border-cream/10 bg-white/[0.03] p-6">
         <h2 className="display text-3xl">Create a room</h2>
-        <p className="mt-1 text-sm text-cream/60">Playing as {guest.user.nickname}. Invite up to 3 friends.</p>
-        <div className="mt-5 grid grid-cols-3 gap-1 rounded-xl bg-white/5 p-1">
-          {MODE_ORDER.map((m) => (
+        <div className="mt-2 flex items-center gap-3">
+          <AvatarCanvas avatar={guest.user.avatar} crop="bust" className="size-10 rounded-xl bg-white/5" />
+          <p className="text-sm text-cream/60">
+            Playing as <b className="text-cream">{guest.user.nickname}</b>.{" "}
+            <Link href="/profile" className="text-hoop hover:underline">
+              Edit player
+            </Link>
+            <br />
+            Invite up to 3 friends.
+          </p>
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          {MATCH_MODES.map((m) => (
             <button
-              key={m}
+              key={m.id}
               type="button"
-              onClick={() => setMode(m)}
-              className={`rounded-lg py-2 text-xs font-semibold ${mode === m ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
+              aria-pressed={mode === m.id}
+              onClick={() => setMode(m.id)}
+              className={`rounded-xl border p-3 text-left transition ${mode === m.id ? "border-hoop bg-hoop/15" : "border-cream/10 hover:border-cream/30"}`}
             >
-              {MODES[m].name}
+              <div className="display text-lg">{m.name}</div>
+              <div className="mt-0.5 text-[11px] leading-snug text-cream/60">{m.blurb}</div>
             </button>
           ))}
         </div>
+        {mode === "race" && (
+          <div className="mt-2 grid grid-cols-4 gap-1 rounded-xl bg-white/5 p-1" aria-label="Race length">
+            {RACE_LENGTHS.map((s) => (
+              <button
+                key={s}
+                type="button"
+                aria-pressed={raceSeconds === s}
+                onClick={() => setRaceSeconds(s)}
+                className={`rounded-lg py-1.5 font-mono text-xs font-semibold ${raceSeconds === s ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
+              >
+                {formatDuration(s)}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="mt-2 grid grid-cols-4 gap-1 rounded-xl bg-white/5 p-1">
           {DIFFICULTY_ORDER.map((d) => (
             <button
@@ -215,7 +279,7 @@ function Hub({
             </button>
           ))}
         </div>
-        <button type="button" disabled={busy} onClick={() => onCreate(mode, difficulty)} className="mt-5 w-full rounded-full bg-hoop py-3 font-semibold transition hover:bg-hoop-soft disabled:opacity-40">
+        <button type="button" disabled={busy} onClick={() => onCreate(mode, difficulty, raceSeconds)} className="mt-5 w-full rounded-full bg-hoop py-3 font-semibold transition hover:bg-hoop-soft disabled:opacity-40">
           Create room
         </button>
       </section>
@@ -228,16 +292,18 @@ function Hub({
         }}
       >
         <h2 className="display text-3xl">Join with a code</h2>
-        <p className="mt-1 text-sm text-cream/60">Ask the host for their 5-letter room code.</p>
+        <p className="mt-1 text-sm text-cream/60">Type the host&apos;s 5-letter code, or paste their invite link.</p>
         <input
           aria-label="Room code"
           value={joinCode}
-          maxLength={5}
-          onChange={(e) => setJoinCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+          autoComplete="off"
+          spellCheck={false}
+          // No maxLength: it would cut a pasted invite link to "http:" before we can read the code.
+          onChange={(e) => setJoinCode(extractRoomCode(e.target.value))}
           placeholder="ABCDE"
           className="mt-5 w-full rounded-xl border border-cream/15 bg-ink px-4 py-3 text-center font-mono text-3xl tracking-[0.4em] uppercase outline-none focus:border-hoop"
         />
-        <button type="submit" disabled={busy || joinCode.length !== 5} className="mt-5 w-full rounded-full border border-cream/20 py-3 font-semibold transition hover:border-cream/50 disabled:opacity-40">
+        <button type="submit" disabled={busy || joinCode.length !== ROOM_CODE_LENGTH} className="mt-5 w-full rounded-full border border-cream/20 py-3 font-semibold transition hover:border-cream/50 disabled:opacity-40">
           Join room
         </button>
       </form>
@@ -248,17 +314,17 @@ function Hub({
 /* ───────── Room ───────── */
 
 function RoomView({ code, guest, onExit }: { code: string; guest: GuestSession; onExit: () => void }) {
-  const { room, you, status, closedReason, rtt, toasts, error, send, leave } = useRoom(code, guest.token);
-  const [copied, setCopied] = useState(false);
+  const { room, you, status, closedReason, rtt, toasts, error, send, leave, match, serverNow, toast, names } = useRoom(code, guest.token);
+  const [copied, setCopied] = useState<"code" | "link" | null>(null);
   const me = room?.players.find((p) => p.id === you);
   const isHost = room?.host_id === you;
   const seats = room ? Array.from({ length: room.max_players }, (_, i) => room.players[i] ?? null) : [];
 
-  const copyLink = async () => {
-    const url = `${window.location.origin}/multiplayer?room=${code}`;
-    await navigator.clipboard.writeText(url).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  const copy = async (what: "code" | "link") => {
+    const text = what === "code" ? code : `${window.location.origin}/multiplayer?room=${code}`;
+    await navigator.clipboard.writeText(text).catch(() => {});
+    setCopied(what);
+    setTimeout(() => setCopied(null), 1500);
   };
 
   if (status === "closed" && closedReason) {
@@ -279,14 +345,26 @@ function RoomView({ code, guest, onExit }: { code: string; guest: GuestSession; 
         <div>
           <p className="text-xs tracking-[0.16em] text-cream/50 uppercase">Room code</p>
           <div className="mt-1 flex items-center gap-3">
-            <span className="font-mono text-5xl font-bold tracking-[0.25em]">{code}</span>
-            <button type="button" onClick={copyLink} className="rounded-full border border-cream/20 px-3 py-1.5 text-xs hover:border-cream/50">
-              {copied ? "Link copied!" : "Copy invite link"}
+            <button
+              type="button"
+              onClick={() => copy("code")}
+              title="Copy code"
+              className="rounded-lg font-mono text-5xl font-bold tracking-[0.25em] transition hover:text-hoop-soft"
+            >
+              {code}
             </button>
+            <div className="flex flex-col gap-1.5">
+              <button type="button" onClick={() => copy("code")} className="rounded-full border border-cream/20 px-3 py-1 text-xs hover:border-cream/50">
+                {copied === "code" ? "Code copied!" : "Copy code"}
+              </button>
+              <button type="button" onClick={() => copy("link")} className="rounded-full border border-cream/20 px-3 py-1 text-xs hover:border-cream/50">
+                {copied === "link" ? "Link copied!" : "Copy invite link"}
+              </button>
+            </div>
           </div>
           {room && (
             <p className="mt-2 text-sm text-cream/60">
-              {MODES[room.mode as ModeId]?.name ?? room.mode} · {DIFFICULTIES[room.difficulty as DifficultyId]?.name ?? room.difficulty}
+              {modeLabel(room.mode, room.race_seconds)} · {DIFFICULTIES[room.difficulty as DifficultyId]?.name ?? room.difficulty}
             </p>
           )}
         </div>
@@ -348,6 +426,22 @@ function RoomView({ code, guest, onExit }: { code: string; guest: GuestSession; 
       )}
 
       {error && <p className="mt-4 text-sm text-warn">{error}</p>}
+      {room && you && match && (room.phase === "in_progress" || room.phase === "finished") && (
+        <MatchView
+          room={room}
+          you={you}
+          match={match}
+          names={names}
+          isHost={!!isHost}
+          serverNow={serverNow}
+          send={send}
+          toast={toast}
+          onLeave={() => {
+            leave();
+            onExit();
+          }}
+        />
+      )}
       <Toasts toasts={toasts} />
     </div>
   );
@@ -357,8 +451,8 @@ function PlayerCard({ player, isYou }: { player: RoomPlayer; isYou: boolean }) {
   return (
     <div className={`relative rounded-2xl border p-4 transition ${player.connected ? "border-cream/15 bg-white/[0.04]" : "border-dashed border-cream/15 opacity-60"}`}>
       <div className="flex items-center gap-3">
-        <span className="relative grid size-11 place-items-center rounded-full bg-hoop font-display text-xl">
-          {player.nickname[0]?.toUpperCase()}
+        <span className="relative size-12 shrink-0">
+          <AvatarCanvas avatar={player.avatar} crop="bust" label={`${player.nickname}'s avatar`} className="size-12 rounded-xl bg-white/5" />
           <span
             className={`absolute -right-0.5 -bottom-0.5 size-3.5 rounded-full border-2 border-ink ${player.connected ? "bg-good" : "bg-warn"}`}
             title={player.connected ? "Online" : "Reconnecting"}
@@ -409,7 +503,7 @@ function ConnectionPill({ status, rtt }: { status: SocketStatus; rtt: number | n
 
 function Toasts({ toasts }: { toasts: Toast[] }) {
   return (
-    <div className="pointer-events-none fixed right-4 bottom-4 z-50 flex flex-col gap-2" aria-live="polite">
+    <div className="pointer-events-none fixed right-4 bottom-4 z-[60] flex flex-col gap-2" aria-live="polite">
       {toasts.map((t) => (
         <div
           key={t.id}

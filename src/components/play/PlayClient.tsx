@@ -2,12 +2,13 @@
 
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SkeletonOverlay, type SkeletonOverlayHandle } from "@/components/lab/SkeletonOverlay";
+import type { SkeletonOverlayHandle } from "@/components/lab/SkeletonOverlay";
 import { Logo } from "@/components/ui/Logo";
 import { useLighting } from "@/hooks/useLighting";
 import { useThrowInput } from "@/hooks/useThrowInput";
 import { beep } from "@/lib/browser";
 import { calibrate, calibratedLaunch, CALIBRATION_THROWS, isOutlier, loadCalibration, saveCalibration, type Calibration } from "@/lib/game/calibration";
+import { loadProfile } from "@/lib/game/avatar";
 import { courtFor, DIFFICULTIES, rollWind, type DifficultyId } from "@/lib/game/difficulty";
 import { Game } from "@/lib/game/game";
 import {
@@ -25,8 +26,8 @@ import { addShot, EMPTY_TALLY, streakMultiplier, type Tally } from "@/lib/game/s
 import { setMuted, unlockAudio } from "@/lib/game/sfx";
 import { DEFAULT_TUNING, keyboardThrow, makeWindow, throwToLaunch } from "@/lib/game/shot";
 import type { KinematicsFrame, Side } from "@/lib/pose/kinematics";
-import type { DetectorState, ThrowEvent } from "@/lib/pose/throwDetector";
-import { MotionOverlay } from "./MotionOverlay";
+import type { ThrowEvent } from "@/lib/pose/throwDetector";
+import { CameraPip, useCourtInset } from "./CameraPip";
 import { CalibrationPanel, GameOver, PauseMenu, SetupCheck, StartMenu } from "./Screens";
 import { ShotGauge, type LastShot } from "./ShotGauge";
 
@@ -63,14 +64,6 @@ interface PendingShot {
   wind: number;
   phase: number;
 }
-
-const COACH: Record<DetectorState, { text: string; tone: string }> = {
-  IDLE: { text: "Raise the ball above your head", tone: "bg-white/15 text-cream" },
-  PICKUP: { text: "Scoop it up…", tone: "bg-white/15 text-cream" },
-  WINDUP: { text: "Loaded. Shoot!", tone: "bg-[#ffe14d] text-ink" },
-  THROW: { text: "Shooting…", tone: "bg-hoop text-cream" },
-  COOLDOWN: { text: "Nice. Reset.", tone: "bg-good text-ink" },
-};
 
 export function PlayClient() {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -158,6 +151,7 @@ export function PlayClient() {
       onResult: (sim) => handlers.current.onResult(sim),
       onReady: () => handlers.current.onReady(),
     });
+    game.setAvatar(loadProfile().avatar);
     gameRef.current = game;
     const ro = new ResizeObserver(() => game.resize(wrap.clientWidth, wrap.clientHeight));
     ro.observe(wrap);
@@ -278,24 +272,7 @@ export function PlayClient() {
     return () => window.clearInterval(id);
   }, [tracking]);
 
-  // Keep the court beside the camera preview (it's left-aligned and tall on wide screens).
-  useEffect(() => {
-    const box = pipBoxRef.current;
-    const update = () => {
-      const game = gameRef.current;
-      if (!game || !box) return;
-      const wide = window.matchMedia("(min-width: 640px)").matches; // below sm the preview sits up top
-      game.setLeftInset(prefs.camera && wide ? box.getBoundingClientRect().right + 16 : 0);
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    if (box) ro.observe(box);
-    window.addEventListener("resize", update);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", update);
-    };
-  }, [prefs.camera]);
+  useCourtInset(gameRef, pipBoxRef, prefs.camera);
 
   // ── Flow ──
   const startRun = useCallback(() => {
@@ -450,9 +427,6 @@ export function PlayClient() {
 
   // ── Render ──
   const accuracy = tally.shots ? Math.round((tally.makes / tally.shots) * 100) : 0;
-  const camProblem = prefs.camera && cam.status === "error";
-  const trackerProblem = prefs.camera && tracker.status === "error";
-  const coach = COACH[detectorState];
   const mult = streakMultiplier(tally.streak);
   const best = bests[bestKey(prefs.mode, prefs.difficulty, prefs.timedSeconds)];
   const clockSecs = timeLeft === null ? 0 : Math.ceil(timeLeft);
@@ -520,38 +494,20 @@ export function PlayClient() {
       </header>
 
       {/* ── Camera picture-in-picture ── */}
-      <div ref={pipBoxRef} className="absolute top-24 left-3 z-10 w-48 sm:top-auto sm:bottom-6 sm:left-6 sm:w-72 lg:w-80 xl:w-96">
-        {prefs.camera ? (
-          <div className="relative aspect-video overflow-hidden rounded-2xl border border-cream/15 bg-black/60 shadow-2xl">
-            <video ref={videoRef} playsInline muted autoPlay className="absolute inset-0 h-full w-full object-cover opacity-75" style={{ transform: "scaleX(-1)" }} />
-            {cam.status === "live" && <SkeletonOverlay ref={pipRef} width={cam.width} height={cam.height} mirrored style={{ showLegs: false, minVisibility: 0.5 }} />}
-            {tracking && <MotionOverlay motion={motion} thresholds={thresholds} />}
-            {!tracking && !camProblem && !trackerProblem && (
-              <div className="absolute inset-0 grid place-items-center bg-black/40 p-2 text-center text-[11px] text-cream/80">
-                <div>
-                  <div className="mx-auto mb-1.5 size-4 animate-spin rounded-full border-2 border-white/20 border-t-hoop" />
-                  {cam.status === "live" ? "Downloading pose model…" : "Starting camera…"}
-                  {cam.status === "live" && <div className="mt-0.5 text-cream/50">Space works meanwhile</div>}
-                </div>
-              </div>
-            )}
-            {trackerProblem && (
-              <Problem text="Pose model failed to load." onRetry={retryTracker} />
-            )}
-            {camProblem && <Problem text="Camera unavailable." onRetry={retry} />}
-          </div>
-        ) : (
-          <div className="glass rounded-2xl p-3 text-[11px] text-cream/80">Keyboard mode · hold Space to shoot</div>
-        )}
-        {prefs.camera && tracking && (
-          <div className={`mt-2 rounded-full px-3 py-1 text-center text-xs font-semibold transition-colors ${coach.tone}`}>{coach.text}</div>
-        )}
-        {slow && (
-          <div className="mt-2 rounded-full bg-warn/20 px-3 py-1 text-center text-[11px] text-warn">
-            Slow tracking ({Math.round(stats.fps)} fps): close other tabs
-          </div>
-        )}
-      </div>
+      <CameraPip
+        boxRef={pipBoxRef}
+        videoRef={videoRef}
+        pipRef={pipRef}
+        camera={prefs.camera}
+        cam={cam}
+        tracker={tracker}
+        detectorState={detectorState}
+        motion={motion}
+        thresholds={thresholds}
+        slowFps={slow ? stats.fps : null}
+        onRetryCamera={retry}
+        onRetryTracker={retryTracker}
+      />
 
       <p className="pointer-events-none absolute inset-x-0 top-[46%] z-0 text-center text-[11px] text-cream/40 sm:hidden [@media(orientation:landscape)]:hidden">
         Rotate your phone for the best view ↻
@@ -656,19 +612,6 @@ export function PlayClient() {
           onMenu={() => setScreen("menu")}
         />
       )}
-    </div>
-  );
-}
-
-function Problem({ text, onRetry }: { text: string; onRetry: () => void }) {
-  return (
-    <div className="absolute inset-0 grid place-items-center bg-black/50 p-2 text-center text-[11px] text-cream/85">
-      <div>
-        {text}
-        <button type="button" onClick={onRetry} className="mt-1 block w-full underline">
-          Retry
-        </button>
-      </div>
     </div>
   );
 }

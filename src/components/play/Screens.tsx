@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
+import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
 import type { LightingStatus } from "@/hooks/useLighting";
 import { CALIBRATION_THROWS, consistency, type Calibration } from "@/lib/game/calibration";
 import { DIFFICULTIES, DIFFICULTY_ORDER, type DifficultyId } from "@/lib/game/difficulty";
@@ -16,6 +17,7 @@ import {
   type Best,
   type ModeId,
 } from "@/lib/game/modes";
+import { loadProfile } from "@/lib/game/avatar";
 import type { Tally } from "@/lib/game/scoring";
 import type { FramingIssue } from "@/lib/pose/landmarks";
 
@@ -76,10 +78,26 @@ export function StartMenu(p: {
   onStart: () => void;
 }) {
   const d = DIFFICULTIES[p.difficulty];
+  // Only rendered on the client (after hydration), so localStorage is safe here.
+  const [profile] = useState(loadProfile);
   return (
     <Modal wide label="Start menu">
-      <Eyebrow>{p.firstTime ? "How to play" : "Ready when you are"}</Eyebrow>
-      <h1 className="display mt-2 text-5xl">Shoot your shot</h1>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <Eyebrow>{p.firstTime ? "How to play" : "Ready when you are"}</Eyebrow>
+          <h1 className="display mt-2 text-5xl">Shoot your shot</h1>
+        </div>
+        <Link
+          href="/profile"
+          className="group flex shrink-0 items-center gap-2 rounded-2xl border border-cream/10 py-1.5 pr-3 pl-1.5 transition hover:border-cream/30"
+        >
+          <AvatarCanvas avatar={profile.avatar} crop="bust" className="size-11 rounded-xl bg-white/5" />
+          <span className="text-left leading-tight">
+            <span className="block max-w-[9rem] truncate text-sm font-semibold">{profile.name || "Your player"}</span>
+            <span className="text-[11px] text-cream/55 group-hover:text-hoop">Edit look →</span>
+          </span>
+        </Link>
+      </div>
 
       {p.firstTime && (
         <ol className="mt-5 grid gap-3 text-sm text-cream/85 sm:grid-cols-2">

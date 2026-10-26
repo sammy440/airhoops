@@ -8,6 +8,7 @@ const LEFT = [
 ];
 const RIGHT = [
   { href: "/multiplayer", label: "Multiplayer" },
+  { href: "/profile", label: "Your player" },
   { href: "/#privacy", label: "Privacy" },
 ];
 
