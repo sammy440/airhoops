@@ -2,6 +2,17 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Week 6 — Multiplayer foundations
+- New backend repo `airhoops-backend` (FastAPI, SQLModel, Alembic, Postgres). See its README.
+- `lib/net/api.ts`: REST client + guest session on-device; `lib/net/socket.ts`: room socket with 10 s
+  heartbeat + RTT, exponential-backoff reconnects, fatal-close handling; `hooks/useRoom.ts`.
+- `/multiplayer`: nickname → create room (mode, difficulty) or join by code / invite link → live lobby
+  with presence dots, ready-up, host start/end/rematch, presence toasts (sub-1.5 s blips stay silent).
+- Env: `NEXT_PUBLIC_API_URL` (+ optional `NEXT_PUBLIC_WS_URL`), see `.env.local.example`.
+
+## Week 5.2 — Custom shot clock
+- Timed mode gets a **Custom** option: 1–30 whole minutes via −/+ or typing; stored values are sanitised.
+
 ## Week 5.1 — Timed mode durations
 - "60 Seconds" is now **Timed** with a shot-clock picker: 30 s, 1 min, 90 s, 2 min (remembered).
 - Personal bests are kept per duration; old 60-second bests migrate to the 1-minute slot.

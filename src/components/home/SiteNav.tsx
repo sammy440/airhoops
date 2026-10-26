@@ -7,7 +7,7 @@ const LEFT = [
   { href: "/#how", label: "How it works" },
 ];
 const RIGHT = [
-  { href: "/#modes", label: "Modes" },
+  { href: "/multiplayer", label: "Multiplayer" },
   { href: "/#privacy", label: "Privacy" },
 ];
 
