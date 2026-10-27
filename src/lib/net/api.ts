@@ -81,7 +81,8 @@ async function request<T>(path: string, init: RequestInit & { token?: string } =
     res = await fetch(`${API_URL}${path}`, {
       ...rest,
       headers: {
-        "content-type": "application/json",
+        // Only with a body: a plain GET then needs no CORS preflight (one round trip instead of two).
+        ...(rest.body ? { "content-type": "application/json" } : {}),
         ...(token ? { authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
