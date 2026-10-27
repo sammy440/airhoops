@@ -29,6 +29,7 @@ Camera access requires `localhost` or HTTPS.
 |---|---|---|
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | AirHoops API (airhoops-backend) |
 | `NEXT_PUBLIC_WS_URL` | API URL with `ws(s)://` | only if WebSockets live elsewhere |
+| `NEXT_PUBLIC_SITE_URL` | `https://airhoops.vercel.app` | absolute URL for share previews (set it if you add a custom domain) |
 | `NEXT_PUBLIC_RELEASE` | | optional tag attached to crash reports (e.g. the git SHA) |
 
 ## Deploy (Vercel)

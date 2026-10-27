@@ -19,9 +19,29 @@ const display = Anton({
   weight: "400",
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://airhoops.vercel.app";
+const DESCRIPTION = "Shoot hoops with nothing but air. A camera-controlled basketball game that runs entirely in your browser.";
+
+// Share images and icons come from the file conventions in this folder:
+// opengraph-image.jpg, twitter-image.jpg, icon.svg, apple-icon.png, favicon.ico.
 export const metadata: Metadata = {
-  title: { default: "AirHoops", template: "%s · AirHoops" },
-  description: "Shoot hoops with nothing but air. A camera-controlled basketball game that runs entirely in your browser.",
+  metadataBase: new URL(SITE_URL),
+  title: { default: "AirHoops: shoot hoops with nothing but air", template: "%s · AirHoops" },
+  description: DESCRIPTION,
+  applicationName: "AirHoops",
+  openGraph: {
+    type: "website",
+    siteName: "AirHoops",
+    url: "/",
+    title: "AirHoops: shoot hoops with nothing but air",
+    description: "Mime the throw. Watch the ball fly. A basketball game controlled by nothing but your body.",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "AirHoops: shoot hoops with nothing but air",
+    description: "Mime the throw. Watch the ball fly. A basketball game controlled by nothing but your body.",
+  },
 };
 
 export const viewport: Viewport = {

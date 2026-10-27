@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="b" cx="0.36" cy="0.32" r="0.75">
+      <stop offset="0" stop-color="#ff9a4d"/>
+      <stop offset="0.55" stop-color="#f0641e"/>
+      <stop offset="1" stop-color="#b8330f"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#b)"/>
+  <g fill="none" stroke="#1a120c" stroke-width="3.2" stroke-linecap="round">
+    <path d="M32 2v60"/>
+    <path d="M2 32h60"/>
+    <path d="M11 10.5c7.5 6 11 13.5 11 21.5s-3.5 15.5-11 21.5"/>
+    <path d="M53 10.5c-7.5 6-11 13.5-11 21.5s3.5 15.5 11 21.5"/>
+  </g>
+  <circle cx="32" cy="32" r="30" fill="none" stroke="#1a120c" stroke-width="2.4"/>
+</svg>
