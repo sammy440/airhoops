@@ -126,7 +126,7 @@ export function RecorderPanel(p: Props) {
       {!p.canRecord && !busy && <p className="mt-2 text-center text-[11px] text-muted">Start tracking to record.</p>}
       {p.error && <p className="mt-2 text-[11px] text-warn">{p.error}</p>}
 
-      {/* Progress toward the README's dataset goal */}
+      {/* Progress toward the dataset goal */}
       <div className="mt-4 space-y-2">
         <Progress label="Throws" value={throws} target={TARGET_THROWS} />
         <Progress label="Non-throws" value={nonThrows} target={TARGET_NON_THROWS} />

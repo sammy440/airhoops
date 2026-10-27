@@ -1,7 +1,7 @@
 import { WS_URL, type RoomState } from "./api";
 
 /**
- * WebSocket client for a room (README §7.2 protocol).
+ * WebSocket client for a room.
  *
  * - Heartbeat: pings every 10 s (server drops sockets silent for 25 s) and
  *   measures round-trip time from the pong.
@@ -27,7 +27,7 @@ export interface PlayerScore {
   forfeited: boolean;
 }
 
-/** Authoritative shot from the server (README §7.2 "shot_result"). */
+/** Authoritative shot from the server ("shot_result"). */
 export interface ServerShot {
   type: "shot_result";
   playerId: string;
@@ -97,7 +97,7 @@ export type ClientMessage =
   | { type: "end" }
   | { type: "rematch" }
   | { type: "leave" }
-  /** Only these numbers ever leave the device for a shot (README: never video). */
+  /** Only these numbers ever leave the device for a shot (never video). */
   | { type: "throw"; power: number; angle: number; arc: number; t: number };
 
 export interface RoomSocketHandlers {

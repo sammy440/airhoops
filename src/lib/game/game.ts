@@ -10,7 +10,7 @@ import { sfx } from "./sfx";
  *
  * World units are meters (y up). Physics never runs per-frame here: each
  * throw is simulated once (simulateShot) and played back by wall-clock time,
- * which is exactly what multiplayer will do with server-authoritative paths.
+ * the same way multiplayer plays server-authoritative paths.
  */
 
 export type GamePhase = "ready" | "flying" | "result";
@@ -534,14 +534,12 @@ export class Game {
       ctx.arc(x, y, p.r * Math.max(1, s / 120), 0, Math.PI * 2);
       ctx.fill();
     }
-    // Stands edge
     const stands = ctx.createLinearGradient(0, floorY * 0.7, 0, floorY);
     stands.addColorStop(0, "rgba(9,9,8,0)");
     stands.addColorStop(1, "rgba(9,9,8,0.85)");
     ctx.fillStyle = stands;
     ctx.fillRect(0, floorY * 0.7, w, floorY * 0.3);
 
-    // Light beams.
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     for (const [x0, spread, a] of [[0.25, 0.18, 0.05], [0.72, 0.22, 0.06]] as const) {
@@ -592,7 +590,6 @@ export class Game {
     ctx.moveTo(lx - s * 0.05, floorY + 2);
     ctx.lineTo(lx + s * 0.25, h);
     ctx.stroke();
-    // Floor edge highlight
     ctx.fillStyle = "rgba(255,200,140,0.15)";
     ctx.fillRect(0, floorY, w, 1.5);
   }
@@ -617,7 +614,6 @@ export class Game {
     const bx = this.boardX;
     const lo = c.rimHeight + c.boardBottom;
     const hi = c.rimHeight + c.boardTop;
-    // Pole + arm
     const poleX = bx + 1.0;
     ctx.fillStyle = "#1d1d1c";
     ctx.fillRect(this.X(poleX) - s * 0.07, this.Y(hi - 0.25), s * 0.14, this.Y(0) - this.Y(hi - 0.25));
@@ -627,7 +623,6 @@ export class Game {
     ctx.moveTo(this.X(poleX), this.Y(hi - 0.3));
     ctx.lineTo(this.X(bx + 0.2), this.Y((lo + hi) / 2));
     ctx.stroke();
-    // Pad at the base
     ctx.fillStyle = C.hoop;
     ctx.fillRect(this.X(poleX) - s * 0.12, this.Y(1.1), s * 0.24, this.Y(0) - this.Y(1.1));
 
@@ -666,7 +661,6 @@ export class Game {
     ctx.strokeStyle = "rgba(247,241,214,0.75)";
     ctx.lineWidth = Math.max(1.5, s * 0.02);
     ctx.stroke();
-    // Shooter's square
     const sq = (u: number, v: number) => [this.X(bx + depth.x * u), this.Y(lo + (hi - lo) * v + depth.y * u)] as const;
     ctx.strokeStyle = C.hoop;
     ctx.lineWidth = Math.max(1.5, s * 0.018);
@@ -676,7 +670,6 @@ export class Game {
     ctx.lineTo(...sq(0.7, 0.55));
     ctx.lineTo(...sq(0.7, 0.12));
     ctx.stroke();
-    // Bracket from board to rim
     ctx.strokeStyle = "#444";
     ctx.lineWidth = s * 0.03;
     ctx.beginPath();

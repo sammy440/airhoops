@@ -3,8 +3,8 @@
  *
  * Deliberately engine-free: a fixed-timestep integrator with circle-vs-point
  * rim collisions, a backboard and a floor. Identical inputs always produce
- * identical shots, so Week 7's server (Python) can port this line-for-line
- * and re-simulate throws for anti-cheat with exact parity.
+ * identical shots, so the server's Python port (app/game/physics.py) can
+ * re-simulate throws for anti-cheat with exact parity.
  */
 
 /** Hoop sliding side to side: offset(t) = amplitude · sin(2π · frequency · t). */
@@ -127,7 +127,6 @@ function collidePoint(b: Ball, px: number, py: number, r: number): number {
   if (dist >= minDist || dist === 0) return 0;
   const nx = dx / dist;
   const ny = dy / dist;
-  // Push out of the rim.
   b.x = px + nx * minDist;
   b.y = py + ny * minDist;
   const vn = b.vx * nx + b.vy * ny;
@@ -202,7 +201,6 @@ export function simulateShot(launch: Launch, court: Court = DEFAULT_COURT, cond:
       }
     }
 
-    // Floor.
     if (b.y - r < 0) {
       const impact = -b.vy;
       b.y = r;

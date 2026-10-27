@@ -104,7 +104,6 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, pts: Record<number, Ve
   ctx.shadowColor = "rgba(246,161,58,0.45)";
   setGlow(true);
 
-  // Legs + sneakers
   const thigh = female ? 0.14 : 0.15;
   limb(hipL, kneeL, thigh, skin);
   limb(kneeL, ankleL, 0.11, skin);
@@ -178,7 +177,6 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, pts: Record<number, Ve
   ctx.closePath();
   ctx.fill();
   setGlow(false);
-  // Trim + number
   const ink = contrastOn(look.jersey);
   ctx.strokeStyle = ink;
   ctx.lineWidth = Math.max(1.5, 0.018 * s);
@@ -217,7 +215,6 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, pts: Record<number, Ve
     ctx.beginPath();
     ctx.arc(...P(hand), (female ? 0.05 : 0.055) * s, 0, Math.PI * 2);
     ctx.fill();
-    // Wristband in the kit colour
     ctx.strokeStyle = look.jersey;
     ctx.lineWidth = 0.09 * s;
     ctx.lineCap = "butt";
@@ -258,7 +255,6 @@ function drawHead(ctx: CanvasRenderingContext2D, hx: number, hy: number, s: numb
     }
   }
 
-  // Ears + face
   ctx.fillStyle = look.skin;
   for (const dir of [-1, 1]) {
     ctx.beginPath();
@@ -293,7 +289,6 @@ function drawHead(ctx: CanvasRenderingContext2D, hx: number, hy: number, s: numb
     ctx.ellipse(hx + 0.025 * s, hy - 0.07 * s, 0.035 * s, 0.018 * s, -0.3, 0, Math.PI * 2);
     ctx.fill();
   }
-  // Headband
   ctx.fillStyle = look.jersey;
   ctx.fillRect(hx - rx * 1.05, hy - 0.04 * s, rx * 2.1, 0.03 * s);
   if (glow) ctx.shadowBlur = 16;

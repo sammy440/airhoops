@@ -2,7 +2,7 @@ import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import type { Side } from "@/lib/pose/kinematics";
 import type { PoseModel } from "@/lib/pose/poseLandmarker";
 
-/** Labels from the README's data plan: throws vs. look-alike non-throws. */
+/** Throws vs. look-alike non-throws. */
 export const RECORD_LABELS = ["throw", "wave", "scratch_head", "idle", "catch"] as const;
 export type RecordLabel = (typeof RECORD_LABELS)[number];
 
@@ -14,7 +14,7 @@ export const LABEL_INFO: Record<RecordLabel, { name: string; hint: string; isThr
   catch: { name: "Catch", hint: "Reach out and catch an imaginary pass", isThrow: false },
 };
 
-/** README target: ~20 throws and ~20 non-throws. */
+/** Target per session: ~20 throws and ~20 non-throws. */
 export const TARGET_THROWS = 20;
 export const TARGET_NON_THROWS = 20;
 
@@ -36,7 +36,7 @@ export interface RecordedFrame {
   landmarks: RecordedLandmark[];
 }
 
-/** Schema v1 (README §7.1) plus metadata the Python lab needs. */
+/** Schema v1 plus metadata the Python lab needs. */
 export interface Recording {
   version: 1;
   id: string;

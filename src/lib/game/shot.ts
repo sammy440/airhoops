@@ -2,8 +2,7 @@ import type { ThrowEvent } from "@/lib/pose/throwDetector";
 import { DEFAULT_COURT, idealSpeed, simulateShot, type Court, type Launch, type ShotConditions } from "./physics";
 
 /**
- * Maps a detected throw to a ball launch (README Week 4:
- * "v = base + power * scale, direction from angle").
+ * Maps a detected throw to a ball launch: speed from power, direction from angle.
  *
  * The body's measured angle is noisy and mostly reflects a 2D projection
  * of a push toward the camera, so it nudges a comfortable base angle

@@ -5,7 +5,7 @@ import { idealSpeed, type Court, type Launch } from "./physics";
 import { DEFAULT_TUNING, throwToLaunch } from "./shot";
 
 /**
- * Per-player calibration (README Week 5): learn the player's natural throw
+ * Per-player calibration: learn the player's natural throw
  * from 3 practice shots, then map *their* average throw to the ideal speed
  * for whatever hoop they face. Throwing harder/softer than your own average
  * sends the ball long/short; difficulty sets how much that matters.

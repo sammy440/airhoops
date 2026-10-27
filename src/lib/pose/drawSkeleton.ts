@@ -66,7 +66,6 @@ export function drawSkeleton(
     ctx.stroke();
   }
 
-  // Joints
   ctx.shadowBlur = 0;
   const joints = new Set<number>(Object.values(BONES).flat(2));
   if (!style.showLegs) {

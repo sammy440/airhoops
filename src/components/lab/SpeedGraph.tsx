@@ -83,7 +83,6 @@ function draw(canvas: HTMLCanvasElement | null, pts: Point[], now: number, marks
   const x = (t: number) => w - ((now - t) / WINDOW_MS) * w;
   const y = (v: number) => h - (v / max) * (h - 8 * dpr) - 2 * dpr;
 
-  // Recording shading
   ctx.fillStyle = "rgba(234, 58, 29, 0.14)";
   for (let i = 1; i < pts.length; i++) {
     if (pts[i].rec) ctx.fillRect(x(pts[i - 1].t), 0, x(pts[i].t) - x(pts[i - 1].t) + 1, h);
@@ -114,7 +113,6 @@ function draw(canvas: HTMLCanvasElement | null, pts: Point[], now: number, marks
   line("other", "rgba(255,255,255,0.22)", 1.5);
   line("hand", "#ea3a1d", 2.5);
 
-  // Detected throws
   ctx.strokeStyle = "#ffe14d";
   ctx.fillStyle = "#ffe14d";
   ctx.lineWidth = 1.5 * dpr;

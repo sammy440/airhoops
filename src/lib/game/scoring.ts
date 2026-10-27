@@ -1,6 +1,5 @@
 import type { ShotResult } from "./physics";
 
-/** README Week 5: base points, swish bonus, streak multiplier. */
 export const BASE_POINTS = 2;
 export const SWISH_BONUS = 1;
 

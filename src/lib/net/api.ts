@@ -106,7 +106,6 @@ export const api = {
   createGuest: (nickname: string, avatar?: Avatar) =>
     request<{ user: User; token: string }>("/auth/guest", { method: "POST", body: JSON.stringify({ nickname, avatar }) }),
   me: (token: string) => request<User>("/auth/me", { token }),
-  /** Change name, look, or both. */
   updateProfile: (token: string, changes: { nickname?: string; avatar?: Avatar }) =>
     request<User>("/auth/me", { method: "PATCH", token, body: JSON.stringify(changes) }),
   /** Erase this guest and their scores/throws from the server. */

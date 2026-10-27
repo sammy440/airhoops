@@ -1,7 +1,7 @@
 import type { ArmKinematics, KinematicsFrame, Side } from "./kinematics";
 
 /**
- * Throw detector state machine (README §5.4, adapted to real recordings).
+ * Throw detector state machine.
  *
  *   IDLE ⇄ PICKUP ⇄ WINDUP   (informational: where the hand is)
  *     └──(arm extending fast, wrist ≥ ~shoulder)──► THROW
@@ -18,9 +18,9 @@ import type { ArmKinematics, KinematicsFrame, Side } from "./kinematics";
 
 export type DetectorState = "IDLE" | "PICKUP" | "WINDUP" | "THROW" | "COOLDOWN";
 
-/** README §3 Week 3 event, plus diagnostics for the lab. */
+/** A detected throw, plus diagnostics for the lab. */
 export interface ThrowEvent {
-  /** 0..1 (Week 5 replaces the default speed range with per-player calibration) */
+  /** 0..1 */
   power: number;
   /** Degrees above horizontal of the throw's average direction */
   angle: number;
@@ -89,7 +89,6 @@ export const DEFAULT_THROW_PARAMS: ThrowParams = {
   windupMaxSpeed: 1.5,
   pickupMemoryMs: 2500,
   // First recordings peaked at 2.2–3.2 torso/s, so 1.5–5 maps them to ~20–50%.
-  // Week 5 replaces this with per-player calibration.
   powerMinSpeed: 1.5,
   powerMaxSpeed: 5.0,
 };

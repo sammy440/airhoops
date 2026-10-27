@@ -18,7 +18,7 @@ describe("simulateShot", () => {
     expect(sim.events[0].type).toBe("rim");
   });
 
-  it("README 'done when': a weak throw falls short, a strong one goes long", () => {
+  it("a weak throw falls short, a strong one goes long", () => {
     const angle = 52;
     const v = idealSpeed(angle)!;
     const weak = simulateShot({ speed: v * 0.8, angle }).result;
@@ -40,7 +40,7 @@ describe("simulateShot", () => {
     expect(makes).toBeLessThan(41);
   });
 
-  it("is deterministic (server re-simulation in Week 7 depends on it)", () => {
+  it("is deterministic (server re-simulation depends on it)", () => {
     const a = simulateShot({ speed: 7.6, angle: 50 });
     const b = simulateShot({ speed: 7.6, angle: 50 });
     expect(a).toEqual(b);

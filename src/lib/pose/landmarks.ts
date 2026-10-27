@@ -69,7 +69,7 @@ export type FramingIssue = "no_person" | "too_close" | "too_far" | "off_center" 
 /**
  * Quick framing check so the UI can coach the player into position.
  * Uses torso length (shoulders → hips), which stays stable when the player
- * turns side-on; shoulder width does not. Thresholds get tuned in Week 5.
+ * turns side-on; shoulder width does not.
  */
 export function framingIssue(pose: NormalizedLandmark[] | undefined): FramingIssue | null {
   if (!pose) return "no_person";

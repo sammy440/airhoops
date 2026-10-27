@@ -74,7 +74,6 @@ export function usePoseTracking(
     };
   }, [enabled, model, attempt]);
 
-  // Inference loop.
   const ready = state.status === "ready";
   useEffect(() => {
     const video = videoRef.current;

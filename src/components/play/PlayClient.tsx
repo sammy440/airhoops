@@ -270,7 +270,7 @@ export function PlayClient() {
     if (!prefs.camera) gameRef.current?.setPose(undefined);
   }, [prefs.camera]);
 
-  // Slow-tracking warning (performance pass): sustained < 15 fps for 5 s.
+  // Slow-tracking warning: sustained < 15 fps for 5 s.
   const [slow, setSlow] = useState(false);
   const fpsRef = useRef(0);
   useEffect(() => {
