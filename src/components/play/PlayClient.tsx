@@ -28,6 +28,7 @@ import { DEFAULT_TUNING, keyboardThrow, makeWindow, throwToLaunch } from "@/lib/
 import type { KinematicsFrame, Side } from "@/lib/pose/kinematics";
 import type { ThrowEvent } from "@/lib/pose/throwDetector";
 import { CameraPip, useCourtInset } from "./CameraPip";
+import type { RunSubmission } from "@/lib/net/api";
 import { CalibrationPanel, GameOver, PauseMenu, SetupCheck, StartMenu } from "./Screens";
 import { ShotGauge, type LastShot } from "./ShotGauge";
 
@@ -113,6 +114,7 @@ export function PlayClient() {
   const [countdown, setCountdown] = useState(3);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [newBest, setNewBest] = useState(false);
+  const [run, setRun] = useState<(RunSubmission & { id: number }) | null>(null);
   const [calSamples, setCalSamples] = useState<number[]>([]);
   const [calOutlier, setCalOutlier] = useState(false);
   const [calHand, setCalHand] = useState<Side>("right");
@@ -134,6 +136,19 @@ export function PlayClient() {
   const endGame = useCallback(() => {
     const t = tallyRef.current;
     setNewBest(recordBest(prefs.mode, prefs.difficulty, { points: t.points, makes: t.makes, streak: t.best }, prefs.timedSeconds));
+    // Free play has no clock or end condition, so it has no leaderboard.
+    setRun(
+      prefs.mode === "free"
+        ? null
+        : {
+            id: Date.now(),
+            mode: prefs.mode === "timed" ? `timed${prefs.timedSeconds}` : "streak",
+            difficulty: prefs.difficulty,
+            score: prefs.mode === "streak" ? t.best : t.points,
+            shots: t.shots,
+            makes: t.makes,
+          },
+    );
     setBests(loadBests());
     setScreen("over");
   }, [prefs.mode, prefs.difficulty, prefs.timedSeconds]);
@@ -368,7 +383,8 @@ export function PlayClient() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [pause]);
 
-  // ── Keyboard: Space shoots (tap = medium, hold = charge), ↑/↓ arc, Esc/P pause ──
+  // ── Keyboard / mouse / touch: Space or press-and-hold on the court shoots (tap = medium, hold = charge),
+  //    ↑/↓ arc, Esc/P pause ──
   const kbAngleRef = useRef(kbAngle);
   useEffect(() => {
     kbAngleRef.current = kbAngle;
@@ -393,17 +409,20 @@ export function PlayClient() {
       if (!playing() || gameRef.current?.paused) return;
       if (e.code === "Space") {
         e.preventDefault();
-        if (e.repeat || downAt !== null || !gameRef.current?.canThrow()) return;
-        downAt = performance.now();
-        raf = requestAnimationFrame(tick);
+        if (!e.repeat) startCharge();
       } else if (e.code === "ArrowUp" || e.code === "ArrowDown") {
         e.preventDefault();
         setKbAngle((a) => Math.min(DEFAULT_TUNING.maxAngle, Math.max(DEFAULT_TUNING.minAngle, a + (e.code === "ArrowUp" ? 2 : -2))));
       }
     };
-    const onUp = (e: KeyboardEvent) => {
-      if (e.code !== "Space" || downAt === null) return;
-      e.preventDefault();
+    const startCharge = () => {
+      if (downAt !== null || !gameRef.current?.canThrow()) return false;
+      downAt = performance.now();
+      raf = requestAnimationFrame(tick);
+      return true;
+    };
+    const release = () => {
+      if (downAt === null) return;
       const held = performance.now() - downAt;
       downAt = null;
       cancelAnimationFrame(raf);
@@ -416,11 +435,38 @@ export function PlayClient() {
       const t = DEFAULT_TUNING;
       shoot({ speed: t.minSpeed + power * (t.maxSpeed - t.minSpeed), angle: kbAngleRef.current }, power, "keys");
     };
+    const onUp = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || downAt === null) return;
+      e.preventDefault();
+      release();
+    };
+    // Mouse / touch on the court itself (buttons and dialogs sit above it, so they never trigger a shot).
+    const canvas = canvasRef.current;
+    let pointer: number | null = null;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!e.isPrimary || e.button !== 0 || !playing() || gameRef.current?.paused) return;
+      if (startCharge()) {
+        pointer = e.pointerId;
+        canvas?.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      }
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerId !== pointer) return;
+      pointer = null;
+      release();
+    };
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
+    canvas?.addEventListener("pointerdown", onPointerDown);
+    canvas?.addEventListener("pointerup", onPointerUp);
+    canvas?.addEventListener("pointercancel", onPointerUp);
     return () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
+      canvas?.removeEventListener("pointerdown", onPointerDown);
+      canvas?.removeEventListener("pointerup", onPointerUp);
+      canvas?.removeEventListener("pointercancel", onPointerUp);
       cancelAnimationFrame(raf);
     };
   }, [shoot, pause]);
@@ -434,9 +480,9 @@ export function PlayClient() {
   const calResult = calSamples.length >= CALIBRATION_THROWS ? calibrate(calSamples, calHand) : null;
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-ink text-cream select-none">
+    <div id="main" className="fixed inset-0 overflow-hidden bg-ink text-cream select-none">
       <div ref={wrapRef} className="absolute inset-0">
-        <canvas ref={canvasRef} className="block h-full w-full" />
+        <canvas ref={canvasRef} className="block h-full w-full touch-none select-none" aria-label="Court. Press and hold to charge a shot, release to shoot." role="img" />
       </div>
 
       {/* ── Top HUD ── */}
@@ -518,7 +564,7 @@ export function PlayClient() {
         {last && screen === "playing" && <ShotGauge shot={last} />}
         {screen === "playing" && (
           <p className="hidden text-[11px] text-cream/45 sm:block">
-            Space: tap = medium · hold = charge · ↑↓ arc {kbAngle}° · Esc pause
+            Space or click: tap = medium · hold = charge · ↑↓ arc {kbAngle}° · Esc pause
           </p>
         )}
       </div>
@@ -608,6 +654,7 @@ export function PlayClient() {
           tally={tally}
           newBest={newBest}
           best={best}
+          run={run}
           onAgain={startRun}
           onMenu={() => setScreen("menu")}
         />

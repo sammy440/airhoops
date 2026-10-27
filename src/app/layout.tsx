@@ -35,6 +35,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${display.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col overflow-x-clip font-sans">
+        <a
+          href="#main"
+          className="sr-only z-[100] rounded-full bg-cream px-4 py-2 text-sm font-semibold text-ink focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+        >
+          Skip to content
+        </a>
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -138,7 +138,15 @@ body {
   transform: none;
 }
 
+/* Keyboard focus: always visible, never on mouse clicks */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-sun);
+  outline-offset: 2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-marquee, .animate-pulse-ring, .animate-bob, .animate-count-pop, .animate-throw-flash { animation: none; }
   .reveal { opacity: 1; transform: none; transition: none; }
+  .animate-spin, .animate-pulse { animation-duration: 2.5s; }
+  html { scroll-behavior: auto; }
 }

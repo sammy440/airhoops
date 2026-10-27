@@ -138,7 +138,7 @@ export function MultiplayerClient() {
     <div className="min-h-screen flex-1 bg-ink text-cream">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(60%_50%_at_70%_0%,rgba(234,58,29,.18),transparent_70%)]" />
       <SiteNav tone="light" />
-      <main className="relative mx-auto max-w-5xl px-5 pb-16 sm:px-8">
+      <main id="main" className="relative mx-auto max-w-5xl px-5 pb-16 sm:px-8">
         <p className="mt-4 flex items-center gap-2 text-xs font-medium text-cream/70">
           <span className="size-1.5 rounded-full bg-hoop" /> Multiplayer
         </p>

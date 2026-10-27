@@ -5,7 +5,8 @@ const MODES = ["Free Play", "Timed", "Streak", "Shootout"];
 const LINKS = [
   { href: "/lab", label: "Tracking Lab" },
   { href: "#how", label: "How it works" },
-  { href: "#privacy", label: "Privacy" },
+  { href: "/leaderboard", label: "Leaderboards" },
+  { href: "/privacy", label: "Privacy" },
 ];
 
 export function SiteFooter() {
@@ -57,8 +58,9 @@ export function SiteFooter() {
         </Link>
 
         <div className="mt-10 flex flex-wrap justify-between gap-4 border-t border-cream/10 py-6 text-[11px] text-cream/40">
-          <span>Terms of Play</span>
-          <span id="privacy">Privacy: tracking runs 100% on-device</span>
+          <Link href="/privacy" className="hover:text-cream">
+            Privacy: tracking runs 100% on-device
+          </Link>
           <span>© AirHoops</span>
         </div>
       </div>

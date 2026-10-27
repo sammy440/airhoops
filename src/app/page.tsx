@@ -13,7 +13,7 @@ import { SplitText } from "@/components/motion/SplitText";
 
 export default function Home() {
   return (
-    <div className="flex flex-1 flex-col">
+    <div id="main" className="flex flex-1 flex-col">
       <Hero />
       <AirMovesUs />
       <JumpToPlay />

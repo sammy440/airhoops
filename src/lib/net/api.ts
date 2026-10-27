@@ -36,6 +36,34 @@ export interface RoomState {
   players: RoomPlayer[];
 }
 
+export type Period = "day" | "week" | "all";
+
+export interface LeaderboardEntry {
+  rank: number;
+  user_id: string;
+  nickname: string;
+  avatar?: Avatar | null;
+  best: number;
+  games: number;
+}
+
+export interface PersonalBest {
+  best: number;
+  games: number;
+  rank: number;
+}
+
+export type PersonalBests = Record<Period, PersonalBest | null>;
+
+/** A finished solo run. `score` is points (timed) or the best streak (streak). */
+export interface RunSubmission {
+  mode: string;
+  difficulty: string;
+  score: number;
+  shots: number;
+  makes: number;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -65,6 +93,7 @@ async function request<T>(path: string, init: RequestInit & { token?: string } =
   if (!res.ok) {
     const detail = body?.detail;
     if (detail && typeof detail === "object" && "code" in detail) throw new ApiError(res.status, detail.code, detail.message);
+    if (res.status === 429) throw new ApiError(429, "rate_limited", "Slow down a little and try again.");
     if (res.status === 401) throw new ApiError(401, "unauthorized", "Your guest session expired");
     if (res.status === 422) throw new ApiError(422, "invalid", "Names are 2–20 letters, numbers, spaces, . _ -");
     throw new ApiError(res.status, "error", typeof detail === "string" ? detail : "Something went wrong");
@@ -79,11 +108,22 @@ export const api = {
   /** Change name, look, or both. */
   updateProfile: (token: string, changes: { nickname?: string; avatar?: Avatar }) =>
     request<User>("/auth/me", { method: "PATCH", token, body: JSON.stringify(changes) }),
+  /** Erase this guest and their scores/throws from the server. */
+  deleteMe: (token: string) => request<null>("/auth/me", { method: "DELETE", token }),
   createRoom: (token: string, mode: string, difficulty: string, raceSeconds = 60) =>
     request<RoomState>("/rooms", { method: "POST", token, body: JSON.stringify({ mode, difficulty, race_seconds: raceSeconds }) }),
   joinRoom: (token: string, code: string) => request<RoomState>(`/rooms/${encodeURIComponent(code)}/join`, { method: "POST", token }),
   getRoom: (code: string) => request<RoomState>(`/rooms/${encodeURIComponent(code)}`),
+  submitScore: (token: string, run: RunSubmission) =>
+    request<{ status: "saved"; best: number; rank: number }>("/scores", { method: "POST", token, body: JSON.stringify(run) }),
+  leaderboard: (params: { mode: string; period: Period; difficulty?: string; limit?: number }) =>
+    request<LeaderboardEntry[]>(`/leaderboard?${query(params)}`),
+  myBests: (token: string, params: { mode: string; difficulty?: string }) => request<PersonalBests>(`/leaderboard/me?${query(params)}`, { token }),
 };
+
+function query(params: Record<string, string | number | undefined>) {
+  return new URLSearchParams(Object.entries(params).flatMap(([k, v]) => (v === undefined || v === "" ? [] : [[k, String(v)]]))).toString();
+}
 
 /* ── Guest session (kept on this device) ── */
 

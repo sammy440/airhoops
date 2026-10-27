@@ -11,7 +11,7 @@ export default function LabPage() {
   return (
     <div className="min-h-full flex-1">
       <SiteNav tone="dark" />
-      <main className="mx-auto max-w-7xl px-5 pb-12 sm:px-8">
+      <main id="main" className="mx-auto max-w-7xl px-5 pb-12 sm:px-8">
         <div className="mt-4 mb-8 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="flex items-center gap-2 text-xs font-medium">

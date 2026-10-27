@@ -26,7 +26,7 @@ export function ShotGauge({ shot }: { shot: LastShot }) {
       <div className="flex items-baseline justify-between text-[11px] tracking-[0.12em] text-cream/60 uppercase">
         <span>Your power {pct(power)}</span>
         <span>
-          {shot.input === "keys" ? "keyboard" : "camera"} · {shot.angle.toFixed(0)}°
+          {shot.input === "keys" ? "manual" : "camera"} · {shot.angle.toFixed(0)}°
         </span>
       </div>
       <div className="relative mt-2 h-3 rounded-full bg-white/10">

@@ -3,13 +3,13 @@ import { Logo } from "@/components/ui/Logo";
 
 const LEFT = [
   { href: "/play", label: "Play" },
-  { href: "/lab", label: "Lab" },
-  { href: "/#how", label: "How it works" },
+  { href: "/multiplayer", label: "Multiplayer" },
+  { href: "/leaderboard", label: "Leaderboard" },
 ];
 const RIGHT = [
-  { href: "/multiplayer", label: "Multiplayer" },
+  { href: "/lab", label: "Lab" },
   { href: "/profile", label: "Your player" },
-  { href: "/#privacy", label: "Privacy" },
+  { href: "/privacy", label: "Privacy" },
 ];
 
 const linkClass = "text-[11px] font-semibold tracking-[0.16em] uppercase opacity-80 transition hover:opacity-100 hover:text-hoop";

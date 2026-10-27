@@ -187,7 +187,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
     gameRef.current?.setLoaded(canShoot && input.tracker.status === "ready" && input.detectorState === "WINDUP");
   }, [canShoot, input.tracker.status, input.detectorState]);
 
-  // Keyboard: tap Space = medium shot, hold = charge.
+  // Keyboard, mouse or touch: tap Space / the court = medium shot, hold = charge.
   useEffect(() => {
     let downAt: number | null = null;
     let raf = 0;
@@ -196,16 +196,19 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       gameRef.current?.setCharge(Math.min(1, (performance.now() - downAt) / FULL_CHARGE_MS));
       raf = requestAnimationFrame(tick);
     };
+    const startCharge = () => {
+      if (downAt !== null || !canShootRef.current) return false;
+      downAt = performance.now();
+      raf = requestAnimationFrame(tick);
+      return true;
+    };
     const onDown = (e: KeyboardEvent) => {
       if (e.code !== "Space") return;
       e.preventDefault();
-      if (e.repeat || downAt !== null || !canShootRef.current) return;
-      downAt = performance.now();
-      raf = requestAnimationFrame(tick);
+      if (!e.repeat) startCharge();
     };
-    const onUp = (e: KeyboardEvent) => {
-      if (e.code !== "Space" || downAt === null) return;
-      e.preventDefault();
+    const release = () => {
+      if (downAt === null) return;
       const held = performance.now() - downAt;
       downAt = null;
       cancelAnimationFrame(raf);
@@ -214,11 +217,37 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
         held < TAP_MS ? keyboardThrow(undefined, court).power + (Math.random() * 2 - 1) * TAP_WOBBLE : Math.min(1, held / FULL_CHARGE_MS);
       shoot(throwToLaunch({ power, ...KEYBOARD_THROW }), { power, ...KEYBOARD_THROW });
     };
+    const onUp = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || downAt === null) return;
+      e.preventDefault();
+      release();
+    };
+    const canvas = canvasRef.current;
+    let pointer: number | null = null;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!e.isPrimary || e.button !== 0) return;
+      if (startCharge()) {
+        pointer = e.pointerId;
+        canvas?.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      }
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      if (e.pointerId !== pointer) return;
+      pointer = null;
+      release();
+    };
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
+    canvas?.addEventListener("pointerdown", onPointerDown);
+    canvas?.addEventListener("pointerup", onPointerUp);
+    canvas?.addEventListener("pointercancel", onPointerUp);
     return () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
+      canvas?.removeEventListener("pointerdown", onPointerDown);
+      canvas?.removeEventListener("pointerup", onPointerUp);
+      canvas?.removeEventListener("pointercancel", onPointerUp);
       cancelAnimationFrame(raf);
     };
   }, [court, shoot]);
@@ -294,7 +323,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
   return (
     <div className="fixed inset-0 z-40 overflow-hidden bg-ink text-cream select-none">
       <div ref={wrapRef} className="absolute inset-0">
-        <canvas ref={canvasRef} className="block h-full w-full" />
+        <canvas ref={canvasRef} className="block h-full w-full touch-none select-none" aria-label="Court. Press and hold to charge a shot, release to shoot." role="img" />
       </div>
 
       {/* Header */}
@@ -364,7 +393,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
         onRetryTracker={input.retryTracker}
       />
       <p className="absolute inset-x-0 bottom-3 z-10 hidden text-center text-[11px] text-cream/45 sm:block">
-        Space: tap = medium · hold = charge · or throw on camera. The server referees every shot.
+        Space or click: tap = medium · hold = charge · or throw on camera. The server referees every shot.
       </p>
 
       {/* Countdown */}

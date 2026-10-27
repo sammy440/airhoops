@@ -2,7 +2,7 @@
 
 import { useEffect, type RefObject } from "react";
 import { SkeletonOverlay, type SkeletonOverlayHandle } from "@/components/lab/SkeletonOverlay";
-import type { CameraState } from "@/hooks/useCamera";
+import type { CameraErrorKind, CameraState } from "@/hooks/useCamera";
 import type { MotionReadout } from "@/hooks/useThrowInput";
 import type { Game } from "@/lib/game/game";
 import type { DetectorState, ThrowParams } from "@/lib/pose/throwDetector";
@@ -74,10 +74,10 @@ export function CameraPip({
             </div>
           )}
           {trackerProblem && <Problem text="Pose model failed to load." onRetry={onRetryTracker} />}
-          {camProblem && <Problem text="Camera unavailable." onRetry={onRetryCamera} />}
+          {cam.status === "error" && camera && <Problem text={CAMERA_PROBLEM[cam.kind]} onRetry={onRetryCamera} />}
         </div>
       ) : (
-        <div className="glass rounded-2xl p-3 text-[11px] text-cream/80">Keyboard mode · hold Space to shoot</div>
+        <div className="glass rounded-2xl p-3 text-[11px] text-cream/80">Camera off · hold Space or press the court to shoot</div>
       )}
       {camera && tracking && <div className={`mt-2 rounded-full px-3 py-1 text-center text-xs font-semibold transition-colors ${coach.tone}`}>{coach.text}</div>}
       {slowFps != null && (
@@ -87,9 +87,19 @@ export function CameraPip({
   );
 }
 
+/** Short, actionable camera messages for the small preview (the Lab shows the long versions). */
+const CAMERA_PROBLEM: Record<CameraErrorKind, string> = {
+  denied: "Camera blocked. Allow it from the camera icon in your address bar, or play with Space / tap. Video never leaves your device.",
+  not_found: "No camera found. Play with Space / tap, or plug one in.",
+  in_use: "Camera busy in another app (Zoom, Meet…). Close it and retry.",
+  insecure: "Camera needs HTTPS. Play with Space / tap.",
+  unsupported: "This browser can't use a camera. Play with Space / tap.",
+  unknown: "Camera unavailable. Play with Space / tap.",
+};
+
 function Problem({ text, onRetry }: { text: string; onRetry: () => void }) {
   return (
-    <div className="absolute inset-0 grid place-items-center bg-black/50 p-2 text-center text-[11px] text-cream/85">
+    <div role="status" className="absolute inset-0 grid place-items-center bg-black/70 p-2 text-center text-[11px] leading-snug text-cream/90">
       <div>
         {text}
         <button type="button" onClick={onRetry} className="mt-1 block w-full underline">

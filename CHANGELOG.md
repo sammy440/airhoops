@@ -2,6 +2,24 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Week 8 — Leaderboards, accessibility, privacy, launch prep
+- `/leaderboard`: solo (timed 30 s–2 min + any custom length via link, streak) and multiplayer (shootout, race)
+  boards; today / this week / all time; difficulty filter; avatars; ties share a rank; your personal bests + rank.
+- Game Over posts timed and streak runs with `shots`/`makes` so the server can reject impossible scores, then shows
+  your rank. Automatic once you have a guest pass; otherwise a one-tap opt-in (creates the pass from your profile).
+  Free play has no leaderboard (no end condition).
+- Mouse/touch shooting in Play and matches: press and hold the court to charge, release to shoot (same as Space).
+- Camera problems in Play now say what's wrong (blocked, busy, missing, needs HTTPS) and how to play without it.
+- Accessibility: skip link, `id="main"` on every page, global `:focus-visible` ring, extra reduced-motion rules,
+  low-contrast small text raised. axe-core audit of every route: no critical issues. Still open: cream on the
+  brand red (#ea3a1d) is 3.6:1, below AA for small text.
+- `/privacy`: what stays on the device, what's stored online, and "Delete my online data" (`DELETE /auth/me`).
+- Monitoring: uncaught errors + error boundaries (`error.tsx`, `global-error.tsx`) report to `/telemetry/errors`
+  in production (max 5 per page load, de-duplicated). New `not-found.tsx`.
+- `next.config.ts`: security headers (`Permissions-Policy: camera=(self)`, HSTS, nosniff, frame deny), 1-week
+  cache for `/mediapipe` assets. `prebuild` fetches the pose models so Vercel serves them from the site.
+- Nav: Play · Multiplayer · Leaderboard | Lab · Your player · Privacy.
+
 ## Player profile & avatar
 - `/profile` ("Your player"): name, body (male/female), 8 skin tones, 6 hair styles + colour, jersey colour
   and number, shorts and sneaker colours (every colour also has a custom picker), Ready/Shooting preview,

@@ -19,6 +19,8 @@ import {
 } from "@/lib/game/modes";
 import { loadProfile } from "@/lib/game/avatar";
 import type { Tally } from "@/lib/game/scoring";
+import type { RunSubmission } from "@/lib/net/api";
+import { LeaderboardPost } from "./LeaderboardPost";
 import type { FramingIssue } from "@/lib/pose/landmarks";
 
 /* ───────── Shared shell ───────── */
@@ -474,6 +476,8 @@ export function GameOver(p: {
   tally: Tally;
   newBest: boolean;
   best: Best | undefined;
+  /** Leaderboard entry for this run (null for free play) */
+  run: (RunSubmission & { id: number }) | null;
   onAgain: () => void;
   onMenu: () => void;
 }) {
@@ -509,6 +513,7 @@ export function GameOver(p: {
           Your best: {p.mode === "streak" ? `${p.best.streak} in a row` : `${p.best.points} pts`}
         </p>
       )}
+      {p.run && <LeaderboardPost run={p.run} />}
       <div className="mt-6 space-y-2">
         <Primary onClick={p.onAgain}>Play again</Primary>
         <Secondary onClick={p.onMenu}>Change mode</Secondary>
