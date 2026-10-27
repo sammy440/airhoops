@@ -144,6 +144,12 @@ body {
   outline-offset: 2px;
 }
 
+/* Setup check: auto-continue progress */
+@keyframes setup-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-marquee, .animate-pulse-ring, .animate-bob, .animate-count-pop, .animate-throw-flash { animation: none; }
   .reveal { opacity: 1; transform: none; transition: none; }

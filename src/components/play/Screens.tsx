@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
 import type { LightingStatus } from "@/hooks/useLighting";
 import { CALIBRATION_THROWS, consistency, type Calibration } from "@/lib/game/calibration";
@@ -291,6 +291,8 @@ function ShotClockPicker({ seconds, onChange }: { seconds: number; onChange: (s:
 
 type CheckState = "ok" | "bad" | "wait";
 
+const AUTO_CONTINUE_MS = 1200;
+
 export function SetupCheck(p: {
   cameraLive: boolean;
   tracking: boolean;
@@ -326,6 +328,17 @@ export function SetupCheck(p: {
   const allOk = checks.every((c) => c.state === "ok");
   const firstBad = checks.find((c) => c.state !== "ok");
 
+  // Everything green and steady for a moment → carry on by itself (the player is standing back, away from the mouse).
+  const continueRef = useRef(p.onContinue);
+  useEffect(() => {
+    continueRef.current = p.onContinue;
+  });
+  useEffect(() => {
+    if (!allOk) return;
+    const id = window.setTimeout(() => continueRef.current(), AUTO_CONTINUE_MS);
+    return () => window.clearTimeout(id);
+  }, [allOk]);
+
   return (
     <Modal label="Camera setup">
       <Eyebrow>Get in position</Eyebrow>
@@ -345,13 +358,17 @@ export function SetupCheck(p: {
           </li>
         ))}
       </ul>
-      <p className={`mt-4 rounded-xl px-3 py-2 text-sm ${allOk ? "bg-good/15 text-good" : "bg-white/5 text-cream/80"}`} aria-live="polite">
-        {allOk ? "Looking good!" : firstBad?.fix}
-      </p>
-      <div className="mt-6 space-y-2">
-        <Primary onClick={p.onContinue} disabled={!allOk}>
-          Continue
-        </Primary>
+      <div className={`relative mt-4 overflow-hidden rounded-xl px-3 py-2 text-sm ${allOk ? "bg-good/15 text-good" : "bg-white/5 text-cream/80"}`} aria-live="polite">
+        {allOk ? "Looking good! Hold still, starting…" : firstBad?.fix}
+        {allOk && (
+          <span
+            key="progress"
+            className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-good"
+            style={{ animation: `setup-fill ${AUTO_CONTINUE_MS}ms linear forwards` }}
+          />
+        )}
+      </div>
+      <div className="mt-6">
         <Secondary onClick={p.onSkip}>Skip check</Secondary>
       </div>
     </Modal>
