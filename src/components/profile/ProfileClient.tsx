@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SiteNav } from "@/components/home/SiteNav";
 import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
 import {
@@ -19,17 +19,22 @@ import {
 } from "@/lib/game/avatar";
 import { loadGuest, pushProfile } from "@/lib/net/api";
 
-type Status = { kind: "idle" } | { kind: "saving" } | { kind: "saved"; synced: boolean };
+type Status = "idle" | "saved" | "syncing" | "synced";
+
+/** Wait this long after the last edit before updating the online copy (one request per burst of taps). */
+const SYNC_DELAY_MS = 700;
 
 const SHOE_COLORS = [{ name: "White", hex: "#f4f1ea" }, { name: "Black", hex: "#17110d" }, ...KIT_COLORS.slice(0, 8)];
 
 export function ProfileClient() {
   const [name, setName] = useState("");
   const [look, setLook] = useState<Avatar>(DEFAULT_AVATAR);
-  const [saved, setSaved] = useState<string>("");
-  const [hydrated, setHydrated] = useState(false);
   const [pose, setPose] = useState<"standing" | "shooting">("standing");
-  const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [status, setStatus] = useState<Status>("idle");
+  const [hasGuest, setHasGuest] = useState(false);
+  const [savedName, setSavedName] = useState("");
+  const syncTimer = useRef<number | null>(null);
+  const syncSeq = useRef(0);
 
   useEffect(() => {
     const p = loadProfile();
@@ -38,29 +43,45 @@ export function ProfileClient() {
     /* eslint-disable react-hooks/set-state-in-effect -- one-time hydration from localStorage */
     setName(n);
     setLook(p.avatar);
-    setSaved(JSON.stringify({ name: n, avatar: p.avatar }));
-    setHydrated(true);
+    setHasGuest(!!loadGuest());
+    setSavedName(n);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
-  const set = <K extends keyof Avatar>(key: K, value: Avatar[K]) => {
-    setLook((l) => ({ ...l, [key]: value }));
-    setStatus({ kind: "idle" });
+  useEffect(
+    () => () => {
+      if (syncTimer.current !== null) window.clearTimeout(syncTimer.current);
+    },
+    [],
+  );
+
+  /**
+   * Every edit saves straight away (no Save button to miss on a phone, where the
+   * first tap after typing often only closes the keyboard). An invalid name is
+   * never stored; the last good one is kept until it's fixed.
+   */
+  const commit = (nextName: string, nextLook: Avatar) => {
+    setName(nextName);
+    setLook(nextLook);
+    const n = nextName.trim();
+    const keep = validName(n) || n === "" ? n : savedName;
+    setSavedName(keep);
+    saveProfile({ name: keep, avatar: nextLook });
+    setStatus("saved");
+
+    if (!hasGuest) return;
+    if (syncTimer.current !== null) window.clearTimeout(syncTimer.current);
+    const seq = ++syncSeq.current;
+    syncTimer.current = window.setTimeout(async () => {
+      setStatus("syncing");
+      const user = await pushProfile({ nickname: validName(n) ? n : undefined, avatar: nextLook });
+      if (seq === syncSeq.current) setStatus(user ? "synced" : "saved");
+    }, SYNC_DELAY_MS);
   };
 
+  const set = <K extends keyof Avatar>(key: K, value: Avatar[K]) => commit(name, { ...look, [key]: value });
   const nameOk = validName(name);
-  const dirty = hydrated && JSON.stringify({ name: name.trim(), avatar: look }) !== saved;
-
-  const save = async () => {
-    if (!nameOk) return;
-    const n = name.trim();
-    setStatus({ kind: "saving" });
-    saveProfile({ name: n, avatar: look });
-    setSaved(JSON.stringify({ name: n, avatar: look }));
-    setName(n);
-    const user = await pushProfile({ nickname: n, avatar: look });
-    setStatus({ kind: "saved", synced: !!user });
-  };
+  const nameBad = name.trim() !== "" && !nameOk;
 
   return (
     <div className="min-h-screen flex-1 bg-ink text-cream">
@@ -101,20 +122,14 @@ export function ProfileClient() {
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setLook(randomAvatar());
-                  setStatus({ kind: "idle" });
-                }}
+                onClick={() => commit(name, randomAvatar())}
                 className="flex-1 rounded-full border border-cream/15 py-2.5 text-sm font-semibold transition hover:border-cream/40"
               >
                 🎲 Randomize
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setLook(DEFAULT_AVATAR);
-                  setStatus({ kind: "idle" });
-                }}
+                onClick={() => commit(name, DEFAULT_AVATAR)}
                 className="flex-1 rounded-full border border-cream/15 py-2.5 text-sm font-semibold transition hover:border-cream/40"
               >
                 Reset
@@ -129,14 +144,15 @@ export function ProfileClient() {
                 aria-label="Name"
                 maxLength={20}
                 value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  setStatus({ kind: "idle" });
-                }}
+                onChange={(e) => commit(e.target.value, look)}
+                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                enterKeyHint="done"
                 placeholder="e.g. Dayo"
-                className={`w-full rounded-xl border bg-ink px-4 py-3 text-lg outline-none ${name && !nameOk ? "border-bad" : "border-cream/15 focus:border-hoop"}`}
+                className={`w-full rounded-xl border bg-ink px-4 py-3 text-lg outline-none ${nameBad ? "border-bad" : "border-cream/15 focus:border-hoop"}`}
               />
-              <p className={`mt-2 text-xs ${name && !nameOk ? "text-bad" : "text-cream/50"}`}>2–20 letters, numbers, spaces, . _ -</p>
+              <p className={`mt-2 text-xs ${nameBad ? "text-bad" : "text-cream/55"}`}>
+                {nameBad ? `Not saved: 2–20 letters, numbers, spaces, . _ -${savedName ? ` (keeping “${savedName}”)` : ""}` : "2–20 letters, numbers, spaces, . _ -"}
+              </p>
             </Panel>
 
             <Panel title="Body">
@@ -201,33 +217,26 @@ export function ProfileClient() {
         </div>
       </main>
 
-      {/* Save bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-cream/10 bg-ink/85 backdrop-blur">
+      {/* Status bar */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-cream/10 bg-ink/90 pb-[env(safe-area-inset-bottom)] backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3 sm:px-8">
-          <p className="min-w-0 truncate text-sm text-cream/60" aria-live="polite">
-            {status.kind === "saving"
-              ? "Saving…"
-              : status.kind === "saved" && !dirty
-                ? status.synced
-                  ? "Saved. Friends in Multiplayer will see your new look."
-                  : "Saved on this device."
-                : dirty
-                  ? "Unsaved changes"
-                  : "All changes saved"}
+          <p className="flex min-w-0 items-center gap-2 text-sm text-cream/70" aria-live="polite">
+            <span aria-hidden className={`size-2 shrink-0 rounded-full ${nameBad ? "bg-warn" : status === "syncing" ? "animate-pulse bg-sun" : "bg-good"}`} />
+            <span className="truncate">
+              {nameBad
+                ? "Look saved · fix your name"
+                : status === "syncing"
+                  ? "Saving online…"
+                  : status === "synced"
+                    ? "Saved · friends see your new look"
+                    : status === "saved"
+                      ? "Saved"
+                      : "Changes save automatically"}
+            </span>
           </p>
-          <div className="flex shrink-0 gap-2">
-            <Link href="/play" className="hidden rounded-full border border-cream/15 px-5 py-2.5 text-sm font-semibold transition hover:border-cream/40 sm:inline-block">
-              Play
-            </Link>
-            <button
-              type="button"
-              onClick={save}
-              disabled={!dirty || !nameOk || status.kind === "saving"}
-              className="rounded-full bg-hoop px-6 py-2.5 text-sm font-semibold transition hover:bg-hoop-soft disabled:opacity-40"
-            >
-              Save player
-            </button>
-          </div>
+          <Link href="/play" className="shrink-0 rounded-full bg-hoop px-6 py-2.5 text-sm font-semibold transition hover:bg-hoop-soft">
+            Play ↗
+          </Link>
         </div>
       </div>
     </div>
