@@ -11,10 +11,10 @@ import { Photo } from "./Photo";
 
 const MODES: { name: string; tag: string; body: string; photo: PhotoKey }[] = [
   { name: "Free Play", tag: "Solo", body: "No clock, no pressure. Warm up, find your release and learn the arc.", photo: "modeFree" },
-  { name: "60-Second Timed", tag: "Solo", body: "One minute on the clock. Shoot fast, shoot clean, chase your best.", photo: "modeTimed" },
+  { name: "Timed", tag: "Solo", body: "30 seconds to 30 minutes on the clock. Shoot fast, shoot clean, chase your best.", photo: "modeTimed" },
   { name: "King of the Court", tag: "Streak", body: "Every make builds your multiplier. One miss and the crown resets.", photo: "modeKing" },
   { name: "1v1 Shootout", tag: "Multiplayer", body: "Five shots each, sudden death on ties. The server keeps it honest.", photo: "mode1v1" },
-  { name: "Timed Race", tag: "Multiplayer", body: "Everyone shoots at once for 60 seconds. Highest score takes it.", photo: "modeRace" },
+  { name: "Timed Race", tag: "Multiplayer", body: "Everyone shoots at once against the buzzer. Highest score takes it.", photo: "modeRace" },
 ];
 
 export function ModesShowcase() {
@@ -81,16 +81,16 @@ export function ModesShowcase() {
         </Appear>
 
         <div className="pointer-events-none relative z-20 mx-auto mt-2 flex max-w-7xl items-end justify-between px-5 sm:-mt-24 sm:px-8">
-          <SplitText text="Shoot & Go" className="display text-6xl text-hoop sm:text-8xl" />
-          <SplitText text="Modes" delay={0.2} className="display text-6xl text-hoop sm:text-8xl" />
+          <SplitText text="Shoot & Go" className="display text-[clamp(2.5rem,12vw,3.75rem)] text-hoop sm:text-8xl" />
+          <SplitText text="Modes" delay={0.2} className="display text-[clamp(2.5rem,12vw,3.75rem)] text-hoop sm:text-8xl" />
         </div>
         <div className="mt-6 flex justify-center gap-1.5" aria-hidden>
           {MODES.map((m, i) => (
             <span key={m.name} className={`h-1.5 rounded-full transition-all ${i === active ? "w-6 bg-hoop" : "w-1.5 bg-ink/20"}`} />
           ))}
         </div>
-        <p className="mt-6 text-center text-xs text-stone">
-          Free play is live; more modes unlock as we build them.{" "}
+        <p className="mt-6 px-5 text-center text-xs text-stone">
+          Solo free play, timed and streak runs, plus shootouts and races with friends.{" "}
           <Link href="/play" className="font-semibold text-ink underline underline-offset-4 hover:text-hoop">
             Play now
           </Link>

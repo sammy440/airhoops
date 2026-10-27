@@ -44,15 +44,16 @@ function JumpToPlay() {
     <section className="px-3 sm:px-5">
       <Reveal>
         <div className="grain relative mx-auto max-w-7xl overflow-hidden rounded-[2rem] bg-ink px-5 pt-8 pb-8 text-cream sm:px-10 sm:pt-12">
-          <div className="flex items-start justify-between gap-4">
-            <h2 className="display text-5xl sm:text-7xl">
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4">
+            <h2 className="display text-[clamp(2.6rem,12vw,4.5rem)] leading-[0.95]">
               <SplitText text="Let's jump to" />
               <br />
               <SplitText text="the play —" delay={0.25} />
             </h2>
             <span className="display hidden text-7xl text-cream/30 md:block">/</span>
-            <Link href="/play" className="display text-5xl transition hover:text-hoop sm:text-7xl">
+            <Link href="/play" className="display flex items-center gap-2 text-[clamp(2.6rem,12vw,4.5rem)] leading-[0.95] text-hoop transition hover:text-hoop-soft sm:text-cream sm:hover:text-hoop">
               <SplitText text="Play" delay={0.4} />
+              <span aria-hidden className="font-sans text-2xl sm:hidden">↗</span>
             </Link>
           </div>
 
@@ -68,7 +69,7 @@ function JumpToPlay() {
             </div>
           </div>
 
-          <div className="flex flex-col justify-between gap-10 md:flex-row md:items-end">
+          <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <Appear className="max-w-xs" from={{ y: 30 }}>
               <Link href="/lab" className="text-xs font-semibold underline underline-offset-4 hover:text-hoop">
                 Let&apos;s dive in
@@ -82,7 +83,7 @@ function JumpToPlay() {
                 <span className="rounded-full border border-cream/20 px-3 py-1 text-[10px] uppercase">30+ fps</span>
               </div>
             </Appear>
-            <ul className="text-right">
+            <ul className="self-end text-right">
               {PLAY_WORDS.map((w, i) => (
                 <li key={w.word}>
                   <Link
@@ -108,7 +109,7 @@ function Manifesto() {
     <section className="mx-auto grid max-w-7xl gap-6 px-5 pt-24 sm:px-8 sm:pt-32 md:grid-cols-[120px_1fr]">
       <span className="text-[10px] tracking-[0.14em] text-stone uppercase">(About)</span>
       <ScrollWords
-        className="display text-right text-[clamp(1.9rem,4.6vw,3.9rem)] leading-[1.02]"
+        className="display text-left text-[clamp(1.9rem,4.6vw,3.9rem)] leading-[1.02] md:text-right"
         segments={[
           { text: "At" },
           { text: "Airhoops", highlight: true },
@@ -142,11 +143,11 @@ function Featured() {
             <p className="flex items-center gap-2 text-xs font-medium">
               <span className="size-1.5 rounded-full bg-ink" /> Under the hood
             </p>
-            <h2 className="display mt-4 text-6xl text-hoop">
+            <h2 className="display mt-4 text-[clamp(3rem,14vw,3.75rem)] text-hoop">
               <SplitText text="On-device/" />
             </h2>
             <p className="mt-5 max-w-xs text-xs leading-relaxed font-semibold uppercase">
-              GPU pose tracking, One Euro smoothing, shoulder-width normalization,{" "}
+              GPU pose tracking, One Euro smoothing, torso-length normalization,{" "}
               <span className="text-hoop/60">and a forgiving throw detector tuned on real data.</span>
             </p>
             <Link href="/lab" className="mt-6 inline-block text-xs font-semibold underline underline-offset-4 hover:text-hoop">
@@ -158,10 +159,10 @@ function Featured() {
             <Photo photo="enjoyGame" sizes="256px" className="relative aspect-[3/4] rounded-2xl" />
           </FanStack>
 
-          <div className="flex h-full flex-col items-end justify-between gap-8 text-right">
-            <CountUp to={33} suffix="+" className="display text-outline text-7xl opacity-60 sm:text-8xl" />
+          <div className="flex h-full flex-row items-end justify-between gap-6 text-right md:flex-col md:items-end md:gap-8">
+            <CountUp to={33} suffix="+" className="display text-outline text-6xl opacity-60 sm:text-8xl" />
             <div>
-              <span className="display block text-6xl text-hoop">
+              <span className="display block text-[clamp(2.5rem,11vw,3.75rem)] leading-[1.05] text-hoop">
                 <SplitText text="Landmarks" delay={0.2} />
               </span>
               <span className="mt-2 block text-xs text-ink/60">tracked every frame, zero uploaded.</span>

@@ -43,7 +43,7 @@ export function Hero() {
 
       <motion.div style={{ opacity: fade }} className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col justify-end px-5 sm:px-8">
         <motion.div
-          className="mb-4 flex items-end justify-between gap-6"
+          className="mb-4 flex flex-col items-start gap-5 sm:flex-row sm:items-end sm:justify-between sm:gap-6"
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.9, ease: EASE, delay: 0.7 }}
@@ -56,7 +56,7 @@ export function Hero() {
           </div>
           <Link
             href="/play"
-            className="group hidden items-center gap-3 rounded-full bg-ink py-2 pr-2 pl-5 text-sm font-semibold text-cream transition hover:bg-hoop sm:flex"
+            className="group flex items-center gap-3 rounded-full bg-ink py-2 pr-2 pl-5 text-sm font-semibold text-cream transition hover:bg-hoop"
           >
             Start shooting
             <span className="grid size-8 place-items-center rounded-full bg-cream text-ink transition group-hover:rotate-45">↗</span>
@@ -71,7 +71,7 @@ export function Hero() {
         <SplitText text="Airhoops." trigger="mount" delay={0.15} stagger={0.06} charClassName="text-grit" />
       </motion.h1>
 
-      <span className="absolute right-3 bottom-[24vw] z-10 font-display text-[11px] tracking-[0.3em] text-cream/70 uppercase [writing-mode:vertical-rl] sm:right-6">
+      <span className="absolute right-6 bottom-[24vw] z-10 hidden font-display text-[11px] tracking-[0.3em] text-cream/70 uppercase [writing-mode:vertical-rl] lg:block">
         No. 23 — Shoot your shot
       </span>
     </section>
