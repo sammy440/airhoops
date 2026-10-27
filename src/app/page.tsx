@@ -1,3 +1,5 @@
+import { ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { AirMovesUs } from "@/components/home/AirMovesUs";
 import { Hero } from "@/components/home/Hero";
@@ -53,7 +55,7 @@ function JumpToPlay() {
             <span className="display hidden text-7xl text-cream/30 md:block">/</span>
             <Link href="/play" className="display flex items-center gap-2 text-[clamp(2.6rem,12vw,4.5rem)] leading-[0.95] text-hoop transition hover:text-hoop-soft sm:text-cream sm:hover:text-hoop">
               <SplitText text="Play" delay={0.4} />
-              <span aria-hidden className="font-sans text-2xl sm:hidden">↗</span>
+              <HugeiconsIcon icon={ArrowUpRight01Icon} size={30} strokeWidth={2.2} className="sm:hidden" />
             </Link>
           </div>
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { PlayIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { SiteNav } from "@/components/home/SiteNav";
@@ -234,8 +236,9 @@ export function ProfileClient() {
                       : "Changes save automatically"}
             </span>
           </p>
-          <Link href="/play" className="shrink-0 rounded-full bg-hoop px-6 py-2.5 text-sm font-semibold transition hover:bg-hoop-soft">
-            Play ↗
+          <Link href="/play" className="flex shrink-0 items-center gap-1.5 rounded-full bg-hoop py-2.5 pr-6 pl-5 text-sm font-semibold transition hover:bg-hoop-soft">
+            <HugeiconsIcon icon={PlayIcon} size={16} strokeWidth={2.2} />
+            Play
           </Link>
         </div>
       </div>

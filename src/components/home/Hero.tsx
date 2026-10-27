@@ -1,5 +1,7 @@
 "use client";
 
+import { ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, useScroll, useTransform } from "motion/react";
@@ -59,7 +61,9 @@ export function Hero() {
             className="group flex items-center gap-3 rounded-full bg-ink py-2 pr-2 pl-5 text-sm font-semibold text-cream transition hover:bg-hoop"
           >
             Start shooting
-            <span className="grid size-8 place-items-center rounded-full bg-cream text-ink transition group-hover:rotate-45">↗</span>
+            <span className="grid size-8 place-items-center rounded-full bg-cream text-ink transition group-hover:rotate-45">
+              <HugeiconsIcon icon={ArrowUpRight01Icon} size={18} strokeWidth={2} />
+            </span>
           </Link>
         </motion.div>
       </motion.div>

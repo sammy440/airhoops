@@ -2,19 +2,30 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  ChampionIcon,
+  PlayIcon,
+  SecurityLockIcon,
+  TestTube01Icon,
+  UserCircleIcon,
+  UserGroupIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { BallIcon, Logo } from "@/components/ui/Logo";
 
-const LEFT = [
-  { href: "/play", label: "Play" },
-  { href: "/multiplayer", label: "Multiplayer" },
-  { href: "/leaderboard", label: "Leaderboard" },
+type NavLink = { href: string; label: string; icon: IconSvgElement };
+
+const LEFT: NavLink[] = [
+  { href: "/play", label: "Play", icon: PlayIcon },
+  { href: "/multiplayer", label: "Multiplayer", icon: UserGroupIcon },
+  { href: "/leaderboard", label: "Leaderboard", icon: ChampionIcon },
 ];
-const RIGHT = [
-  { href: "/lab", label: "Lab" },
-  { href: "/profile", label: "Your player" },
-  { href: "/privacy", label: "Privacy" },
+const RIGHT: NavLink[] = [
+  { href: "/lab", label: "Lab", icon: TestTube01Icon },
+  { href: "/profile", label: "Your player", icon: UserCircleIcon },
+  { href: "/privacy", label: "Privacy", icon: SecurityLockIcon },
 ];
 const ALL = [...LEFT, ...RIGHT];
 
@@ -49,7 +60,7 @@ export function SiteNav({ tone = "light" }: { tone?: "light" | "dark" }) {
   }, [open]);
 
   const active = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
-  const desktopLink = (l: { href: string; label: string }) => (
+  const desktopLink = (l: NavLink) => (
     <Link key={l.label} href={l.href} aria-current={active(l.href) ? "page" : undefined} className={`${linkClass} ${active(l.href) ? "text-hoop opacity-100" : "opacity-80"}`}>
       {l.label}
     </Link>
@@ -130,7 +141,13 @@ export function SiteNav({ tone = "light" }: { tone?: "light" | "dark" }) {
                     }`}
                   >
                     {l.label}
-                    <span className="font-sans text-base text-cream/40 transition group-hover:translate-x-1 group-hover:text-hoop">↗</span>
+                    <span
+                      className={`grid size-11 shrink-0 place-items-center rounded-full border transition group-hover:border-hoop group-hover:bg-hoop group-hover:text-cream ${
+                        active(l.href) ? "border-hoop bg-hoop text-cream" : "border-cream/15 text-cream/70"
+                      }`}
+                    >
+                      <HugeiconsIcon icon={l.icon} size={22} strokeWidth={1.8} />
+                    </span>
                   </Link>
                 </motion.li>
               ))}
