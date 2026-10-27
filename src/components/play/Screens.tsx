@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
+import { CourtPreview } from "@/components/ui/CourtPreview";
 import type { LightingStatus } from "@/hooks/useLighting";
+import { COURT_THEME_ORDER, COURT_THEMES, type CourtThemeId } from "@/lib/game/courts";
 import { CALIBRATION_THROWS, consistency, type Calibration } from "@/lib/game/calibration";
 import { DIFFICULTIES, DIFFICULTY_ORDER, type DifficultyId } from "@/lib/game/difficulty";
 import {
@@ -56,6 +58,37 @@ function Secondary({ children, onClick }: { children: ReactNode; onClick: () => 
 
 const Eyebrow = ({ children }: { children: ReactNode }) => <p className="text-xs tracking-[0.16em] text-hoop uppercase">{children}</p>;
 
+/* ───────── Court picker ───────── */
+
+function CourtPicker({ value, onChange }: { value: CourtThemeId; onChange: (t: CourtThemeId) => void }) {
+  return (
+    <div className="mt-4">
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <span className="text-xs font-semibold tracking-[0.14em] text-cream/55 uppercase">Court</span>
+        <span className="truncate text-xs text-cream/60">{COURT_THEMES[value].blurb}</span>
+      </div>
+      <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1" role="radiogroup" aria-label="Court">
+        {COURT_THEME_ORDER.map((id) => {
+          const on = id === value;
+          return (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              onClick={() => onChange(id)}
+              className={`w-28 shrink-0 snap-start overflow-hidden rounded-xl border-2 text-left transition sm:w-auto sm:flex-1 ${on ? "border-hoop" : "border-cream/10 hover:border-cream/30"}`}
+            >
+              <CourtPreview theme={id} className="block aspect-[16/10] w-full" />
+              <span className={`block truncate px-2 py-1.5 text-[11px] font-semibold ${on ? "bg-hoop/15 text-cream" : "text-cream/75"}`}>{COURT_THEMES[id].name}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ───────── Start menu ───────── */
 
 const HOW_TO = [
@@ -70,10 +103,12 @@ export function StartMenu(p: {
   mode: ModeId;
   difficulty: DifficultyId;
   timedSeconds: number;
+  courtTheme: CourtThemeId;
   calibration: Calibration | null;
   camera: boolean;
   best: Best | undefined;
   onMode: (m: ModeId) => void;
+  onCourtTheme: (t: CourtThemeId) => void;
   onTimedSeconds: (s: number) => void;
   onDifficulty: (d: DifficultyId) => void;
   onCalibrate: () => void;
@@ -157,6 +192,8 @@ export function StartMenu(p: {
           {d.scoreMultiplier > 1 ? ` · ×${d.scoreMultiplier} points` : ""}
         </p>
       </div>
+
+      <CourtPicker value={p.courtTheme} onChange={p.onCourtTheme} />
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/[0.04] px-4 py-3 text-sm">
         {p.camera ? (

@@ -9,6 +9,7 @@ import { useThrowInput } from "@/hooks/useThrowInput";
 import { beep } from "@/lib/browser";
 import { calibrate, calibratedLaunch, CALIBRATION_THROWS, isOutlier, loadCalibration, saveCalibration, type Calibration } from "@/lib/game/calibration";
 import { loadProfile } from "@/lib/game/avatar";
+import { courtThemeId, DEFAULT_COURT_THEME, type CourtThemeId } from "@/lib/game/courts";
 import { courtFor, DIFFICULTIES, rollWind, type DifficultyId } from "@/lib/game/difficulty";
 import { Game } from "@/lib/game/game";
 import {
@@ -48,6 +49,8 @@ interface Prefs {
   mode: ModeId;
   difficulty: DifficultyId;
   timedSeconds: number;
+  /** Cosmetic court scenery; multiplayer reads it from here too. */
+  courtTheme: CourtThemeId;
 }
 const DEFAULT_PREFS: Prefs = {
   camera: true,
@@ -56,6 +59,7 @@ const DEFAULT_PREFS: Prefs = {
   mode: "free",
   difficulty: "starter",
   timedSeconds: DEFAULT_TIMED_SECONDS,
+  courtTheme: DEFAULT_COURT_THEME,
 };
 
 interface PendingShot {
@@ -84,7 +88,7 @@ export function PlayClient() {
     try {
       const stored = { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") };
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from localStorage
-      setPrefs({ ...stored, timedSeconds: clampTimedSeconds(stored.timedSeconds) });
+      setPrefs({ ...stored, timedSeconds: clampTimedSeconds(stored.timedSeconds), courtTheme: courtThemeId(stored.courtTheme) });
     } catch {}
     setCalibration(loadCalibration());
     setBests(loadBests());
@@ -187,6 +191,9 @@ export function PlayClient() {
   useEffect(() => {
     gameRef.current?.setCourt(court);
   }, [court]);
+  useEffect(() => {
+    gameRef.current?.setTheme(prefs.courtTheme);
+  }, [prefs.courtTheme]);
   const changeDifficulty = (d: DifficultyId) => {
     set("difficulty", d);
     nextWind(DIFFICULTIES[d]);
@@ -585,10 +592,12 @@ export function PlayClient() {
           mode={prefs.mode}
           difficulty={prefs.difficulty}
           timedSeconds={prefs.timedSeconds}
+          courtTheme={prefs.courtTheme}
           calibration={calibration}
           camera={prefs.camera}
           best={best}
           onMode={(m) => set("mode", m)}
+          onCourtTheme={(t) => set("courtTheme", t)}
           onTimedSeconds={(s) => set("timedSeconds", s)}
           onDifficulty={changeDifficulty}
           onCalibrate={() => openCalibration("menu")}

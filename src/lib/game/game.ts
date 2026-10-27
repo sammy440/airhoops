@@ -1,6 +1,7 @@
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import { DEFAULT_COURT, hoopOffset, simulateShot, type Court, type Launch, type ShotEvent, type ShotSim } from "./physics";
 import { DEFAULT_AVATAR, type Avatar } from "./avatar";
+import { COURT_THEMES, DEFAULT_COURT_THEME, drawScenery, type CourtTheme, type CourtThemeId } from "./courts";
 import { DEFAULT_POSE, drawPlayer, type Vec } from "./drawPlayer";
 import { sfx } from "./sfx";
 
@@ -56,17 +57,6 @@ const C = {
 const RESPAWN_MS = 650;
 const HAND_BLEND_S = 0.12;
 
-/** Seeded PRNG so the crowd looks the same every visit. */
-function mulberry(seed: number) {
-  return () => {
-    seed |= 0;
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 export class Game {
   court: Court;
   phase: GamePhase = "ready";
@@ -83,7 +73,7 @@ export class Game {
   private lastTs = 0;
   /** Wind (m/s²) applied to the next shot and shown by the flag. */
   private wind = 0;
-  /** Static arena + floor, re-rendered only on resize / court change. */
+  /** Static scenery + floor, re-rendered only on resize / court / theme change. */
   private bg: HTMLCanvasElement | null = null;
 
   private sim: ShotSim | null = null;
@@ -100,7 +90,7 @@ export class Game {
   private texts: FloatText[] = [];
   private netKick = 0;
   private netKickAt = -1e9;
-  private crowd: { x: number; y: number; r: number; a: number; hue: number }[] = [];
+  private theme: CourtTheme = COURT_THEMES[DEFAULT_COURT_THEME];
   private font = "Impact, sans-serif";
 
   private pose: NormalizedLandmark[] | undefined;
@@ -119,10 +109,6 @@ export class Game {
     this.court = court;
     this.ctx = canvas.getContext("2d")!;
     this.ball = { x: 0, y: court.releaseHeight, rot: 0 };
-    const rnd = mulberry(23);
-    for (let i = 0; i < 260; i++) {
-      this.crowd.push({ x: rnd(), y: rnd(), r: 0.6 + rnd() * 1.6, a: 0.05 + rnd() * 0.18, hue: rnd() < 0.7 ? 25 : 210 });
-    }
     const display = getComputedStyle(document.documentElement).getPropertyValue("--font-display").trim();
     if (display) this.font = display;
   }
@@ -161,6 +147,13 @@ export class Game {
   setCourt(court: Court) {
     this.court = court;
     this.ghost = null;
+    this.bg = null;
+  }
+
+  /** Cosmetic court scenery (see courts.ts). */
+  setTheme(id: CourtThemeId) {
+    if (this.theme.id === id) return;
+    this.theme = COURT_THEMES[id];
     this.bg = null;
   }
 
@@ -473,7 +466,7 @@ export class Game {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const { s, floorY } = this.view();
 
-    if (!this.bg) this.bg = this.renderBackground(floorY, s);
+    if (!this.bg) this.bg = this.renderBackground();
     ctx.drawImage(this.bg, 0, 0, w, this.h);
     this.drawSpotlight(s);
     this.drawGhost(s);
@@ -490,115 +483,35 @@ export class Game {
     if (this.charge !== null && this.phase === "ready") this.drawCharge(s);
   }
 
-  /** Arena + floor never change during play: draw once into an offscreen canvas. */
-  private renderBackground(floorY: number, s: number) {
+  /** Scenery + floor never change during play: draw once into an offscreen canvas. */
+  private renderBackground() {
     const off = document.createElement("canvas");
     off.width = Math.round(this.w * this.dpr);
     off.height = Math.round(this.h * this.dpr);
-    const main = this.ctx;
-    this.ctx = off.getContext("2d")!;
-    this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    this.drawArena(floorY, s);
-    this.drawFloor(floorY, s);
-    this.ctx = main;
+    const ctx = off.getContext("2d")!;
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    const { s, floorY } = this.view();
+    drawScenery(ctx, this.theme, { w: this.w, h: this.h, floorY, s, X: (x) => this.X(x), hoopDistance: this.court.hoopDistance });
     return off;
   }
 
   /** Spotlight follows the (possibly moving) hoop, so it's drawn live. */
   private drawSpotlight(s: number) {
-    const { ctx, w, h } = this;
+    const { ctx, w, h, theme } = this;
     const hx = this.X(this.hoopX);
     const hy = this.Y(this.court.rimHeight + 0.6);
     const spot = ctx.createRadialGradient(hx, hy, 0, hx, hy, 4.2 * s);
-    spot.addColorStop(0, "rgba(255,150,70,0.22)");
-    spot.addColorStop(1, "rgba(255,150,70,0)");
+    spot.addColorStop(0, `rgba(${theme.spot},${theme.spotAlpha})`);
+    spot.addColorStop(1, `rgba(${theme.spot},0)`);
     ctx.fillStyle = spot;
     ctx.fillRect(0, 0, w, h);
-  }
-
-  private drawArena(floorY: number, s: number) {
-    const { ctx, w, h } = this;
-    const g = ctx.createLinearGradient(0, 0, 0, floorY);
-    g.addColorStop(0, "#090908");
-    g.addColorStop(0.6, "#15100c");
-    g.addColorStop(1, "#2a170b");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, w, h);
-
-    // Crowd: soft dots in the stands.
-    for (const p of this.crowd) {
-      const x = p.x * w;
-      const y = floorY * (0.18 + p.y * 0.5);
-      ctx.fillStyle = `hsla(${p.hue}, 60%, 70%, ${p.a})`;
-      ctx.beginPath();
-      ctx.arc(x, y, p.r * Math.max(1, s / 120), 0, Math.PI * 2);
-      ctx.fill();
-    }
-    const stands = ctx.createLinearGradient(0, floorY * 0.7, 0, floorY);
-    stands.addColorStop(0, "rgba(9,9,8,0)");
-    stands.addColorStop(1, "rgba(9,9,8,0.85)");
-    ctx.fillStyle = stands;
-    ctx.fillRect(0, floorY * 0.7, w, floorY * 0.3);
-
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    for (const [x0, spread, a] of [[0.25, 0.18, 0.05], [0.72, 0.22, 0.06]] as const) {
-      const beam = ctx.createLinearGradient(0, 0, 0, floorY);
-      beam.addColorStop(0, `rgba(255,220,170,${a})`);
-      beam.addColorStop(1, "rgba(255,220,170,0)");
-      ctx.fillStyle = beam;
-      ctx.beginPath();
-      ctx.moveTo(w * x0 - 20, 0);
-      ctx.lineTo(w * x0 + 20, 0);
-      ctx.lineTo(w * (x0 + spread), floorY);
-      ctx.lineTo(w * (x0 - spread * 0.4), floorY);
-      ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  private drawFloor(floorY: number, s: number) {
-    const { ctx, w, h } = this;
-    const g = ctx.createLinearGradient(0, floorY, 0, h);
-    g.addColorStop(0, "#8a4a1c");
-    g.addColorStop(0.35, "#5c2f12");
-    g.addColorStop(1, "#1c0f07");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, floorY, w, h - floorY);
-    // Planks: perspective-ish lines getting further apart.
-    ctx.strokeStyle = "rgba(0,0,0,0.18)";
-    ctx.lineWidth = 1;
-    for (let i = 1; i < 7; i++) {
-      const y = floorY + (h - floorY) * (i / 7) ** 1.6;
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(w, y);
-      ctx.stroke();
-    }
-    // Reflection of the spotlight on the floor.
-    const hx = this.X(this.court.hoopDistance);
-    const refl = ctx.createRadialGradient(hx, floorY + 6, 0, hx, floorY + 6, 2.5 * s);
-    refl.addColorStop(0, "rgba(255,190,120,0.22)");
-    refl.addColorStop(1, "rgba(255,190,120,0)");
-    ctx.fillStyle = refl;
-    ctx.fillRect(0, floorY, w, h - floorY);
-    // Shooting line under the player.
-    const lx = this.X(0.15);
-    ctx.strokeStyle = "rgba(247,241,214,0.55)";
-    ctx.lineWidth = Math.max(2, s * 0.03);
-    ctx.beginPath();
-    ctx.moveTo(lx - s * 0.05, floorY + 2);
-    ctx.lineTo(lx + s * 0.25, h);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(255,200,140,0.15)";
-    ctx.fillRect(0, floorY, w, 1.5);
   }
 
   private drawGhost(s: number) {
     if (!this.ghost || this.phase === "flying") return;
     const { ctx } = this;
     ctx.save();
-    ctx.strokeStyle = "rgba(247,241,214,0.18)";
+    ctx.strokeStyle = this.theme.ghost;
     ctx.setLineDash([2, s * 0.08]);
     ctx.lineWidth = Math.max(1.5, s * 0.02);
     ctx.lineCap = "round";
@@ -615,9 +528,9 @@ export class Game {
     const lo = c.rimHeight + c.boardBottom;
     const hi = c.rimHeight + c.boardTop;
     const poleX = bx + 1.0;
-    ctx.fillStyle = "#1d1d1c";
+    ctx.fillStyle = this.theme.pole;
     ctx.fillRect(this.X(poleX) - s * 0.07, this.Y(hi - 0.25), s * 0.14, this.Y(0) - this.Y(hi - 0.25));
-    ctx.strokeStyle = "#232322";
+    ctx.strokeStyle = this.theme.arm;
     ctx.lineWidth = s * 0.08;
     ctx.beginPath();
     ctx.moveTo(this.X(poleX), this.Y(hi - 0.3));
@@ -656,9 +569,9 @@ export class Game {
     ctx.lineTo(this.X(bx + depth.x), this.Y(hi + depth.y));
     ctx.lineTo(this.X(bx + depth.x), this.Y(lo + depth.y));
     ctx.closePath();
-    ctx.fillStyle = "rgba(247,241,214,0.10)";
+    ctx.fillStyle = this.theme.glassFill;
     ctx.fill();
-    ctx.strokeStyle = "rgba(247,241,214,0.75)";
+    ctx.strokeStyle = this.theme.glass;
     ctx.lineWidth = Math.max(1.5, s * 0.02);
     ctx.stroke();
     const sq = (u: number, v: number) => [this.X(bx + depth.x * u), this.Y(lo + (hi - lo) * v + depth.y * u)] as const;
@@ -713,7 +626,7 @@ export class Game {
       mid.push([e.cx + cx * e.rx * 0.8 + sway * s * 0.06, e.cy + depth * 0.5 + Math.sin(a) * e.ry * 0.7]);
       bot.push([e.cx + cx * e.rx * 0.58 + sway * s * 0.1, e.cy + depth + Math.sin(a) * e.ry * 0.5]);
     }
-    ctx.strokeStyle = "rgba(247,241,214,0.75)";
+    ctx.strokeStyle = this.theme.net;
     ctx.lineWidth = Math.max(1, s * 0.01);
     ctx.beginPath();
     for (let i = 0; i < n; i++) {

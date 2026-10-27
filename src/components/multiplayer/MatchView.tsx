@@ -8,6 +8,7 @@ import { Logo } from "@/components/ui/Logo";
 import type { MatchState } from "@/hooks/useRoom";
 import { useThrowInput } from "@/hooks/useThrowInput";
 import { DEFAULT_AVATAR, loadProfile, sanitizeAvatar } from "@/lib/game/avatar";
+import { courtThemeId, DEFAULT_COURT_THEME, type CourtThemeId } from "@/lib/game/courts";
 import { calibratedLaunch, loadCalibration } from "@/lib/game/calibration";
 import { courtFor, DIFFICULTIES, type DifficultyId } from "@/lib/game/difficulty";
 import { Game } from "@/lib/game/game";
@@ -49,12 +50,12 @@ function toSim(shot: ServerShot): ShotSim | null {
   };
 }
 
-function loadPlayPrefs(): { camera: boolean; sound: boolean } {
+function loadPlayPrefs(): { camera: boolean; sound: boolean; courtTheme: CourtThemeId } {
   try {
     const p = JSON.parse(localStorage.getItem("airhoops.play.prefs") ?? "{}");
-    return { camera: p.camera ?? true, sound: p.sound ?? true };
+    return { camera: p.camera ?? true, sound: p.sound ?? true, courtTheme: courtThemeId(p.courtTheme) };
   } catch {
-    return { camera: true, sound: true };
+    return { camera: true, sound: true, courtTheme: DEFAULT_COURT_THEME };
   }
 }
 
@@ -105,6 +106,9 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       gameRef.current = null;
     };
   }, []);
+  useEffect(() => {
+    gameRef.current?.setTheme(prefs.courtTheme);
+  }, [prefs.courtTheme]);
   useEffect(() => {
     setMuted(!prefs.sound);
     unlockAudio();
