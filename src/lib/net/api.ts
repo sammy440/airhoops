@@ -12,6 +12,8 @@ export interface User {
   id: string;
   nickname: string;
   avatar?: Avatar | null;
+  /** Linked to a Google account: the same player on every device. */
+  google?: boolean;
 }
 
 export type RoomPhase = "lobby" | "ready" | "in_progress" | "finished";
@@ -25,6 +27,16 @@ export interface RoomPlayer {
   host: boolean;
 }
 
+export type BestOf = 1 | 3 | 5;
+
+/** Wins carry over rematches until someone reaches best_of / 2 + 1. */
+export interface Series {
+  best_of: BestOf;
+  wins: Record<string, number>;
+  games: number;
+  winner: string | null;
+}
+
 export interface RoomState {
   code: string;
   phase: RoomPhase;
@@ -34,6 +46,7 @@ export interface RoomState {
   race_seconds: number;
   host_id: string;
   players: RoomPlayer[];
+  series: Series;
 }
 
 export type Period = "day" | "week" | "all";
@@ -110,8 +123,14 @@ export const api = {
     request<User>("/auth/me", { method: "PATCH", token, body: JSON.stringify(changes) }),
   /** Erase this guest and their scores/throws from the server. */
   deleteMe: (token: string) => request<null>("/auth/me", { method: "DELETE", token }),
-  createRoom: (token: string, mode: string, difficulty: string, raceSeconds = 60) =>
-    request<RoomState>("/rooms", { method: "POST", token, body: JSON.stringify({ mode, difficulty, race_seconds: raceSeconds }) }),
+  /**
+   * Sign in with a Google ID token. Links this device's guest on first use; on another
+   * device it signs in to the same player. Only Google's account ID is stored server-side.
+   */
+  googleSignIn: (body: { credential: string; guest_token?: string; nickname?: string; avatar?: Avatar }) =>
+    request<{ user: User; token: string; account: "new" | "linked" | "existing" }>("/auth/google", { method: "POST", body: JSON.stringify(body) }),
+  createRoom: (token: string, mode: string, difficulty: string, raceSeconds = 60, bestOf: BestOf = 1) =>
+    request<RoomState>("/rooms", { method: "POST", token, body: JSON.stringify({ mode, difficulty, race_seconds: raceSeconds, best_of: bestOf }) }),
   joinRoom: (token: string, code: string) => request<RoomState>(`/rooms/${encodeURIComponent(code)}/join`, { method: "POST", token }),
   getRoom: (code: string) => request<RoomState>(`/rooms/${encodeURIComponent(code)}`),
   submitScore: (token: string, run: RunSubmission) =>

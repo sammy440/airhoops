@@ -8,11 +8,12 @@ const ON_DEVICE = [
   ["Calibration", "Your average throw speed, so a normal shot scores"],
   ["Personal bests", "Your best score per mode and difficulty"],
   ["Your player", "Name and look (body, skin tone, hair, kit)"],
-  ["Guest pass", "A random token, only if you play multiplayer or post a score"],
+  ["Guest pass", "A random token, only if you play multiplayer, post a score or sign in with Google"],
 ];
 
 const ON_SERVER = [
   ["Guest profile", "Nickname, look, and a hash of your guest token (never the token itself)"],
+  ["Google sign-in (optional)", "Only Google's account ID, so the same player works on your other devices. No email, name, contacts or photo"],
   ["Scores", "Each posted run: mode, difficulty, score, shots and makes"],
   ["Matches", "Room code, mode, start/end time, winner"],
   ["Throws (multiplayer)", "Power, angle, arc and the result for each shot, so the server can referee"],

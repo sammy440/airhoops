@@ -31,6 +31,14 @@ Camera access requires `localhost` or HTTPS.
 | `NEXT_PUBLIC_WS_URL` | API URL with `ws(s)://` | only if WebSockets live elsewhere |
 | `NEXT_PUBLIC_SITE_URL` | `https://airhoops.vercel.app` | absolute URL for share previews (set it if you add a custom domain) |
 | `NEXT_PUBLIC_RELEASE` | | optional tag attached to crash reports (e.g. the git SHA) |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | | optional: OAuth Web client ID for "Continue with Google" (same value as the API's `GOOGLE_CLIENT_ID`); unset hides the button |
+
+### Google sign-in setup
+
+1. Google Cloud Console → APIs & Services → Credentials → **Create OAuth client ID** → *Web application*.
+2. **Authorized JavaScript origins**: `http://localhost:3000`, `https://airhoops.vercel.app` (and any custom domain).
+   No redirect URIs are needed: the button uses Google Identity Services in popup mode.
+3. Put the client ID in `NEXT_PUBLIC_GOOGLE_CLIENT_ID` here and in `GOOGLE_CLIENT_ID` on the API.
 
 ## Deploy (Vercel)
 

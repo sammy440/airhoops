@@ -96,6 +96,8 @@ export type ClientMessage =
   | { type: "start" }
   | { type: "end" }
   | { type: "rematch" }
+  /** Host, between matches: change the game (un-readies everyone, resets the series). */
+  | { type: "settings"; mode?: MatchMode; difficulty?: string; raceSeconds?: number; bestOf?: 1 | 3 | 5 }
   | { type: "leave" }
   /** Only these numbers ever leave the device for a shot (never video). */
   | { type: "throw"; power: number; angle: number; arc: number; t: number };

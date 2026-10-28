@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { SiteNav } from "@/components/home/SiteNav";
 import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
+import { GOOGLE_CLIENT_ID, GoogleButton } from "@/components/ui/GoogleButton";
 import {
   DEFAULT_AVATAR,
   HAIR_COLORS,
@@ -19,7 +20,7 @@ import {
   type Avatar,
   type Gender,
 } from "@/lib/game/avatar";
-import { loadGuest, pushProfile } from "@/lib/net/api";
+import { loadGuest, pushProfile, saveGuest, type GuestSession } from "@/lib/net/api";
 
 type Status = "idle" | "saved" | "syncing" | "synced";
 
@@ -34,6 +35,7 @@ export function ProfileClient() {
   const [pose, setPose] = useState<"standing" | "shooting">("standing");
   const [status, setStatus] = useState<Status>("idle");
   const [hasGuest, setHasGuest] = useState(false);
+  const [onGoogle, setOnGoogle] = useState(false);
   const [savedName, setSavedName] = useState("");
   const syncTimer = useRef<number | null>(null);
   const syncSeq = useRef(0);
@@ -46,6 +48,7 @@ export function ProfileClient() {
     setName(n);
     setLook(p.avatar);
     setHasGuest(!!loadGuest());
+    setOnGoogle(!!loadGuest()?.user.google);
     setSavedName(n);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
@@ -82,6 +85,23 @@ export function ProfileClient() {
   };
 
   const set = <K extends keyof Avatar>(key: K, value: Avatar[K]) => commit(name, { ...look, [key]: value });
+
+  /** Signing in to an existing Google player brings its name and look to this device. */
+  const signedIn = (g: GuestSession) => {
+    const p = loadProfile();
+    setName(p.name);
+    setSavedName(p.name);
+    setLook(p.avatar);
+    setHasGuest(true);
+    setOnGoogle(!!g.user.google);
+    setStatus("synced");
+  };
+  const signOut = () => {
+    saveGuest(null);
+    setHasGuest(false);
+    setOnGoogle(false);
+    setStatus("saved");
+  };
   const nameOk = validName(name);
   const nameBad = name.trim() !== "" && !nameOk;
 
@@ -156,6 +176,29 @@ export function ProfileClient() {
                 {nameBad ? `Not saved: 2–20 letters, numbers, spaces, . _ -${savedName ? ` (keeping “${savedName}”)` : ""}` : "2–20 letters, numbers, spaces, . _ -"}
               </p>
             </Panel>
+
+            {(GOOGLE_CLIENT_ID || onGoogle) && (
+              <Panel title="Account">
+                {onGoogle ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-cream/75">
+                      <span className="text-good">●</span> Signed in with Google. Your player, look and scores follow you to any device.
+                    </p>
+                    <button type="button" onClick={signOut} className="rounded-full border border-cream/15 px-4 py-2 text-sm hover:border-cream/40">
+                      Sign out on this device
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <p className="mb-4 text-sm text-cream/65">
+                      Keep this player on every device: phone, laptop, a friend&apos;s TV. Your guest scores come with you.
+                    </p>
+                    <GoogleButton onSignedIn={signedIn} />
+                  </>
+                )}
+                <p className="mt-3 text-xs text-cream/45">We keep only Google&apos;s account ID: no email, contacts or photo. Video never leaves your device.</p>
+              </Panel>
+            )}
 
             <Panel title="Body">
               <div className="grid grid-cols-2 gap-2">

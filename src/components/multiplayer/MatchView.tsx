@@ -15,9 +15,10 @@ import { Game } from "@/lib/game/game";
 import type { Launch, ShotSim } from "@/lib/game/physics";
 import { setMuted, unlockAudio } from "@/lib/game/sfx";
 import { keyboardThrow, throwToLaunch } from "@/lib/game/shot";
-import type { RoomState } from "@/lib/net/api";
+import type { RoomState, Series } from "@/lib/net/api";
 import type { ClientMessage, ServerShot } from "@/lib/net/socket";
 import type { KinematicsFrame } from "@/lib/pose/kinematics";
+import { shareLink } from "@/lib/share";
 import type { ThrowEvent } from "@/lib/pose/throwDetector";
 
 const TAP_MS = 180;
@@ -412,6 +413,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       {match.result && (
         <Results
           result={match.result}
+          series={room.series}
           you={you}
           names={names}
           mode={start.mode}
@@ -424,8 +426,11 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
   );
 }
 
+const bestOfName = (n: number) => `best-of-${n}`;
+
 function Results({
   result,
+  series,
   you,
   names,
   mode,
@@ -434,6 +439,7 @@ function Results({
   onLeave,
 }: {
   result: NonNullable<MatchState["result"]>;
+  series: Series;
   you: string;
   names: Record<string, string>;
   mode: "shootout" | "race";
@@ -453,12 +459,38 @@ function Results({
           ? "You win!"
           : `${names[result.winner ?? ""] ?? "Someone"} wins`;
   const why = { complete: "", time: "Buzzer!", forfeit: "By forfeit", aborted: "The host ended the match" }[result.reason];
+  const inSeries = series.best_of > 1;
+  const champ = series.winner;
+  const myRow = result.standings.find((r) => r.playerId === you);
+  const [shared, setShared] = useState<string | null>(null);
+
+  const share = async () => {
+    const others = result.standings.filter((r) => r.playerId !== you).map((r) => names[r.playerId] ?? "Player");
+    const line = mode === "shootout" ? `${myRow?.makes ?? 0}/${myRow?.shots ?? 0} in a shootout` : `${myRow?.points ?? 0} pts in a race`;
+    const outcome = youWon ? (result.winners.length > 1 ? "Tied" : "Won") : "Lost";
+    const seriesLine = inSeries && champ ? (champ === you ? ` and took the ${bestOfName(series.best_of)} series` : "") : "";
+    const r = await shareLink({
+      title: "AirHoops result",
+      text: `${outcome} ${line} vs ${others.join(", ") || "friends"}${seriesLine} on AirHoops 🏀 Think you can beat me?`,
+      url: `${window.location.origin}/multiplayer`,
+    });
+    setShared(r === "shared" ? "Shared!" : r === "copied" ? "Copied to clipboard" : null);
+  };
 
   return (
     <div className="absolute inset-0 z-30 grid place-items-center bg-ink/70 p-4 backdrop-blur-sm" role="dialog" aria-label="Match results">
       <div className="w-full max-w-md rounded-3xl border border-cream/10 bg-ink/92 p-6 shadow-2xl sm:p-8">
         {why && <p className="text-xs tracking-[0.16em] text-hoop uppercase">{why}</p>}
         <h2 className={`display mt-2 text-5xl ${youWon ? "text-hoop" : ""}`}>{headline}</h2>
+        {inSeries && (
+          <p className={`mt-2 text-sm ${champ ? "font-semibold text-sun" : "text-cream/70"}`}>
+            {champ
+              ? `🏆 ${champ === you ? "You win" : `${names[champ] ?? "Someone"} wins`} the ${bestOfName(series.best_of)} series`
+              : `${bestOfName(series.best_of)}: ${result.standings
+                  .map((r) => `${r.playerId === you ? "You" : (names[r.playerId] ?? "Player")} ${series.wins[r.playerId] ?? 0}`)
+                  .join(" · ")}`}
+          </p>
+        )}
         <ol className="mt-5 space-y-1.5">
           {result.standings.map((row) => (
             <li key={row.playerId} className={`flex items-center gap-3 rounded-xl px-3 py-2 ${row.playerId === you ? "bg-white/[0.07]" : "bg-white/[0.03]"} ${row.forfeited ? "opacity-50" : ""}`}>
@@ -477,10 +509,17 @@ function Results({
         <div className="mt-6 space-y-2">
           {isHost ? (
             <button type="button" onClick={onRematch} className="w-full rounded-full bg-hoop py-3 font-semibold hover:bg-hoop-soft">
-              Rematch
+              {inSeries && !champ ? `Next game (game ${series.games + 1})` : inSeries ? "New series" : "Rematch"}
             </button>
           ) : (
-            <p className="rounded-full bg-white/5 py-3 text-center text-sm text-cream/70">Waiting for the host to start a rematch…</p>
+            <p className="rounded-full bg-white/5 py-3 text-center text-sm text-cream/70">
+              Waiting for the host to start {inSeries && !champ ? "the next game" : "a rematch"}…
+            </p>
+          )}
+          {result.reason !== "aborted" && (
+            <button type="button" onClick={share} className="w-full rounded-full border border-cream/15 py-2.5 text-sm hover:border-cream/40" aria-live="polite">
+              {shared ?? "Share result"}
+            </button>
           )}
           <button type="button" onClick={onLeave} className="w-full rounded-full border border-cream/15 py-2.5 text-sm hover:border-cream/40">
             Leave room

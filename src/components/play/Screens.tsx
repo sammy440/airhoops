@@ -22,6 +22,7 @@ import {
 import { loadProfile } from "@/lib/game/avatar";
 import type { Tally } from "@/lib/game/scoring";
 import type { RunSubmission } from "@/lib/net/api";
+import { shareLink } from "@/lib/share";
 import { LeaderboardPost } from "./LeaderboardPost";
 import type { FramingIssue } from "@/lib/pose/landmarks";
 
@@ -538,6 +539,16 @@ export function GameOver(p: {
   const t = p.tally;
   const accuracy = t.shots ? Math.round((t.makes / t.shots) * 100) : 0;
   const headline = p.mode === "streak" ? `${t.best} in a row` : `${t.points} points`;
+  const [shared, setShared] = useState<string | null>(null);
+  const share = async () => {
+    const what = `${MODES[p.mode].name}${p.mode === "timed" ? ` ${formatDuration(p.timedSeconds)}` : ""} on ${DIFFICULTIES[p.difficulty].name}`;
+    const r = await shareLink({
+      title: "AirHoops",
+      text: `${p.newBest ? "New personal best: " : ""}${headline} (${t.makes}/${t.shots}, ${accuracy}%) in ${what} on AirHoops 🏀 Beat that, using only your arms.`,
+      url: `${window.location.origin}/play`,
+    });
+    setShared(r === "shared" ? "Shared!" : r === "copied" ? "Copied to clipboard" : null);
+  };
   return (
     <Modal label="Game over">
       <Eyebrow>
@@ -570,6 +581,7 @@ export function GameOver(p: {
       {p.run && <LeaderboardPost run={p.run} />}
       <div className="mt-6 space-y-2">
         <Primary onClick={p.onAgain}>Play again</Primary>
+        {t.shots > 0 && <Secondary onClick={share}>{shared ?? "Share score"}</Secondary>}
         <Secondary onClick={p.onMenu}>Change mode</Secondary>
       </div>
     </Modal>
