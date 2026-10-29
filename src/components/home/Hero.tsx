@@ -70,7 +70,8 @@ export function Hero() {
 
       <motion.h1
         style={{ y: titleY }}
-        className="display relative z-10 mt-[2.5vw] -mb-[0.06em] text-center text-[22.5vw] leading-[0.78] whitespace-nowrap select-none"
+        // The letters' boxes rise well above the heading and sit over "Start shooting": let clicks through.
+        className="display pointer-events-none relative z-10 mt-[2.5vw] -mb-[0.06em] text-center text-[22.5vw] leading-[0.78] whitespace-nowrap select-none"
       >
         <SplitText text="Airhoops." trigger="mount" delay={0.15} stagger={0.06} charClassName="text-grit" />
       </motion.h1>
