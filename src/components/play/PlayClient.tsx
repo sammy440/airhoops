@@ -667,6 +667,7 @@ export function PlayClient() {
           newBest={newBest}
           best={best}
           run={run}
+          courtTheme={prefs.courtTheme}
           onAgain={startRun}
           onMenu={() => setScreen("menu")}
         />

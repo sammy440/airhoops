@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
 import { CourtPreview } from "@/components/ui/CourtPreview";
+import { ShareCardButton } from "@/components/ui/ShareCardButton";
 import type { LightingStatus } from "@/hooks/useLighting";
 import { COURT_THEME_ORDER, COURT_THEMES, type CourtThemeId } from "@/lib/game/courts";
 import { CALIBRATION_THROWS, consistency, type Calibration } from "@/lib/game/calibration";
@@ -22,7 +23,8 @@ import {
 import { loadProfile } from "@/lib/game/avatar";
 import type { Tally } from "@/lib/game/scoring";
 import type { RunSubmission } from "@/lib/net/api";
-import { shareLink } from "@/lib/share";
+import type { ResultCardData } from "@/lib/resultCard";
+import { siteUrl } from "@/lib/share";
 import { LeaderboardPost } from "./LeaderboardPost";
 import type { FramingIssue } from "@/lib/pose/landmarks";
 
@@ -555,21 +557,39 @@ export function GameOver(p: {
   best: Best | undefined;
   /** Leaderboard entry for this run (null for free play) */
   run: (RunSubmission & { id: number }) | null;
+  courtTheme: CourtThemeId;
   onAgain: () => void;
   onMenu: () => void;
 }) {
   const t = p.tally;
   const accuracy = t.shots ? Math.round((t.makes / t.shots) * 100) : 0;
   const headline = p.mode === "streak" ? `${t.best} in a row` : `${t.points} points`;
-  const [shared, setShared] = useState<string | null>(null);
-  const share = async () => {
-    const what = `${MODES[p.mode].name}${p.mode === "timed" ? ` ${formatDuration(p.timedSeconds)}` : ""} on ${DIFFICULTIES[p.difficulty].name}`;
-    const r = await shareLink({
-      title: "AirHoops",
-      text: `${p.newBest ? "New personal best: " : ""}${headline} (${t.makes}/${t.shots}, ${accuracy}%) in ${what} on AirHoops 🏀 Beat that, using only your arms.`,
-      url: `${window.location.origin}/play`,
-    });
-    setShared(r === "shared" ? "Shared!" : r === "copied" ? "Copied to clipboard" : null);
+  // Only rendered on the client (after hydration), so localStorage is safe here.
+  const [profile] = useState(loadProfile);
+  const site = siteUrl();
+  const what = `${MODES[p.mode].name}${p.mode === "timed" ? ` · ${formatDuration(p.timedSeconds)}` : ""} · ${DIFFICULTIES[p.difficulty].name}`;
+  const card: ResultCardData = {
+    context: what,
+    headline: p.newBest ? "New best!" : "Beat that.",
+    badge: p.newBest ? "Personal best" : undefined,
+    players: [
+      {
+        name: profile.name || "Me",
+        avatar: profile.avatar,
+        score: String(p.mode === "streak" ? t.best : t.points),
+        you: true,
+        winner: true,
+      },
+    ],
+    unit: p.mode === "streak" ? "in a row" : "points",
+    stats: [
+      ["Makes", `${t.makes}/${t.shots}`],
+      ["Accuracy", `${accuracy}%`],
+      ["Swishes", String(t.swishes)],
+      ["Best streak", String(t.best)],
+    ],
+    theme: p.courtTheme,
+    url: site,
   };
   return (
     <Modal label="Game over">
@@ -603,7 +623,9 @@ export function GameOver(p: {
       {p.run && <LeaderboardPost run={p.run} />}
       <div className="mt-6 space-y-2">
         <Primary onClick={p.onAgain}>Play again</Primary>
-        {t.shots > 0 && <Secondary onClick={share}>{shared ?? "Share score"}</Secondary>}
+        {t.shots > 0 && (
+          <ShareCardButton card={card} filename="airhoops-score.png" text={`${headline} on AirHoops 🏀 Beat that, using only your arms. ${site}/play`} />
+        )}
         <Secondary onClick={p.onMenu}>Change mode</Secondary>
       </div>
     </Modal>

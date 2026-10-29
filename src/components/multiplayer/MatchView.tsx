@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SkeletonOverlayHandle } from "@/components/lab/SkeletonOverlay";
 import { CameraPip, useCourtInset } from "@/components/play/CameraPip";
 import { Logo } from "@/components/ui/Logo";
+import { ShareCardButton } from "@/components/ui/ShareCardButton";
 import type { MatchState } from "@/hooks/useRoom";
 import { useThrowInput } from "@/hooks/useThrowInput";
 import { DEFAULT_AVATAR, loadProfile, sanitizeAvatar } from "@/lib/game/avatar";
@@ -12,15 +13,17 @@ import { courtThemeId, DEFAULT_COURT_THEME, type CourtThemeId } from "@/lib/game
 import { calibratedLaunch, loadCalibration } from "@/lib/game/calibration";
 import { courtFor, DIFFICULTIES, type DifficultyId } from "@/lib/game/difficulty";
 import { Game } from "@/lib/game/game";
+import { formatDuration } from "@/lib/game/modes";
 import type { Launch, ShotSim } from "@/lib/game/physics";
 import { setMuted, unlockAudio } from "@/lib/game/sfx";
 import { keyboardThrow, throwToLaunch } from "@/lib/game/shot";
 import type { RoomState, Series } from "@/lib/net/api";
 import type { ClientMessage, ServerShot } from "@/lib/net/socket";
 import type { KinematicsFrame } from "@/lib/pose/kinematics";
-import { shareLink } from "@/lib/share";
 import type { BounceEvent } from "@/lib/pose/dribbleDetector";
 import type { ThrowEvent } from "@/lib/pose/throwDetector";
+import type { ResultCardData } from "@/lib/resultCard";
+import { siteUrl } from "@/lib/share";
 
 const TAP_MS = 180;
 const FULL_CHARGE_MS = 1400;
@@ -419,6 +422,9 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
         <Results
           result={match.result}
           series={room.series}
+          players={room.players}
+          courtTheme={prefs.courtTheme}
+          context={`${start.mode === "race" ? `Race · ${formatDuration(start.raceSeconds ?? 60)}` : "Shootout"} · ${difficulty.name}`}
           you={you}
           names={names}
           mode={start.mode}
@@ -436,6 +442,9 @@ const bestOfName = (n: number) => `best-of-${n}`;
 function Results({
   result,
   series,
+  players,
+  courtTheme,
+  context,
   you,
   names,
   mode,
@@ -445,6 +454,9 @@ function Results({
 }: {
   result: NonNullable<MatchState["result"]>;
   series: Series;
+  players: RoomState["players"];
+  courtTheme: CourtThemeId;
+  context: string;
   you: string;
   names: Record<string, string>;
   mode: "shootout" | "race";
@@ -467,20 +479,35 @@ function Results({
   const inSeries = series.best_of > 1;
   const champ = series.winner;
   const myRow = result.standings.find((r) => r.playerId === you);
-  const [shared, setShared] = useState<string | null>(null);
-
-  const share = async () => {
-    const others = result.standings.filter((r) => r.playerId !== you).map((r) => names[r.playerId] ?? "Player");
-    const line = mode === "shootout" ? `${myRow?.makes ?? 0}/${myRow?.shots ?? 0} in a shootout` : `${myRow?.points ?? 0} pts in a race`;
-    const outcome = youWon ? (result.winners.length > 1 ? "Tied" : "Won") : "Lost";
-    const seriesLine = inSeries && champ ? (champ === you ? ` and took the ${bestOfName(series.best_of)} series` : "") : "";
-    const r = await shareLink({
-      title: "AirHoops result",
-      text: `${outcome} ${line} vs ${others.join(", ") || "friends"}${seriesLine} on AirHoops 🏀 Think you can beat me?`,
-      url: `${window.location.origin}/multiplayer`,
-    });
-    setShared(r === "shared" ? "Shared!" : r === "copied" ? "Copied to clipboard" : null);
+  const site = siteUrl();
+  const card: ResultCardData = {
+    context: inSeries ? `${context} · Best of ${series.best_of}` : context,
+    headline,
+    badge:
+      inSeries && champ === you
+        ? `Won the best-of-${series.best_of} series`
+        : inSeries && !champ
+          ? `Series ${series.wins[you] ?? 0}–${Math.max(0, ...result.standings.filter((r) => r.playerId !== you).map((r) => series.wins[r.playerId] ?? 0))}`
+          : undefined,
+    // Rooms seat four at most, so everyone fits on the card.
+    players: result.standings.slice(0, 4).map((r) => ({
+        name: names[r.playerId] ?? "Player",
+        avatar: sanitizeAvatar(players.find((p) => p.id === r.playerId)?.avatar ?? DEFAULT_AVATAR),
+        score: String(mode === "shootout" ? r.makes : r.points),
+        you: r.playerId === you,
+        winner: result.winners.includes(r.playerId),
+      })),
+    stats: myRow
+      ? [
+          [mode === "shootout" ? "Points" : "Makes", mode === "shootout" ? String(myRow.points) : `${myRow.makes}/${myRow.shots}`],
+          ["Accuracy", `${myRow.shots ? Math.round((myRow.makes / myRow.shots) * 100) : 0}%`],
+          ["Swishes", String(myRow.swishes)],
+        ]
+      : [],
+    theme: courtTheme,
+    url: site,
   };
+  const shareText = `${youWon ? "Won" : "Played"} a ${mode} on AirHoops 🏀 Think you can beat me? ${site}/multiplayer`;
 
   return (
     <div className="absolute inset-0 z-30 grid place-items-center bg-ink/70 p-4 backdrop-blur-sm" role="dialog" aria-label="Match results">
@@ -521,11 +548,7 @@ function Results({
               Waiting for the host to start {inSeries && !champ ? "the next game" : "a rematch"}…
             </p>
           )}
-          {result.reason !== "aborted" && (
-            <button type="button" onClick={share} className="w-full rounded-full border border-cream/15 py-2.5 text-sm hover:border-cream/40" aria-live="polite">
-              {shared ?? "Share result"}
-            </button>
-          )}
+          {result.reason !== "aborted" && <ShareCardButton card={card} filename="airhoops-result.png" text={shareText} />}
           <button type="button" onClick={onLeave} className="w-full rounded-full border border-cream/15 py-2.5 text-sm hover:border-cream/40">
             Leave room
           </button>
