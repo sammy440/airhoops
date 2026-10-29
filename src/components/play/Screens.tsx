@@ -30,8 +30,15 @@ import type { FramingIssue } from "@/lib/pose/landmarks";
 
 export function Modal({ children, wide, label }: { children: ReactNode; wide?: boolean; label: string }) {
   return (
-    <div className="absolute inset-0 z-30 grid place-items-center overflow-y-auto bg-ink/70 p-4 backdrop-blur-sm" role="dialog" aria-modal aria-label={label}>
-      <div className={`w-full ${wide ? "max-w-2xl" : "max-w-md"} rounded-3xl border border-cream/10 bg-ink/92 p-6 shadow-2xl sm:p-8`}>{children}</div>
+    <div
+      className="absolute inset-0 z-30 flex flex-col items-center overflow-y-auto overscroll-contain bg-ink/70 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal
+      aria-label={label}
+    >
+      <div className={`my-auto w-full min-w-0 ${wide ? "max-w-2xl" : "max-w-md"} rounded-3xl border border-cream/10 bg-ink/92 p-5 shadow-2xl sm:p-8`}>
+        {children}
+      </div>
     </div>
   );
 }
@@ -62,13 +69,22 @@ const Eyebrow = ({ children }: { children: ReactNode }) => <p className="text-xs
 /* ───────── Court picker ───────── */
 
 function CourtPicker({ value, onChange }: { value: CourtThemeId; onChange: (t: CourtThemeId) => void }) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  // On phones the row scrolls: start with the chosen court in view (without scrolling the page).
+  useEffect(() => {
+    const row = rowRef.current;
+    const on = row?.querySelector<HTMLElement>('[aria-checked="true"]');
+    if (!row || !on || row.scrollWidth <= row.clientWidth) return;
+    row.scrollLeft = on.offsetLeft - row.offsetLeft - (row.clientWidth - on.offsetWidth) / 2;
+    // Only on open: scrolling while someone taps through the row would fight them.
+  }, []);
   return (
     <div className="mt-4">
       <div className="mb-2 flex items-baseline justify-between gap-3">
         <span className="text-xs font-semibold tracking-[0.14em] text-cream/55 uppercase">Court</span>
         <span className="truncate text-xs text-cream/60">{COURT_THEMES[value].blurb}</span>
       </div>
-      <div className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1" role="radiogroup" aria-label="Court">
+      <div ref={rowRef} className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1" role="radiogroup" aria-label="Court">
         {COURT_THEME_ORDER.map((id) => {
           const on = id === value;
           return (
@@ -120,17 +136,18 @@ export function StartMenu(p: {
   const [profile] = useState(loadProfile);
   return (
     <Modal wide label="Start menu">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
           <Eyebrow>{p.firstTime ? "How to play" : "Ready when you are"}</Eyebrow>
-          <h1 className="display mt-2 text-5xl">Shoot your shot</h1>
+          <h1 className="display mt-2 text-4xl sm:text-5xl">Shoot your shot</h1>
         </div>
         <Link
           href="/profile"
-          className="group flex shrink-0 items-center gap-2 rounded-2xl border border-cream/10 py-1.5 pr-3 pl-1.5 transition hover:border-cream/30"
+          aria-label={`Edit ${profile.name || "your player"}'s look`}
+          className="group flex shrink-0 items-center gap-2 rounded-2xl border border-cream/10 p-1.5 transition hover:border-cream/30 sm:pr-3"
         >
           <AvatarCanvas avatar={profile.avatar} crop="bust" className="size-11 rounded-xl bg-white/5" />
-          <span className="text-left leading-tight">
+          <span className="hidden text-left leading-tight sm:block">
             <span className="block max-w-[9rem] truncate text-sm font-semibold">{profile.name || "Your player"}</span>
             <span className="text-[11px] text-cream/55 group-hover:text-hoop">Edit look →</span>
           </span>
@@ -150,7 +167,7 @@ export function StartMenu(p: {
         </ol>
       )}
 
-      <div className="mt-6 grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Game mode">
+      <div className="mt-5 grid grid-cols-3 gap-2 sm:mt-6" role="radiogroup" aria-label="Game mode">
         {MODE_ORDER.map((id) => {
           const m = MODES[id];
           const on = id === p.mode;
@@ -161,14 +178,18 @@ export function StartMenu(p: {
               role="radio"
               aria-checked={on}
               onClick={() => p.onMode(id)}
-              className={`rounded-2xl border p-3 text-left transition ${on ? "border-hoop bg-hoop/15" : "border-cream/10 hover:border-cream/30"}`}
+              className={`rounded-2xl border px-2 py-2.5 text-center transition sm:p-3 sm:text-left ${on ? "border-hoop bg-hoop/15" : "border-cream/10 hover:border-cream/30"}`}
             >
-              <div className="display text-xl">{id === "timed" ? `${m.name} · ${formatDuration(p.timedSeconds)}` : m.name}</div>
-              <div className="mt-1 text-xs leading-snug text-cream/65">{m.blurb}</div>
+              <div className="display text-base leading-tight whitespace-nowrap min-[360px]:text-lg sm:text-xl">
+                {m.name}
+                {id === "timed" && <span className="hidden sm:inline"> · {formatDuration(p.timedSeconds)}</span>}
+              </div>
+              <div className="mt-1 hidden text-xs leading-snug text-cream/65 sm:block">{m.blurb}</div>
             </button>
           );
         })}
       </div>
+      <p className="mt-2 text-xs text-cream/60 sm:hidden">{MODES[p.mode].blurb}</p>
 
       {p.mode === "timed" && <ShotClockPicker seconds={p.timedSeconds} onChange={p.onTimedSeconds} />}
 
@@ -248,7 +269,7 @@ function ShotClockPicker({ seconds, onChange }: { seconds: number; onChange: (s:
 
   return (
     <div className="mt-3">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
         <span className="text-xs text-cream/60">Shot clock</span>
         <div className="grid flex-1 grid-cols-5 gap-1 rounded-xl bg-white/5 p-1" role="radiogroup" aria-label="Shot clock">
           {TIMED_OPTIONS.map((s) => (
