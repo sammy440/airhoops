@@ -60,7 +60,7 @@ export function RecorderPanel(p: Props) {
     });
 
   return (
-    <Panel title="Recorder" aside={<kbd className="font-mono text-[10px] text-muted">R / Space · 1–5</kbd>}>
+    <Panel title="Recorder" aside={<kbd className="font-mono text-[10px] text-muted">R / Space · 1–6</kbd>}>
       {/* Label chips */}
       <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Label">
         {RECORD_LABELS.map((l, i) => (

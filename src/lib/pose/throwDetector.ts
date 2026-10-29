@@ -48,6 +48,9 @@ export interface ThrowParams {
   minExtensionGain: number;
   minReleaseHeight: number;
   minAngle: number;
+  /** A release below minReleaseHeight still counts from here up, if it goes up at ≥ lowReleaseMinAngle. */
+  lowReleaseHeight: number;
+  lowReleaseMinAngle: number;
   // Ending THROW
   extensionDrop: number;
   speedDropRatio: number;
@@ -72,14 +75,20 @@ export const DEFAULT_THROW_PARAMS: ThrowParams = {
   // "Set point": a shot starts from a (nearly) still hand. Waving never pauses.
   setWindowMs: 300,
   maxSetSpeed: 1.2,
-  minPeakSpeed: 2.0,
-  minExtension: 0.62,
+  minPeakSpeed: 1.8,
+  // 2D reach: a push towards the camera looks shorter than it is, so keep this modest.
+  minExtension: 0.5,
   minExtensionGain: 0.12,
   minReleaseHeight: 0.4,
   // Shots go up; sideways swipes are waves.
   minAngle: 5,
+  // Beginners push from the chest: a lower release counts if it goes clearly up.
+  // The waves that pass a lower height alone move at 11–22°, so they still fail.
+  lowReleaseHeight: 0,
+  lowReleaseMinAngle: 30,
   extensionDrop: 0.04,
-  speedDropRatio: 0.45,
+  // Fire as the arm decelerates, not after it has stopped (~30 ms sooner than 0.45).
+  speedDropRatio: 0.7,
   minThrowMs: 100,
   maxThrowMs: 900,
   lookbackMs: 400,
@@ -210,8 +219,8 @@ export class ThrowDetector {
       th.peakSpeed >= p.minPeakSpeed &&
       th.extMax >= p.minExtension &&
       th.extMax - th.extStart >= p.minExtensionGain &&
-      th.heightAtMax >= p.minReleaseHeight &&
-      angle >= p.minAngle;
+      angle >= p.minAngle &&
+      (th.heightAtMax >= p.minReleaseHeight || (th.heightAtMax >= p.lowReleaseHeight && angle >= p.lowReleaseMinAngle));
     if (!valid) {
       this.state = "IDLE";
       return null;

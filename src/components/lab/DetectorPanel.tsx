@@ -20,6 +20,8 @@ const TUNABLE: { key: keyof ThrowParams; label: string; min: number; max: number
   { key: "minExtension", label: "Min reach", min: 0.3, max: 1.2, step: 0.01, unit: "×torso", hint: "Arm reach needed at release" },
   { key: "minExtensionGain", label: "Min reach gain", min: 0, max: 0.6, step: 0.01, unit: "×torso", hint: "How much the arm must extend" },
   { key: "minReleaseHeight", label: "Min release height", min: -1, max: 1, step: 0.05, unit: "×torso", hint: "Wrist vs shoulder at release (0 = level)" },
+  { key: "lowReleaseHeight", label: "Low release height", min: -1, max: 1, step: 0.05, unit: "×torso", hint: "Lower releases (chest pushes) count from here if they go clearly up" },
+  { key: "lowReleaseMinAngle", label: "Low release angle", min: 0, max: 80, step: 1, unit: "°", hint: "How steeply a low release must go up (stops low waves)" },
   { key: "minAngle", label: "Min angle", min: -30, max: 60, step: 1, unit: "°", hint: "Shots must travel upward (stops sideways swipes)" },
   { key: "cooldownMs", label: "Cooldown", min: 200, max: 2000, step: 50, unit: "ms", hint: "Pause after each throw" },
 ];

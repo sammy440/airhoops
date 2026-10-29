@@ -151,6 +151,33 @@ describe("ThrowDetector — behaviour", () => {
     expect(frames.every((e) => e === null)).toBe(true);
   });
 
+  /** From a set point, the arm extends 0.4 → 0.62 with this velocity, releasing at `height`. */
+  function push(velocity: { x: number; y: number }, height: number) {
+    const det = new ThrowDetector();
+    const frames: Partial<ArmKinematics>[] = [
+      { speed: 0.2, extension: 0.4, height: 0 },
+      { speed: 0.2, extension: 0.4, height: 0 },
+      { speed: 0.2, extension: 0.4, height: 0 },
+      { speed: 2.2, extension: 0.48, velocity, height: height / 2 },
+      { speed: 2.8, extension: 0.58, velocity, height },
+      { speed: 2.4, extension: 0.62, velocity, height },
+      { speed: 1.0, extension: 0.6, velocity: { x: velocity.x / 3, y: velocity.y / 3 }, height },
+    ];
+    let ev: ThrowEvent | null = null;
+    frames.forEach((f, i) => (ev = det.update(i * 50, arm(f), "right") ?? ev));
+    return ev as ThrowEvent | null;
+  }
+
+  it("accepts a beginner's chest push: short reach, released near shoulder height, going up", () => {
+    const ev = push({ x: 1, y: -2.5 }, 0.15); // ~68° up
+    expect(ev).not.toBeNull();
+    expect(ev!.height).toBeCloseTo(0.15, 6);
+  });
+
+  it("still rejects a low release that goes mostly sideways (a wave)", () => {
+    expect(push({ x: 2.6, y: -0.8 }, 0.15)).toBeNull(); // ~17° up
+  });
+
   it("times out to IDLE if the throw never resolves", () => {
     const det = new ThrowDetector();
     for (let i = 0; i < 40; i++) det.update(i * 33, arm({ speed: 2 + i * 0.1, extension: 0.4 + i * 0.01 }), "right");

@@ -74,6 +74,12 @@ const ACTIVITY_TAU_MS = 600;
 const HAND_SWITCH_RATIO = 1.3;
 /** …and at least this active (torso/s), so idle jitter never flips it. */
 const HAND_SWITCH_MIN = 0.5;
+/**
+ * Wrist this far below its shoulder (torso lengths) is in the dribble zone.
+ * Motion there doesn't count towards picking the throwing hand, so dribbling
+ * with one hand never hands the shot to it.
+ */
+export const DRIBBLE_ZONE_HEIGHT = -0.3;
 const MIN_VISIBILITY = 0.5;
 
 const toSquare = (lm: NormalizedLandmark, aspect: number): Vec2 => ({ x: lm.x * aspect, y: lm.y });
@@ -157,7 +163,9 @@ export class KinematicsTracker {
     // Activity = exponentially-weighted wrist speed; the busier hand is throwing.
     const k = 1 - Math.exp(-dtMs / ACTIVITY_TAU_MS);
     for (const side of ["left", "right"] as const) {
-      this.activity[side] += k * ((arms[side]?.speed ?? 0) - this.activity[side]);
+      const arm = arms[side];
+      const moving = arm && arm.height > DRIBBLE_ZONE_HEIGHT ? arm.speed : 0;
+      this.activity[side] += k * (moving - this.activity[side]);
     }
     const other: Side = this.autoHand === "left" ? "right" : "left";
     if (

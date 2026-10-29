@@ -4,6 +4,7 @@ import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { useCamera } from "@/hooks/useCamera";
 import { usePoseTracking, type PoseFrame } from "@/hooks/usePoseTracking";
+import { DribbleDetector, type BounceEvent } from "@/lib/pose/dribbleDetector";
 import { KinematicsTracker, type KinematicsFrame, type Side } from "@/lib/pose/kinematics";
 import { LM, UPPER_BODY } from "@/lib/pose/landmarks";
 import { DEFAULT_SMOOTHING, PoseSmoother } from "@/lib/pose/oneEuroFilter";
@@ -36,7 +37,7 @@ function labThrowParams() {
 }
 
 /**
- * Camera → pose → One Euro → kinematics → throw detector, packaged for the
+ * Camera → pose → One Euro → kinematics → throw + dribble detectors, packaged for the
  * game. Per-frame data flows through callbacks (no React re-render);
  * the detector state is published at 10 Hz for UI.
  */
@@ -45,10 +46,13 @@ export function useThrowInput(
   {
     enabled,
     onThrow,
+    onBounce,
     onPose,
   }: {
     enabled: boolean;
     onThrow: (ev: ThrowEvent) => void;
+    /** A hand patted the ball down at waist height. */
+    onBounce?: (ev: BounceEvent) => void;
     /** Smoothed pose + kinematics every frame (for the avatar and the camera preview) */
     onPose?: (smoothed: NormalizedLandmark[] | undefined, kin: KinematicsFrame | null) => void;
   },
@@ -60,14 +64,15 @@ export function useThrowInput(
     smoother: new PoseSmoother(SMOOTHED, DEFAULT_SMOOTHING),
     kin: new KinematicsTracker(),
     detector: new ThrowDetector(),
+    dribble: new DribbleDetector(),
   }));
   const camRef = useRef({ width: 1280, height: 720 });
   const kinRef = useRef<KinematicsFrame | null>(null);
   const speedsRef = useRef<{ t: number; v: number }[]>([]);
-  const cbRef = useRef({ onThrow, onPose });
+  const cbRef = useRef({ onThrow, onBounce, onPose });
   useEffect(() => {
-    cbRef.current = { onThrow, onPose };
-  }, [onThrow, onPose]);
+    cbRef.current = { onThrow, onBounce, onPose };
+  }, [onThrow, onBounce, onPose]);
   useEffect(() => {
     if (live) camRef.current = { width: cam.width, height: cam.height };
   }, [live, cam]);
@@ -81,12 +86,14 @@ export function useThrowInput(
       const smoothed = pipeline.smoother.apply(pose, t);
       const kin = pipeline.kin.update(smoothed, t, width / height, "auto");
       const ev = pipeline.detector.updateFrame(kin, t);
+      const bounce = pipeline.dribble.updateFrame(kin, t);
       kinRef.current = kin;
       const speeds = speedsRef.current;
       speeds.push({ t, v: kin?.arms[kin.hand]?.speed ?? 0 });
       while (speeds.length && t - speeds[0].t > PEAK_WINDOW_MS) speeds.shift();
       cbRef.current.onPose?.(smoothed, kin);
       if (ev) cbRef.current.onThrow(ev);
+      if (bounce) cbRef.current.onBounce?.(bounce);
     },
     [pipeline],
   );
@@ -94,11 +101,13 @@ export function useThrowInput(
   const { state: tracker, stats, retry: retryTracker } = usePoseTracking(videoRef, { enabled: live, model: "lite", onFrame });
 
   const [detectorState, setDetectorState] = useState<DetectorState>("IDLE");
+  const [dribbling, setDribbling] = useState(false);
   const [motion, setMotion] = useState<MotionReadout | null>(null);
   useEffect(() => {
     if (tracker.status !== "ready") return;
     const id = window.setInterval(() => {
       setDetectorState(pipeline.detector.state);
+      setDribbling(pipeline.dribble.dribbling(performance.now()));
       const kin = kinRef.current;
       const arm = kin?.arms[kin.hand];
       setMotion(
@@ -117,5 +126,5 @@ export function useThrowInput(
     return () => window.clearInterval(id);
   }, [tracker.status, pipeline]);
 
-  return { cam, tracker, stats, detectorState, motion, thresholds: pipeline.detector.params, retry, retryTracker };
+  return { cam, tracker, stats, detectorState, dribbling, motion, thresholds: pipeline.detector.params, retry, retryTracker };
 }

@@ -113,6 +113,7 @@ const HOW_TO = [
   ["Hold it high", "Both hands up, like the ball is above your head."],
   ["Pause", "A beat of stillness is your set point. The ball glows yellow."],
   ["Push up and out", "Your normal push scores once calibrated. Harder = longer."],
+  ["Bounce it (optional)", "Pat the ball down at your waist to dribble. Raise it and pause to shoot."],
 ];
 
 export function StartMenu(p: {

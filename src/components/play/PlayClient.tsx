@@ -27,6 +27,7 @@ import { addShot, EMPTY_TALLY, streakMultiplier, type Tally } from "@/lib/game/s
 import { setMuted, unlockAudio } from "@/lib/game/sfx";
 import { DEFAULT_TUNING, keyboardThrow, makeWindow, throwToLaunch } from "@/lib/game/shot";
 import type { KinematicsFrame, Side } from "@/lib/pose/kinematics";
+import type { BounceEvent } from "@/lib/pose/dribbleDetector";
 import type { ThrowEvent } from "@/lib/pose/throwDetector";
 import { CameraPip, useCourtInset } from "./CameraPip";
 import type { RunSubmission } from "@/lib/net/api";
@@ -262,9 +263,11 @@ export function PlayClient() {
     gameRef.current?.setPose(smoothed);
     pipRef.current?.draw(smoothed, { kin });
   }, []);
+  const onBounce = useCallback((ev: BounceEvent) => gameRef.current?.bounce(ev.hand, ev.strength, ev.intervalMs), []);
   const { cam, tracker, stats, detectorState, motion, thresholds, retry, retryTracker } = useThrowInput(videoRef, {
     enabled: hydrated && prefs.camera,
     onThrow,
+    onBounce,
     onPose,
   });
   const tracking = tracker.status === "ready";

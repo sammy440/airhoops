@@ -121,12 +121,30 @@ describe("KinematicsTracker", () => {
     let f = null;
     for (let i = 0; i < 40; i++) {
       const t = i * FRAME_MS;
-      // Left hand still; right hand swinging hard.
-      const rw: [number, number] = [0.9 + Math.sin(i / 2) * 0.15, 0.6];
+      // Left hand still; right hand swinging hard around shoulder height.
+      const rw: [number, number] = [0.9 + Math.sin(i / 2) * 0.15, 0.42];
       f = k.update(body([0.8, 0.7], 1, { rw }), t, ASPECT, "auto");
     }
     expect(f!.autoHand).toBe("right");
     expect(f!.hand).toBe("right");
+  });
+
+  it("doesn't hand the shot to a hand that's dribbling low", () => {
+    const k = new KinematicsTracker();
+    let f = null;
+    for (let i = 0; i < 60; i++) {
+      // Right hand pats up and down at the waist (wrist 0.5–0.9 torso below the shoulder).
+      const rw: [number, number] = [1.0, 0.7 + Math.sin(i / 1.5) * 0.08];
+      f = k.update(body([0.8, 0.3], 1, { rw }), i * FRAME_MS, ASPECT, "auto");
+    }
+    expect(f!.autoHand).toBe("right"); // the default: dribbling didn't switch anything…
+    const k2 = new KinematicsTracker();
+    for (let i = 0; i < 30; i++) k2.update(body([0.8 + Math.sin(i / 2) * 0.15, 0.4], 1, { rw: [1.0, 0.7] }), i * FRAME_MS, ASPECT, "auto");
+    for (let i = 30; i < 90; i++) {
+      const rw: [number, number] = [1.0, 0.7 + Math.sin(i / 1.5) * 0.08];
+      f = k2.update(body([0.8, 0.4], 1, { rw }), i * FRAME_MS, ASPECT, "auto");
+    }
+    expect(f!.autoHand).toBe("left"); // …and a left-handed shooter stays left while dribbling right
   });
 
   it("never produces NaN on random noisy poses", () => {

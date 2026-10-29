@@ -2,8 +2,8 @@ import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import type { Side } from "@/lib/pose/kinematics";
 import type { PoseModel } from "@/lib/pose/poseLandmarker";
 
-/** Throws vs. look-alike non-throws. */
-export const RECORD_LABELS = ["throw", "wave", "scratch_head", "idle", "catch"] as const;
+/** Throws vs. look-alike non-throws (dribbling must never fire a shot, so it's a non-throw too). */
+export const RECORD_LABELS = ["throw", "wave", "scratch_head", "idle", "catch", "dribble"] as const;
 export type RecordLabel = (typeof RECORD_LABELS)[number];
 
 export const LABEL_INFO: Record<RecordLabel, { name: string; hint: string; isThrow: boolean }> = {
@@ -12,6 +12,7 @@ export const LABEL_INFO: Record<RecordLabel, { name: string; hint: string; isThr
   scratch_head: { name: "Scratch head", hint: "Raise a hand to your head", isThrow: false },
   idle: { name: "Idle", hint: "Stand naturally, small fidgets", isThrow: false },
   catch: { name: "Catch", hint: "Reach out and catch an imaginary pass", isThrow: false },
+  dribble: { name: "Dribble", hint: "Bounce an imaginary ball at your waist, either hand", isThrow: false },
 };
 
 /** Target per session: ~20 throws and ~20 non-throws. */

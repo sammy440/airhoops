@@ -255,7 +255,7 @@ export function LabClient() {
       if (e.key === "r" || e.key === "R" || e.key === " ") {
         e.preventDefault();
         toggleRecording();
-      } else if (/^[1-5]$/.test(e.key) && phaseKind === "idle") {
+      } else if (/^[1-6]$/.test(e.key) && phaseKind === "idle") {
         setPrefs((p) => ({ ...p, label: RECORD_LABELS[Number(e.key) - 1] }));
       }
     };

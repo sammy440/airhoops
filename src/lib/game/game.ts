@@ -1,4 +1,5 @@
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
+import type { Side } from "@/lib/pose/kinematics";
 import { DEFAULT_COURT, hoopOffset, simulateShot, type Court, type Launch, type ShotEvent, type ShotSim } from "./physics";
 import { DEFAULT_AVATAR, type Avatar } from "./avatar";
 import { COURT_THEMES, DEFAULT_COURT_THEME, drawScenery, type CourtTheme, type CourtThemeId } from "./courts";
@@ -56,6 +57,10 @@ const C = {
 };
 const RESPAWN_MS = 650;
 const HAND_BLEND_S = 0.12;
+/** A dribble lasts one beat of the player's rhythm, within these limits. */
+const DRIBBLE_MS = { min: 280, max: 800, fallback: 450 };
+/** Fraction of the beat spent going down (pushed), the rest coming back up. */
+const DRIBBLE_DOWN = 0.42;
 
 export class Game {
   court: Court;
@@ -97,6 +102,8 @@ export class Game {
   /** Screen pixels on the left covered by UI (camera preview); the court fits beside it. */
   private leftInset = 0;
   private charge: number | null = null;
+  /** Ball bouncing from one hand to the floor and back (see bounce()). */
+  private dribble: { hand: Side; start: number; period: number; strength: number; hit: boolean } | null = null;
   /** Body, skin, hair and kit (see avatar.ts). */
   private look: Avatar = DEFAULT_AVATAR;
   private loaded = false;
@@ -213,6 +220,7 @@ export class Game {
   }
 
   private play(sim: ShotSim, handOffset: { x: number; y: number }) {
+    this.dribble = null;
     this.handOffset = handOffset;
     this.sim = sim;
     this.launchedAt = this.now;
@@ -236,6 +244,17 @@ export class Game {
 
   setAvatar(look: Avatar) {
     this.look = look;
+  }
+
+  /**
+   * The player patted the ball down (DribbleDetector): it drops from that
+   * hand to the floor and comes back up over one beat of their rhythm.
+   * Cosmetic; only while the ball is in hand and the camera sees the player.
+   */
+  bounce(hand: Side, strength: number, intervalMs: number | null) {
+    if (this.phase !== "ready" || this.paused || !this.avatar().live) return;
+    const period = Math.min(DRIBBLE_MS.max, Math.max(DRIBBLE_MS.min, intervalMs ?? DRIBBLE_MS.fallback));
+    this.dribble = { hand, start: this.now, period, strength, hit: false };
   }
 
   /** Keyboard charge 0..1 (null = not charging). */
@@ -321,7 +340,8 @@ export class Game {
       this.trail = [];
       this.cb.onReady?.();
     }
-    if (this.phase === "ready") {
+    if (this.phase === "ready" && this.dribble && !this.updateDribble()) this.dribble = null;
+    if (this.phase === "ready" && !this.dribble) {
       const hands = this.handsWorld();
       this.ball.x = hands.x;
       this.ball.y = hands.y + Math.sin(this.now / 400) * 0.01;
@@ -336,6 +356,35 @@ export class Game {
     }
     this.particles = this.particles.filter((p) => p.life > 0);
     this.texts = this.texts.filter((t) => this.now - t.born < 1600);
+  }
+
+  /** Moves the ball through the current dribble. Returns false once it's back in hand. */
+  private updateDribble() {
+    const d = this.dribble!;
+    const k = (this.now - d.start) / d.period;
+    if (k >= 1) return false;
+    const { pts, live } = this.avatar();
+    if (!live) return false;
+    const wrist = pts[d.hand === "left" ? 15 : 16];
+    const r = this.court.ballRadius;
+    // Under the palm, never above the shooting pocket or below the floor.
+    const top = Math.max(r * 2, Math.min(2.2, wrist.y - r * 0.8));
+    let y: number;
+    if (k < DRIBBLE_DOWN) {
+      const u = k / DRIBBLE_DOWN;
+      y = top - (top - r) * u * u; // pushed: speeds up on the way down
+    } else {
+      const u = (k - DRIBBLE_DOWN) / (1 - DRIBBLE_DOWN);
+      y = r + (top - r) * (1 - (1 - u) * (1 - u)); // rebounds, slowing into the hand
+      if (!d.hit) {
+        d.hit = true;
+        sfx.bounce(2 + d.strength * 4);
+      }
+    }
+    this.ball.x = wrist.x;
+    this.ball.y = y;
+    this.ball.rot += 0.08;
+    return true;
   }
 
   private sample(t: number) {

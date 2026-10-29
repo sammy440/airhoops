@@ -19,6 +19,7 @@ import type { RoomState, Series } from "@/lib/net/api";
 import type { ClientMessage, ServerShot } from "@/lib/net/socket";
 import type { KinematicsFrame } from "@/lib/pose/kinematics";
 import { shareLink } from "@/lib/share";
+import type { BounceEvent } from "@/lib/pose/dribbleDetector";
 import type { ThrowEvent } from "@/lib/pose/throwDetector";
 
 const TAP_MS = 180;
@@ -186,7 +187,11 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
     if (!watchingRef.current) gameRef.current?.setPose(smoothed);
     pipRef.current?.draw(smoothed, { kin });
   }, []);
-  const input = useThrowInput(videoRef, { enabled: prefs.camera, onThrow, onPose });
+  // Your dribbles show on court only while it's your player out there.
+  const onBounce = useCallback((ev: BounceEvent) => {
+    if (!watchingRef.current) gameRef.current?.bounce(ev.hand, ev.strength, ev.intervalMs);
+  }, []);
+  const input = useThrowInput(videoRef, { enabled: prefs.camera, onThrow, onBounce, onPose });
   useCourtInset(gameRef, pipBoxRef, prefs.camera);
   useEffect(() => {
     gameRef.current?.setLoaded(canShoot && input.tracker.status === "ready" && input.detectorState === "WINDUP");
