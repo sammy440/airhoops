@@ -47,7 +47,15 @@ export interface RoomState {
   host_id: string;
   players: RoomPlayer[];
   series: Series;
+  /** Made by quick match: strangers, and the first race starts by itself */
+  quick?: boolean;
 }
+
+export type QuickMatchDifficulty = "any" | "rookie" | "starter" | "allstar" | "legend";
+
+export type QuickMatchStatus =
+  | { status: "waiting"; waiting: number; waited_s: number }
+  | { status: "matched"; code: string };
 
 export type Period = "day" | "week" | "all";
 
@@ -133,6 +141,10 @@ export const api = {
     request<RoomState>("/rooms", { method: "POST", token, body: JSON.stringify({ mode, difficulty, race_seconds: raceSeconds, best_of: bestOf }) }),
   joinRoom: (token: string, code: string) => request<RoomState>(`/rooms/${encodeURIComponent(code)}/join`, { method: "POST", token }),
   getRoom: (code: string) => request<RoomState>(`/rooms/${encodeURIComponent(code)}`),
+  /** Poll every ~2 s while searching: you stay in the queue only while you keep polling. */
+  quickMatch: (token: string, difficulty: QuickMatchDifficulty) =>
+    request<QuickMatchStatus>("/quickmatch", { method: "POST", token, body: JSON.stringify({ difficulty }) }),
+  cancelQuickMatch: (token: string) => request<null>("/quickmatch", { method: "DELETE", token }),
   submitScore: (token: string, run: RunSubmission) =>
     request<{ status: "saved"; best: number; rank: number }>("/scores", { method: "POST", token, body: JSON.stringify(run) }),
   leaderboard: (params: { mode: string; period: Period; difficulty?: string; limit?: number }) =>

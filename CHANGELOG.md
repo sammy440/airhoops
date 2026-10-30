@@ -2,6 +2,20 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Quick match
+- `/multiplayer` has a **Quick match** card: pick a difficulty (or "Any", fastest) and **Find a game**. The
+  waiting screen polls `POST /quickmatch` every 2 s, shows how long you've waited and how many others are
+  searching, and suggests "Any" after 30 s. Cancel (or leaving the page) takes you out of the queue.
+- Paired players land in a 60-second Race room that starts by itself once both are connected: no code, no ready-up,
+  no host button. After the game it's a normal room (rematch, settings).
+- If the stranger never shows up or leaves, the room says so and offers **Find another player**.
+
+## Rejoin your room
+- `/multiplayer` remembers the room you're in (`airhoops.room`). Come back without the invite link (closed the
+  tab, went to /play, clicked Multiplayer in the nav) and it puts you straight back in, mid-match included, as
+  long as the server still holds your seat (`RECONNECT_GRACE_S`, 30 s). If the seat has gone, it forgets the room.
+- Leaving the room, or being closed out of it, clears it. A refresh already worked (the URL keeps `?room=`).
+
 ## Hot hand
 - Dribbles now matter (solo): **4 bounces in rhythm** heat your hand up, and your next make scores **one streak tier
   higher** (×1 → ×1.5, ×1.5 → ×2, ×2 → ×3; ×3 stays ×3). The hand cools off 4 s after the last bounce, so you

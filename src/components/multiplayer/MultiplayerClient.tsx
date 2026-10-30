@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { SiteNav } from "@/components/home/SiteNav";
 import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
 import { GOOGLE_CLIENT_ID, GoogleButton } from "@/components/ui/GoogleButton";
@@ -18,6 +18,7 @@ import {
   saveGuest,
   type BestOf,
   type GuestSession,
+  type QuickMatchDifficulty,
   type RoomPhase,
   type RoomPlayer,
   type RoomState,
@@ -57,6 +58,27 @@ function setUrlRoom(code: string | null) {
   window.history.replaceState(null, "", url);
 }
 
+/**
+ * The room you're seated in, so coming back without the invite link (closed tab, went to /play, clicked
+ * Multiplayer in the nav) puts you straight back in while the server still holds your seat.
+ */
+const ACTIVE_ROOM_KEY = "airhoops.room";
+
+function loadActiveRoom() {
+  try {
+    return localStorage.getItem(ACTIVE_ROOM_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function saveActiveRoom(code: string | null) {
+  try {
+    if (code) localStorage.setItem(ACTIVE_ROOM_KEY, code);
+    else localStorage.removeItem(ACTIVE_ROOM_KEY);
+  } catch {}
+}
+
 export function MultiplayerClient() {
   const [guest, setGuest] = useState<GuestSession | null>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -65,6 +87,8 @@ export function MultiplayerClient() {
   const [error, setError] = useState<string | null>(null);
   /** The room an invite link points at, previewed before you've picked a name. */
   const [invite, setInvite] = useState<RoomState | null>(null);
+  /** Looking for a quick match at this difficulty. */
+  const [searching, setSearching] = useState<QuickMatchDifficulty | null>(null);
 
   // Restore the guest session and validate it with the server.
   useEffect(() => {
@@ -101,9 +125,11 @@ export function MultiplayerClient() {
       const room = await api.joinRoom(g.token, roomCode.trim().toUpperCase());
       setCode(room.code);
       setUrlRoom(room.code);
+      saveActiveRoom(room.code);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't join that room");
       setUrlRoom(null);
+      saveActiveRoom(null);
     } finally {
       setBusy(false);
     }
@@ -123,6 +149,26 @@ export function MultiplayerClient() {
     const linked = roomFromUrl();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reacting to the URL once a guest exists
     if (guest && linked && !code) void enterRoom(guest, linked);
+  }, [guest, code, enterRoom]);
+
+  // No link, but this device was in a room: rejoin if the seat is still ours (held for a while after a disconnect).
+  useEffect(() => {
+    const saved = loadActiveRoom();
+    if (!guest || code || roomFromUrl() || !saved) return;
+    let live = true;
+    api
+      .getRoom(saved)
+      .then((room) => {
+        if (!live) return;
+        if (room.players.some((p) => p.id === guest.user.id)) void enterRoom(guest, saved);
+        else saveActiveRoom(null); // the seat expired or someone else took over
+      })
+      .catch((e: unknown) => {
+        if (e instanceof ApiError && e.status === 404) saveActiveRoom(null); // room's gone
+      });
+    return () => {
+      live = false;
+    };
   }, [guest, code, enterRoom]);
 
   const signIn = async (nickname: string) => {
@@ -149,6 +195,7 @@ export function MultiplayerClient() {
       const room = await api.createRoom(guest.token, mode, difficulty, raceSeconds, bestOf);
       setCode(room.code);
       setUrlRoom(room.code);
+      saveActiveRoom(room.code);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't create a room");
     } finally {
@@ -159,6 +206,7 @@ export function MultiplayerClient() {
   const exitRoom = () => {
     setCode(null);
     setUrlRoom(null);
+    saveActiveRoom(null);
   };
 
   return (
@@ -179,9 +227,27 @@ export function MultiplayerClient() {
           ) : !guest ? (
             <NicknameForm busy={busy} invite={invite} onSubmit={signIn} onGoogle={setGuest} />
           ) : code ? (
-            <RoomView code={code} guest={guest} onExit={exitRoom} />
+            <RoomView
+              code={code}
+              guest={guest}
+              onExit={exitRoom}
+              onFindAnother={(d) => {
+                exitRoom();
+                setSearching(d);
+              }}
+            />
+          ) : searching ? (
+            <QuickSearch
+              guest={guest}
+              difficulty={searching}
+              onMatched={(c) => {
+                setSearching(null);
+                void enterRoom(guest, c);
+              }}
+              onCancel={() => setSearching(null)}
+            />
           ) : (
-            <Hub guest={guest} busy={busy} onCreate={create} onJoin={(c) => enterRoom(guest, c)} />
+            <Hub guest={guest} busy={busy} onCreate={create} onJoin={(c) => enterRoom(guest, c)} onQuick={setSearching} />
           )}
         </div>
       </main>
@@ -270,12 +336,15 @@ function Hub({
   busy,
   onCreate,
   onJoin,
+  onQuick,
 }: {
   guest: GuestSession;
   busy: boolean;
   onCreate: (m: MatchMode, d: DifficultyId, raceSeconds: number, bestOf: BestOf) => void;
   onJoin: (code: string) => void;
+  onQuick: (d: QuickMatchDifficulty) => void;
 }) {
+  const [quickDifficulty, setQuickDifficulty] = useState<QuickMatchDifficulty>("any");
   const [mode, setMode] = useState<MatchMode>("shootout");
   const [raceSeconds, setRaceSeconds] = useState(60);
   const [difficulty, setDifficulty] = useState<DifficultyId>("starter");
@@ -284,6 +353,37 @@ function Hub({
 
   return (
     <div className="grid gap-5 md:grid-cols-2">
+      <section className="rounded-3xl border border-hoop/40 bg-hoop/[0.08] p-6 md:col-span-2">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h2 className="display text-3xl">Quick match</h2>
+            <p className="mt-1 text-sm text-cream/65">No friends online? Play anyone: a 60-second race that starts as soon as you&apos;re paired.</p>
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onQuick(quickDifficulty)}
+            className="w-full rounded-full bg-hoop px-8 py-3 font-semibold transition hover:bg-hoop-soft disabled:opacity-40 sm:w-auto"
+          >
+            Find a game
+          </button>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-1 rounded-xl bg-white/5 p-1" role="radiogroup" aria-label="Quick match difficulty">
+          {(["any", ...DIFFICULTY_ORDER] as const).map((d) => (
+            <button
+              key={d}
+              type="button"
+              role="radio"
+              aria-checked={quickDifficulty === d}
+              onClick={() => setQuickDifficulty(d)}
+              className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition sm:text-sm ${quickDifficulty === d ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
+            >
+              {d === "any" ? "Any (fastest)" : DIFFICULTIES[d].name}
+            </button>
+          ))}
+        </div>
+      </section>
+
       <section className="rounded-3xl border border-cream/10 bg-white/[0.03] p-6">
         <h2 className="display text-3xl">Create a room</h2>
         <div className="mt-2 flex items-center gap-3">
@@ -416,7 +516,97 @@ function GameSettings({ value, onChange, className = "" }: { value: GameChoice; 
 
 /* ───────── Room ───────── */
 
-function RoomView({ code, guest, onExit }: { code: string; guest: GuestSession; onExit: () => void }) {
+const POLL_MS = 2000;
+
+/** Waiting in the quick-match queue: polls until paired. Leaving this screen leaves the queue. */
+function QuickSearch({
+  guest,
+  difficulty,
+  onMatched,
+  onCancel,
+}: {
+  guest: GuestSession;
+  difficulty: QuickMatchDifficulty;
+  onMatched: (code: string) => void;
+  onCancel: () => void;
+}) {
+  const [waited, setWaited] = useState(0);
+  const [waiting, setWaiting] = useState(1);
+  const [error, setError] = useState<string | null>(null);
+  const matchedRef = useRef(onMatched);
+  useEffect(() => {
+    matchedRef.current = onMatched;
+  });
+
+  useEffect(() => {
+    let live = true;
+    let paired = false;
+    let timer = 0;
+    const tick = async () => {
+      try {
+        const res = await api.quickMatch(guest.token, difficulty);
+        if (!live) return;
+        setError(null);
+        if (res.status === "matched") {
+          paired = true;
+          matchedRef.current(res.code);
+          return;
+        }
+        setWaiting(res.waiting);
+      } catch (e) {
+        if (live) setError(e instanceof ApiError ? e.message : "Couldn't reach the game server");
+      }
+      if (live) timer = window.setTimeout(tick, POLL_MS);
+    };
+    void tick();
+    const clock = window.setInterval(() => setWaited((s) => s + 1), 1000);
+    return () => {
+      live = false;
+      window.clearTimeout(timer);
+      window.clearInterval(clock);
+      // Best effort: the server also drops anyone who stops polling.
+      if (!paired) void api.cancelQuickMatch(guest.token).catch(() => {});
+    };
+  }, [guest.token, difficulty]);
+
+  return (
+    <div className="max-w-md rounded-3xl border border-cream/10 bg-white/[0.03] p-6" aria-live="polite">
+      <div className="flex items-center gap-3">
+        <span className="relative flex size-3">
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-hoop opacity-75 motion-reduce:hidden" />
+          <span className="relative inline-flex size-3 rounded-full bg-hoop" />
+        </span>
+        <h2 className="display text-3xl">Finding a player…</h2>
+      </div>
+      <p className="mt-2 text-sm text-cream/70">
+        {difficulty === "any" ? "Any difficulty" : DIFFICULTIES[difficulty].name} · 60-second race ·{" "}
+        <span className="font-mono tabular-nums">
+          {Math.floor(waited / 60)}:{String(waited % 60).padStart(2, "0")}
+        </span>
+      </p>
+      <p className="mt-1 text-xs text-cream/55">
+        {waiting > 1 ? `${waiting - 1} other ${waiting === 2 ? "player" : "players"} searching` : "You're first in the queue."} Keep this page open.
+      </p>
+      {difficulty !== "any" && waited >= 30 && <p className="mt-3 text-xs text-sun">Quiet right now. &ldquo;Any&rdquo; difficulty finds a game faster.</p>}
+      {error && <p className="mt-3 text-sm text-bad">{error}</p>}
+      <button type="button" onClick={onCancel} className="mt-5 w-full rounded-full border border-cream/20 py-3 font-semibold transition hover:border-cream/50">
+        Cancel
+      </button>
+    </div>
+  );
+}
+
+function RoomView({
+  code,
+  guest,
+  onExit,
+  onFindAnother,
+}: {
+  code: string;
+  guest: GuestSession;
+  onExit: () => void;
+  onFindAnother: (d: QuickMatchDifficulty) => void;
+}) {
   const { room, you, status, closedReason, rtt, toasts, error, send, leave, match, serverNow, toast, names } = useRoom(code, guest.token);
   const [copied, setCopied] = useState<"code" | "shared" | "link" | null>(null);
   const me = room?.players.find((p) => p.id === you);
@@ -485,6 +675,23 @@ function RoomView({ code, guest, onExit }: { code: string; guest: GuestSession; 
         </div>
         <ConnectionPill status={status} rtt={rtt} />
       </div>
+
+      {/* Quick match, and the stranger has gone (never connected, or left): offer another instead of a lonely lobby. */}
+      {room?.quick && room.players.length < 2 && (room.phase === "lobby" || room.phase === "ready") && (
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sun/30 bg-sun/[0.07] px-4 py-3">
+          <span className="text-sm text-cream/80">Your opponent left. Want another game?</span>
+          <button
+            type="button"
+            onClick={() => {
+              leave();
+              onFindAnother(room.difficulty as QuickMatchDifficulty);
+            }}
+            className="rounded-full bg-hoop px-5 py-2 text-sm font-semibold hover:bg-hoop-soft"
+          >
+            Find another player
+          </button>
+        </div>
+      )}
 
       {room && (
         <div className="mt-6 flex items-center gap-3 rounded-2xl bg-white/[0.04] px-4 py-3">
