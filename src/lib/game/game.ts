@@ -107,6 +107,7 @@ export class Game {
   /** Body, skin, hair and kit (see avatar.ts). */
   private look: Avatar = DEFAULT_AVATAR;
   private loaded = false;
+  private hot = false;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -265,6 +266,11 @@ export class Game {
   /** "Loaded" glow on the ball when the detector is in WINDUP. */
   setLoaded(v: boolean) {
     this.loaded = v;
+  }
+
+  /** Flickering orange halo on the ball while the hot hand is on (solo). */
+  setHot(v: boolean) {
+    this.hot = v;
   }
 
   // ── World ↔ screen ──
@@ -730,6 +736,16 @@ export class Game {
     const y = this.Y(this.ball.y);
     if (this.phase === "result" && this.sim?.result.scored === false && this.now - this.respawnAt > -200) {
       ctx.globalAlpha = Math.max(0, (this.respawnAt - this.now) / 200);
+    }
+    if (this.hot && this.phase === "ready") {
+      const flicker = 1 + Math.sin(this.now / 60) * 0.06 + Math.sin(this.now / 23) * 0.04;
+      const halo = ctx.createRadialGradient(x, y, r * 0.9, x, y, r * 2.4 * flicker);
+      halo.addColorStop(0, "rgba(255,120,30,0.55)");
+      halo.addColorStop(1, "rgba(255,60,0,0)");
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(x, y, r * 2.4 * flicker, 0, Math.PI * 2);
+      ctx.fill();
     }
     if (this.loaded && this.phase === "ready") {
       const pulse = 1 + Math.sin(this.now / 140) * 0.08;

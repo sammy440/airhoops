@@ -17,6 +17,15 @@ export function streakMultiplier(streakBefore: number) {
   return m;
 }
 
+/**
+ * Hot-hand multiplier: the next tier up from where the streak is (capped at the top tier),
+ * so a hot make never earns more than a make at ×3 could, and the API's solo score check still holds.
+ */
+export function hotMultiplier(streakBefore: number) {
+  const tier = STREAK_TIERS.find((t) => t.from > streakBefore);
+  return tier?.multiplier ?? STREAK_TIERS[STREAK_TIERS.length - 1].multiplier;
+}
+
 export interface ShotScore {
   points: number;
   base: number;
@@ -24,18 +33,21 @@ export interface ShotScore {
   multiplier: number;
   /** Streak after this shot */
   streak: number;
+  /** Made with a hot hand (scored one tier up) */
+  hot: boolean;
 }
 
-export function scoreShot(result: ShotResult, streakBefore: number, difficultyMultiplier = 1): ShotScore {
-  if (!result.scored) return { points: 0, base: 0, swishBonus: 0, multiplier: 1, streak: 0 };
+export function scoreShot(result: ShotResult, streakBefore: number, difficultyMultiplier = 1, hot = false): ShotScore {
+  if (!result.scored) return { points: 0, base: 0, swishBonus: 0, multiplier: 1, streak: 0, hot: false };
   const swishBonus = result.swish ? SWISH_BONUS : 0;
-  const multiplier = streakMultiplier(streakBefore) * difficultyMultiplier;
+  const multiplier = (hot ? hotMultiplier(streakBefore) : streakMultiplier(streakBefore)) * difficultyMultiplier;
   return {
     points: Math.round((BASE_POINTS + swishBonus) * multiplier),
     base: BASE_POINTS,
     swishBonus,
     multiplier,
     streak: streakBefore + 1,
+    hot,
   };
 }
 
@@ -50,8 +62,8 @@ export interface Tally {
 
 export const EMPTY_TALLY: Tally = { points: 0, makes: 0, shots: 0, swishes: 0, streak: 0, best: 0 };
 
-export function addShot(t: Tally, result: ShotResult, difficultyMultiplier = 1): { tally: Tally; score: ShotScore } {
-  const score = scoreShot(result, t.streak, difficultyMultiplier);
+export function addShot(t: Tally, result: ShotResult, difficultyMultiplier = 1, hot = false): { tally: Tally; score: ShotScore } {
+  const score = scoreShot(result, t.streak, difficultyMultiplier, hot);
   return {
     score,
     tally: {

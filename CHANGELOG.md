@@ -2,6 +2,16 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Hot hand
+- Dribbles now matter (solo): **4 bounces in rhythm** heat your hand up, and your next make scores **one streak tier
+  higher** (×1 → ×1.5, ×1.5 → ×2, ×2 → ×3; ×3 stays ×3). The hand cools off 4 s after the last bounce, so you
+  dribble *into* the shot, and the next shot uses it up, made or missed (`lib/game/hotHand.ts`, `hotMultiplier`).
+- Capped at the top tier, so a hot make never beats the API's per-make limit: no backend change needed.
+- HUD: "Heating up ●●○○" while you dribble, then "Hot hand · next make ×1.5"; the ball gets a flickering orange
+  halo, and the floating score says HOT. Hidden in Streak mode (it scores the streak, not points).
+- Not in multiplayer: the server scores those shots and doesn't know about dribbles.
+- Tutorial step 5 is now "Heat up".
+
 ## Daily Challenge
 - New **Daily** mode (`lib/game/daily.ts`), first in the mode picker: one timed run per UTC day, the same for
   everyone. The day's difficulty (Starter / All-Star / Legend) and clock (30 / 60 / 90 s) come from a 32-bit hash

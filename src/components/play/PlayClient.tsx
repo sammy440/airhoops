@@ -13,6 +13,7 @@ import { courtThemeId, DEFAULT_COURT_THEME, type CourtThemeId } from "@/lib/game
 import { dailyRandom, dailyRules } from "@/lib/game/daily";
 import { courtFor, DIFFICULTIES, rollWind, type DifficultyId } from "@/lib/game/difficulty";
 import { Game } from "@/lib/game/game";
+import { HOT_BOUNCES, HotHand } from "@/lib/game/hotHand";
 import {
   bestKey,
   clampTimedSeconds,
@@ -24,7 +25,7 @@ import {
   type ModeId,
 } from "@/lib/game/modes";
 import type { Launch, ShotSim } from "@/lib/game/physics";
-import { addShot, EMPTY_TALLY, streakMultiplier, type Tally } from "@/lib/game/scoring";
+import { addShot, EMPTY_TALLY, hotMultiplier, streakMultiplier, type Tally } from "@/lib/game/scoring";
 import { setMuted, unlockAudio } from "@/lib/game/sfx";
 import { DEFAULT_TUNING, keyboardThrow, makeWindow, throwToLaunch } from "@/lib/game/shot";
 import type { KinematicsFrame, Side } from "@/lib/pose/kinematics";
@@ -77,6 +78,8 @@ interface PendingShot {
   input: LastShot["input"];
   wind: number;
   phase: number;
+  /** Thrown with a hot hand */
+  hot: boolean;
 }
 
 export function PlayClient() {
@@ -174,6 +177,10 @@ export function PlayClient() {
   }, [prefs.mode, difficultyId, prefs.timedSeconds, daily.key]);
 
   // ── Game engine (created once; callbacks read the latest state through refs) ──
+  // Hot hand: dribble in rhythm, then shoot (solo only; the server scores multiplayer).
+  const [hotHand] = useState(() => new HotHand());
+  const [hotBounces, setHotBounces] = useState(0);
+
   const handlers = useRef<{ onResult: (sim: ShotSim) => string | void; onReady: () => void }>({
     onResult: () => undefined,
     onReady: () => {},
@@ -220,10 +227,10 @@ export function PlayClient() {
 
   useEffect(() => {
     handlers.current.onResult = (sim) => {
-      const { tally: t, score } = addShot(tallyRef.current, sim.result, difficulty.scoreMultiplier);
+      const p = pendingRef.current;
+      const { tally: t, score } = addShot(tallyRef.current, sim.result, difficulty.scoreMultiplier, p?.hot);
       tallyRef.current = t;
       setTally(t);
-      const p = pendingRef.current;
       if (p) {
         setLast({
           power: p.power,
@@ -238,7 +245,7 @@ export function PlayClient() {
         else if (buzzerRef.current) window.setTimeout(endGame, 900);
       }
       if (!score.points) return;
-      return `+${score.points}${score.multiplier > 1 ? `  ×${score.multiplier}` : ""}`;
+      return `+${score.points}${score.multiplier > 1 ? `  ×${score.multiplier}` : ""}${score.hot ? "  HOT" : ""}`;
     };
     handlers.current.onReady = () => nextWind();
   }, [difficulty, court, mode, endGame, nextWind]);
@@ -249,9 +256,12 @@ export function PlayClient() {
     const phase = game.hoopPhase;
     const w = wind;
     if (!game.throwBall(launch)) return false;
-    pendingRef.current = { power, angle: launch.angle, input, wind: w, phase };
+    const hot = hotHand.shoot(performance.now());
+    setHotBounces(0);
+    game.setHot(false);
+    pendingRef.current = { power, angle: launch.angle, input, wind: w, phase, hot };
     return true;
-  }, [wind]);
+  }, [wind, hotHand]);
 
   // ── Camera input ──
   const onThrow = useCallback(
@@ -281,7 +291,27 @@ export function PlayClient() {
     gameRef.current?.setPose(smoothed);
     pipRef.current?.draw(smoothed, { kin });
   }, []);
-  const onBounce = useCallback((ev: BounceEvent) => gameRef.current?.bounce(ev.hand, ev.strength, ev.intervalMs), []);
+  const onBounce = useCallback(
+    (ev: BounceEvent) => {
+      const game = gameRef.current;
+      game?.bounce(ev.hand, ev.strength, ev.intervalMs);
+      if (screenRef.current !== "playing" || game?.paused) return;
+      hotHand.bounce(ev);
+      setHotBounces(hotHand.bounces(ev.t));
+      game?.setHot(hotHand.isHot(ev.t));
+    },
+    [hotHand],
+  );
+  // The hot hand cools off a few seconds after the last bounce.
+  useEffect(() => {
+    if (screen !== "playing" || hotBounces === 0) return;
+    const id = window.setInterval(() => {
+      const t = performance.now();
+      setHotBounces(hotHand.bounces(t));
+      gameRef.current?.setHot(hotHand.isHot(t));
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [screen, hotBounces, hotHand]);
   // What a raised hand does on the current screen (set below, once the flow functions exist).
   const raiseRunRef = useRef<{ action: RaiseAction; run: () => void } | null>(null);
   const onRaiseHand = useCallback(() => {
@@ -330,6 +360,9 @@ export function PlayClient() {
   const startRun = useCallback(() => {
     tallyRef.current = EMPTY_TALLY;
     setTally(EMPTY_TALLY);
+    hotHand.reset();
+    setHotBounces(0);
+    gameRef.current?.setHot(false);
     setLast(null);
     setNewBest(false);
     buzzerRef.current = false;
@@ -346,7 +379,7 @@ export function PlayClient() {
     pause(false);
     setCountdown(3);
     setScreen("countdown");
-  }, [mode, court, pause, nextWind, isDaily]);
+  }, [mode, court, pause, nextWind, isDaily, hotHand]);
 
   // A returning player who's already standing in a good spot goes straight to the countdown.
   const inPosition = prefs.setupPassed && tracking && stats.framing === null && stats.confidence >= 0.6;
@@ -596,6 +629,24 @@ export function PlayClient() {
             {mult > 1 && <span className="ml-2 rounded-full bg-sun px-1.5 py-0.5 font-bold text-ink">×{mult}</span>}
             {!mode.suddenDeath && tally.streak >= 2 && <span className="ml-2 text-sun">🔥 {tally.streak}</span>}
           </div>
+          {/* Streak mode scores the streak itself, so there's nothing to heat up. */}
+          {screen === "playing" && !mode.suddenDeath && hotBounces > 0 && (
+            <div
+              className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${hotBounces >= HOT_BOUNCES ? "animate-count-pop bg-hoop text-cream" : "glass text-cream/75"}`}
+              aria-live="polite"
+            >
+              {hotBounces >= HOT_BOUNCES ? (
+                <>Hot hand · next make ×{hotMultiplier(tally.streak)}</>
+              ) : (
+                <>
+                  Heating up
+                  {Array.from({ length: HOT_BOUNCES }, (_, i) => (
+                    <span key={i} className={`size-1.5 rounded-full ${i < hotBounces ? "bg-sun" : "bg-cream/20"}`} aria-hidden />
+                  ))}
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
