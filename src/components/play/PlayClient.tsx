@@ -28,9 +28,11 @@ import { setMuted, unlockAudio } from "@/lib/game/sfx";
 import { DEFAULT_TUNING, keyboardThrow, makeWindow, throwToLaunch } from "@/lib/game/shot";
 import type { KinematicsFrame, Side } from "@/lib/pose/kinematics";
 import type { BounceEvent } from "@/lib/pose/dribbleDetector";
+import type { RaiseHandEvent } from "@/lib/pose/raiseHandDetector";
 import type { ThrowEvent } from "@/lib/pose/throwDetector";
 import { CameraPip, useCourtInset } from "./CameraPip";
 import type { RunSubmission } from "@/lib/net/api";
+import { RaiseHandHint } from "./RaiseHandHint";
 import { CalibrationPanel, GameOver, PauseMenu, SetupCheck, StartMenu } from "./Screens";
 import { ShotGauge, type LastShot } from "./ShotGauge";
 
@@ -52,6 +54,8 @@ interface Prefs {
   timedSeconds: number;
   /** Cosmetic court scenery; multiplayer reads it from here too. */
   courtTheme: CourtThemeId;
+  /** Passed the camera setup check before; next time it's skipped if they're already in position. */
+  setupPassed: boolean;
 }
 const DEFAULT_PREFS: Prefs = {
   camera: true,
@@ -61,6 +65,7 @@ const DEFAULT_PREFS: Prefs = {
   difficulty: "starter",
   timedSeconds: DEFAULT_TIMED_SECONDS,
   courtTheme: DEFAULT_COURT_THEME,
+  setupPassed: false,
 };
 
 interface PendingShot {
@@ -264,10 +269,19 @@ export function PlayClient() {
     pipRef.current?.draw(smoothed, { kin });
   }, []);
   const onBounce = useCallback((ev: BounceEvent) => gameRef.current?.bounce(ev.hand, ev.strength, ev.intervalMs), []);
-  const { cam, tracker, stats, detectorState, motion, thresholds, retry, retryTracker } = useThrowInput(videoRef, {
+  // What a raised hand does on the current screen (set below, once the flow functions exist).
+  const raiseRunRef = useRef<{ action: RaiseAction; run: () => void } | null>(null);
+  const onRaiseHand = useCallback((ev: RaiseHandEvent) => {
+    const current = raiseRunRef.current;
+    if (!current || (RAISE_ACTIONS[current.action].both && ev.hands !== "both")) return;
+    beep(1046, 120);
+    current.run();
+  }, []);
+  const { cam, tracker, stats, detectorState, motion, raiseHand, resetRaiseHand, thresholds, retry, retryTracker } = useThrowInput(videoRef, {
     enabled: hydrated && prefs.camera,
     onThrow,
     onBounce,
+    onRaiseHand,
     onPose,
   });
   const tracking = tracker.status === "ready";
@@ -315,17 +329,19 @@ export function PlayClient() {
     setScreen("countdown");
   }, [mode, court, pause, nextWind]);
 
+  // A returning player who's already standing in a good spot goes straight to the countdown.
+  const inPosition = prefs.setupPassed && tracking && stats.framing === null && stats.confidence >= 0.6;
   const proceed = useCallback(() => {
     // Remember we're heading into a game, so setup → calibration → game flows through.
     calReturnRef.current = "play";
-    if (prefs.camera && !setupPassedRef.current) return setScreen("setup");
+    if (prefs.camera && !setupPassedRef.current && !inPosition) return setScreen("setup");
     if (prefs.camera && !calibration && !calSkippedRef.current) {
       calReturnRef.current = "play";
       setCalSamples([]);
       return setScreen("calibrate");
     }
     startRun();
-  }, [prefs.camera, calibration, startRun]);
+  }, [prefs.camera, calibration, startRun, inPosition]);
 
   const begin = () => {
     unlockAudio();
@@ -342,14 +358,51 @@ export function PlayClient() {
     setScreen(prefs.camera && !setupPassedRef.current ? "setup" : "calibrate");
   };
 
-  const afterSetup = () => {
+  const afterSetup = (passed: boolean) => {
     setupPassedRef.current = true;
+    if (passed) set("setupPassed", true);
     if (prefs.camera && (!calibration || calReturnRef.current === "menu") && !calSkippedRef.current) {
       setScreen("calibrate");
     } else {
       startRun();
     }
   };
+
+  const saveCalibrationAndGo = () => {
+    if (calResult) {
+      saveCalibration(calResult);
+      setCalibration(calResult);
+    }
+    if (calReturnRef.current === "play") startRun();
+    else setScreen("menu");
+  };
+
+  // ── Raise a hand to press the main button, so nobody has to walk back to the keyboard ──
+  const calResult = calSamples.length >= CALIBRATION_THROWS ? calibrate(calSamples, calHand) : null;
+  const inRun = screen === "playing" || screen === "countdown";
+  let raiseAction: RaiseAction | null = null;
+  if (prefs.camera && tracking) {
+    if (paused && inRun) raiseAction = "resume";
+    else if (inRun) raiseAction = "pause";
+    else if (hydrated && screen === "menu") raiseAction = "start";
+    else if (screen === "calibrate" && calResult) raiseAction = "save";
+    else if (screen === "over") raiseAction = "again";
+  }
+  useEffect(() => {
+    const runs: Record<RaiseAction, () => void> = {
+      resume: () => pause(false),
+      pause: () => pause(true),
+      start: begin,
+      save: saveCalibrationAndGo,
+      again: startRun,
+    };
+    raiseRunRef.current = raiseAction && { action: raiseAction, run: runs[raiseAction] };
+  });
+  // Each new screen needs the hands down first: the arm still up from the last shot can't press it.
+  const hasCalResult = calResult !== null;
+  useEffect(() => {
+    resetRaiseHand();
+  }, [screen, paused, hasCalResult, resetRaiseHand]);
 
   // Countdown → playing
   useEffect(() => {
@@ -486,8 +539,6 @@ export function PlayClient() {
   const mult = streakMultiplier(tally.streak);
   const best = bests[bestKey(prefs.mode, prefs.difficulty, prefs.timedSeconds)];
   const clockSecs = timeLeft === null ? 0 : Math.ceil(timeLeft);
-  const inRun = screen === "playing" || screen === "countdown";
-  const calResult = calSamples.length >= CALIBRATION_THROWS ? calibrate(calSamples, calHand) : null;
 
   return (
     <div id="main" className="fixed inset-0 overflow-hidden bg-ink text-cream select-none">
@@ -614,8 +665,8 @@ export function PlayClient() {
           framing={stats.framing}
           confidence={stats.confidence}
           lighting={lighting.status}
-          onContinue={afterSetup}
-          onSkip={afterSetup}
+          onContinue={() => afterSetup(true)}
+          onSkip={() => afterSetup(false)}
         />
       )}
       {screen === "calibrate" && (
@@ -628,14 +679,7 @@ export function PlayClient() {
             setCalSamples((s) => s.slice(0, -1));
             setCalOutlier(false);
           }}
-          onSave={() => {
-            if (calResult) {
-              saveCalibration(calResult);
-              setCalibration(calResult);
-            }
-            if (calReturnRef.current === "play") startRun();
-            else setScreen("menu");
-          }}
+          onSave={saveCalibrationAndGo}
           onSkip={() => {
             calSkippedRef.current = true;
             if (calReturnRef.current === "play") startRun();
@@ -672,9 +716,25 @@ export function PlayClient() {
           onMenu={() => setScreen("menu")}
         />
       )}
+
+      {/* During a run the pause hint only appears once both hands are going up; elsewhere it's always offered. */}
+      {raiseAction && (!RAISE_ACTIONS[raiseAction].both || raiseHand.hands === "both") && (
+        <RaiseHandHint label={RAISE_ACTIONS[raiseAction].label} both={RAISE_ACTIONS[raiseAction].both} state={raiseHand} />
+      )}
     </div>
   );
 }
+
+type RaiseAction = "resume" | "pause" | "start" | "save" | "again";
+
+/** `both`: needs both hands up, so a one-handed shot can never trigger it. */
+const RAISE_ACTIONS: Record<RaiseAction, { label: string; both?: boolean }> = {
+  resume: { label: "Resume" },
+  pause: { label: "Pause", both: true },
+  start: { label: "Start" },
+  save: { label: "Save & continue" },
+  again: { label: "Play again" },
+};
 
 function IconButton({ label, on, onClick, children }: { label: string; on: boolean; onClick: () => void; children: React.ReactNode }) {
   return (

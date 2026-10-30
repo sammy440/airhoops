@@ -8,6 +8,7 @@ import { DribbleDetector, type BounceEvent } from "@/lib/pose/dribbleDetector";
 import { KinematicsTracker, type KinematicsFrame, type Side } from "@/lib/pose/kinematics";
 import { LM, UPPER_BODY } from "@/lib/pose/landmarks";
 import { DEFAULT_SMOOTHING, PoseSmoother } from "@/lib/pose/oneEuroFilter";
+import { RaiseHandDetector, type RaiseHandEvent, type RaiseHandState } from "@/lib/pose/raiseHandDetector";
 import { DEFAULT_THROW_PARAMS, ThrowDetector, type DetectorState, type ThrowEvent } from "@/lib/pose/throwDetector";
 
 const SMOOTHED = [...UPPER_BODY, LM.LEFT_INDEX, LM.RIGHT_INDEX];
@@ -47,12 +48,15 @@ export function useThrowInput(
     enabled,
     onThrow,
     onBounce,
+    onRaiseHand,
     onPose,
   }: {
     enabled: boolean;
     onThrow: (ev: ThrowEvent) => void;
     /** A hand patted the ball down at waist height. */
     onBounce?: (ev: BounceEvent) => void;
+    /** A hand (or both) held up high and still for a second: press the button on screen. */
+    onRaiseHand?: (ev: RaiseHandEvent) => void;
     /** Smoothed pose + kinematics every frame (for the avatar and the camera preview) */
     onPose?: (smoothed: NormalizedLandmark[] | undefined, kin: KinematicsFrame | null) => void;
   },
@@ -65,14 +69,15 @@ export function useThrowInput(
     kin: new KinematicsTracker(),
     detector: new ThrowDetector(),
     dribble: new DribbleDetector(),
+    raise: new RaiseHandDetector(),
   }));
   const camRef = useRef({ width: 1280, height: 720 });
   const kinRef = useRef<KinematicsFrame | null>(null);
   const speedsRef = useRef<{ t: number; v: number }[]>([]);
-  const cbRef = useRef({ onThrow, onBounce, onPose });
+  const cbRef = useRef({ onThrow, onBounce, onRaiseHand, onPose });
   useEffect(() => {
-    cbRef.current = { onThrow, onBounce, onPose };
-  }, [onThrow, onBounce, onPose]);
+    cbRef.current = { onThrow, onBounce, onRaiseHand, onPose };
+  }, [onThrow, onBounce, onRaiseHand, onPose]);
   useEffect(() => {
     if (live) camRef.current = { width: cam.width, height: cam.height };
   }, [live, cam]);
@@ -87,6 +92,7 @@ export function useThrowInput(
       const kin = pipeline.kin.update(smoothed, t, width / height, "auto");
       const ev = pipeline.detector.updateFrame(kin, t);
       const bounce = pipeline.dribble.updateFrame(kin, t);
+      const raised = pipeline.raise.updateFrame(kin, t);
       kinRef.current = kin;
       const speeds = speedsRef.current;
       speeds.push({ t, v: kin?.arms[kin.hand]?.speed ?? 0 });
@@ -94,6 +100,7 @@ export function useThrowInput(
       cbRef.current.onPose?.(smoothed, kin);
       if (ev) cbRef.current.onThrow(ev);
       if (bounce) cbRef.current.onBounce?.(bounce);
+      if (raised) cbRef.current.onRaiseHand?.(raised);
     },
     [pipeline],
   );
@@ -103,11 +110,13 @@ export function useThrowInput(
   const [detectorState, setDetectorState] = useState<DetectorState>("IDLE");
   const [dribbling, setDribbling] = useState(false);
   const [motion, setMotion] = useState<MotionReadout | null>(null);
+  const [raiseHand, setRaiseHand] = useState<RaiseHandState>(pipeline.raise.state);
   useEffect(() => {
     if (tracker.status !== "ready") return;
     const id = window.setInterval(() => {
       setDetectorState(pipeline.detector.state);
       setDribbling(pipeline.dribble.dribbling(performance.now()));
+      setRaiseHand(pipeline.raise.state);
       const kin = kinRef.current;
       const arm = kin?.arms[kin.hand];
       setMotion(
@@ -126,5 +135,23 @@ export function useThrowInput(
     return () => window.clearInterval(id);
   }, [tracker.status, pipeline]);
 
-  return { cam, tracker, stats, detectorState, dribbling, motion, thresholds: pipeline.detector.params, retry, retryTracker };
+  /** Call when the screen changes: a hand already up must come down before it can press the new screen's button. */
+  const resetRaiseHand = useCallback(() => {
+    pipeline.raise.reset();
+    setRaiseHand(pipeline.raise.state);
+  }, [pipeline]);
+
+  return {
+    cam,
+    tracker,
+    stats,
+    detectorState,
+    dribbling,
+    motion,
+    raiseHand,
+    resetRaiseHand,
+    thresholds: pipeline.detector.params,
+    retry,
+    retryTracker,
+  };
 }

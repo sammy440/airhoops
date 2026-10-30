@@ -2,6 +2,19 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Hands-free menus
+- **Raise a hand** (`lib/pose/raiseHandDetector.ts`): hold a hand up high and still for 1 s to press the main
+  button: Start, Save & continue (calibration), Resume, Play again. **Both hands** up pauses a run (never one,
+  so a shot can't pause the game). A pill at the bottom shows what it will do, with a ring that fills as you hold.
+  - Thresholds: wrist ≥ 0.7 torso above the shoulder, ≤ 1.2 torso/s, held 1000 ms (150 ms grace for tracking
+    blips). In the recordings no throw, wave or head scratch stays that high and still for more than 360 ms,
+    and a head scratch peaks at 0.5. Replayed in `raiseHandDetector.test.ts`.
+  - Every screen change disarms it until both hands drop below the shoulders, so an arm still up from the last
+    shot can't press the next screen's button.
+  - Not in multiplayer yet: the lobby doesn't run the camera, so "I'm ready" still needs a click.
+- **Skip setup for returning players**: once you've passed the "Move into frame" check, Start goes straight to
+  the countdown if you're already tracked, framed and visible (confidence ≥ 0.6). Otherwise the check shows as before.
+
 ## Week 8 — Leaderboards, accessibility, privacy, launch prep
 - `/leaderboard`: solo (timed 30 s–2 min + any custom length via link, streak) and multiplayer (shootout, race)
   boards; today / this week / all time; difficulty filter; avatars; ties share a rank; your personal bests + rank.
