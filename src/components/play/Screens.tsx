@@ -8,6 +8,7 @@ import { ShareCardButton } from "@/components/ui/ShareCardButton";
 import type { LightingStatus } from "@/hooks/useLighting";
 import { COURT_THEME_ORDER, COURT_THEMES, type CourtThemeId } from "@/lib/game/courts";
 import { CALIBRATION_THROWS, consistency, type Calibration } from "@/lib/game/calibration";
+import { dailyLabel, msUntilNextDaily, type DailyRules } from "@/lib/game/daily";
 import { DIFFICULTIES, DIFFICULTY_ORDER, type DifficultyId } from "@/lib/game/difficulty";
 import {
   clampTimedSeconds,
@@ -123,6 +124,7 @@ export function StartMenu(p: {
   mode: ModeId;
   difficulty: DifficultyId;
   timedSeconds: number;
+  daily: DailyRules;
   courtTheme: CourtThemeId;
   calibration: Calibration | null;
   camera: boolean;
@@ -134,7 +136,8 @@ export function StartMenu(p: {
   onCalibrate: () => void;
   onStart: () => void;
 }) {
-  const d = DIFFICULTIES[p.difficulty];
+  const isDaily = p.mode === "daily";
+  const d = DIFFICULTIES[isDaily ? p.daily.difficulty : p.difficulty];
   // Only rendered on the client (after hydration), so localStorage is safe here.
   const [profile] = useState(loadProfile);
   return (
@@ -170,7 +173,7 @@ export function StartMenu(p: {
         </ol>
       )}
 
-      <div className="mt-5 grid grid-cols-3 gap-2 sm:mt-6" role="radiogroup" aria-label="Game mode">
+      <div className="mt-5 grid grid-cols-2 gap-2 sm:mt-6 sm:grid-cols-4" role="radiogroup" aria-label="Game mode">
         {MODE_ORDER.map((id) => {
           const m = MODES[id];
           const on = id === p.mode;
@@ -186,6 +189,7 @@ export function StartMenu(p: {
               <div className="display text-base leading-tight whitespace-nowrap min-[360px]:text-lg sm:text-xl">
                 {m.name}
                 {id === "timed" && <span className="hidden sm:inline"> · {formatDuration(p.timedSeconds)}</span>}
+                {id === "daily" && <span className="ml-1.5 align-middle font-sans text-[10px] font-bold tracking-wide text-sun uppercase">{dailyLabel(p.daily.key)}</span>}
               </div>
               <div className="mt-1 hidden text-xs leading-snug text-cream/65 sm:block">{m.blurb}</div>
             </button>
@@ -196,27 +200,31 @@ export function StartMenu(p: {
 
       {p.mode === "timed" && <ShotClockPicker seconds={p.timedSeconds} onChange={p.onTimedSeconds} />}
 
-      <div className="mt-4">
-        <div className="grid grid-cols-4 gap-1 rounded-xl bg-white/5 p-1" role="radiogroup" aria-label="Difficulty">
-          {DIFFICULTY_ORDER.map((id) => (
-            <button
-              key={id}
-              type="button"
-              role="radio"
-              aria-checked={id === p.difficulty}
-              onClick={() => p.onDifficulty(id)}
-              className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${id === p.difficulty ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
-            >
-              {DIFFICULTIES[id].name}
-            </button>
-          ))}
+      {isDaily ? (
+        <DailyCard rules={p.daily} />
+      ) : (
+        <div className="mt-4">
+          <div className="grid grid-cols-4 gap-1 rounded-xl bg-white/5 p-1" role="radiogroup" aria-label="Difficulty">
+            {DIFFICULTY_ORDER.map((id) => (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={id === p.difficulty}
+                onClick={() => p.onDifficulty(id)}
+                className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${id === p.difficulty ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
+              >
+                {DIFFICULTIES[id].name}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-cream/60">
+            {d.blurb} · {d.distance} m{d.hoopMotion ? " · moving hoop" : ""}
+            {d.windMax ? ` · wind ±${d.windMax}` : ""}
+            {d.scoreMultiplier > 1 ? ` · ×${d.scoreMultiplier} points` : ""}
+          </p>
         </div>
-        <p className="mt-2 text-xs text-cream/60">
-          {d.blurb} · {d.distance} m{d.hoopMotion ? " · moving hoop" : ""}
-          {d.windMax ? ` · wind ±${d.windMax}` : ""}
-          {d.scoreMultiplier > 1 ? ` · ×${d.scoreMultiplier} points` : ""}
-        </p>
-      </div>
+      )}
 
       <CourtPicker value={p.courtTheme} onChange={p.onCourtTheme} />
 
@@ -245,6 +253,7 @@ export function StartMenu(p: {
         <Primary onClick={p.onStart}>
           Play {MODES[p.mode].name}
           {p.mode === "timed" ? ` · ${formatDuration(p.timedSeconds)}` : ""}
+          {isDaily ? ` · ${d.name} ${formatDuration(p.daily.seconds)}` : ""}
         </Primary>
         {p.best && (
           <span className="text-center text-xs text-cream/60 sm:text-right">
@@ -259,6 +268,38 @@ export function StartMenu(p: {
         </Link>
       </p>
     </Modal>
+  );
+}
+
+/** Today's rules, and when the next challenge arrives. */
+function DailyCard({ rules }: { rules: DailyRules }) {
+  const d = DIFFICULTIES[rules.difficulty];
+  const [left, setLeft] = useState(() => msUntilNextDaily());
+  useEffect(() => {
+    const id = window.setInterval(() => setLeft(msUntilNextDaily()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const h = Math.floor(left / 3_600_000);
+  const m = Math.floor((left % 3_600_000) / 60_000);
+  return (
+    <div className="mt-4 rounded-2xl border border-sun/30 bg-sun/[0.07] px-4 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="display text-xl">
+          {d.name} · {formatDuration(rules.seconds)}
+        </span>
+        <span className="text-[11px] text-cream/60">
+          New challenge in {h}h {m}m
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-cream/70">
+        {d.distance} m{d.hoopMotion ? " · moving hoop" : ""}
+        {d.windMax ? " · the same wind as everyone, shot for shot" : ""}
+        {d.scoreMultiplier > 1 ? ` · ×${d.scoreMultiplier} points` : ""}. Play as often as you like: your best run counts.{" "}
+        <Link href={`/leaderboard?mode=${rules.key}`} className="font-semibold text-sun underline-offset-2 hover:underline">
+          Today&apos;s board →
+        </Link>
+      </p>
+    </div>
   );
 }
 
@@ -551,7 +592,9 @@ export function PauseMenu(p: {
 export function GameOver(p: {
   mode: ModeId;
   difficulty: DifficultyId;
-  timedSeconds: number;
+  /** Clock length of a timed or daily run */
+  seconds: number | undefined;
+  daily: DailyRules;
   tally: Tally;
   newBest: boolean;
   best: Best | undefined;
@@ -567,7 +610,7 @@ export function GameOver(p: {
   // Only rendered on the client (after hydration), so localStorage is safe here.
   const [profile] = useState(loadProfile);
   const site = siteUrl();
-  const what = `${MODES[p.mode].name}${p.mode === "timed" ? ` · ${formatDuration(p.timedSeconds)}` : ""} · ${DIFFICULTIES[p.difficulty].name}`;
+  const what = `${MODES[p.mode].name}${p.mode === "daily" ? ` ${dailyLabel(p.daily.key)}` : ""}${p.seconds ? ` · ${formatDuration(p.seconds)}` : ""} · ${DIFFICULTIES[p.difficulty].name}`;
   const card: ResultCardData = {
     context: what,
     headline: p.newBest ? "New best!" : "Beat that.",
@@ -593,11 +636,8 @@ export function GameOver(p: {
   };
   return (
     <Modal label="Game over">
-      <Eyebrow>
-        {MODES[p.mode].name}
-        {p.mode === "timed" ? ` ${formatDuration(p.timedSeconds)}` : ""} · {DIFFICULTIES[p.difficulty].name}
-      </Eyebrow>
-      <h2 className="display mt-2 text-5xl">{p.mode === "timed" ? "Buzzer!" : p.mode === "streak" ? "Streak over" : "Nice session"}</h2>
+      <Eyebrow>{what}</Eyebrow>
+      <h2 className="display mt-2 text-5xl">{p.seconds ? "Buzzer!" : p.mode === "streak" ? "Streak over" : "Nice session"}</h2>
       <div className="mt-4 flex items-baseline gap-3">
         <span className="display text-6xl text-hoop">{headline}</span>
         {p.newBest && <span className="animate-count-pop rounded-full bg-sun px-3 py-1 text-xs font-bold text-ink">NEW BEST</span>}

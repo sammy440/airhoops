@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { SiteNav } from "@/components/home/SiteNav";
 import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
 import { DIFFICULTIES, DIFFICULTY_ORDER, type DifficultyId } from "@/lib/game/difficulty";
+import { dailyLabel, dailyRules, isDailyKey, rulesForKey } from "@/lib/game/daily";
 import { formatDuration } from "@/lib/game/modes";
 import { api, ApiError, loadGuest, type LeaderboardEntry, type Period, type PersonalBests } from "@/lib/net/api";
 
@@ -17,9 +18,17 @@ const PERIODS: { id: Period; label: string }[] = [
   { id: "week", label: "This week" },
   { id: "all", label: "All time" },
 ];
-const MODE_RE = /^(streak|timed\d{2,4}|shootout|race\d{2,3})$/;
+const MODE_RE = /^(streak|timed\d{2,4}|daily\d{8}|shootout|race\d{2,3})$/;
+const DAY_MS = 86_400_000;
+
+/** Today's and yesterday's Daily Challenge boards. */
+function dailyKeys() {
+  const now = Date.now();
+  return [dailyRules(new Date(now)).key, dailyRules(new Date(now - DAY_MS)).key];
+}
 
 export function boardName(mode: string) {
+  if (isDailyKey(mode)) return dailyLabel(mode);
   if (mode === "streak") return "Streak";
   if (mode === "shootout") return "Shootout";
   const timed = mode.match(/^timed(\d+)$/);
@@ -38,6 +47,12 @@ export function LeaderboardClient() {
   const [difficulty, setDifficulty] = useState<DifficultyId | "">("");
   const [period, setPeriod] = useState<Period>("week");
   const [board, setBoard] = useState<Load<LeaderboardEntry[]>>({ kind: "loading" });
+  // Today's and yesterday's keys: set after mount, since the page is prerendered at build time.
+  const [days, setDays] = useState<string[]>([]);
+  // A daily board is already one day, with that day's difficulty: no period or difficulty filter.
+  const daily = isDailyKey(mode);
+  const boardPeriod: Period = daily ? "all" : period;
+  const boardDifficulty = daily ? "" : difficulty;
   const [mine, setMine] = useState<PersonalBests | null>(null);
   const [me, setMe] = useState<{ id: string; token: string } | null>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -54,6 +69,7 @@ export function LeaderboardClient() {
     if (p === "day" || p === "week" || p === "all") setPeriod(p);
     const g = loadGuest();
     if (g) setMe({ id: g.user.id, token: g.token });
+    setDays(dailyKeys());
     setHydrated(true);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
@@ -61,27 +77,28 @@ export function LeaderboardClient() {
   useEffect(() => {
     if (!hydrated) return;
     const url = new URL(window.location.href);
-    url.search = new URLSearchParams({ mode, period, ...(difficulty ? { difficulty } : {}) }).toString();
+    url.search = new URLSearchParams(daily ? { mode } : { mode, period, ...(difficulty ? { difficulty } : {}) }).toString();
     window.history.replaceState(null, "", url);
 
     let live = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- show loading while the new board is fetched
     setBoard({ kind: "loading" });
     api
-      .leaderboard({ mode, period, difficulty: difficulty || undefined, limit: 50 })
+      .leaderboard({ mode, period: boardPeriod, difficulty: boardDifficulty || undefined, limit: 50 })
       .then((data) => live && setBoard({ kind: "ok", data }))
       .catch((e: unknown) => live && setBoard({ kind: "error", message: e instanceof ApiError ? e.message : "Couldn't load the leaderboard" }));
     if (me)
       api
-        .myBests(me.token, { mode, difficulty: difficulty || undefined })
+        .myBests(me.token, { mode, difficulty: boardDifficulty || undefined })
         .then((data) => live && setMine(data))
         .catch(() => live && setMine(null));
     return () => {
       live = false;
     };
-  }, [hydrated, mode, difficulty, period, me]);
+  }, [hydrated, mode, daily, boardDifficulty, boardPeriod, period, difficulty, me]);
 
-  const customMode = !BOARDS.some((b) => b.modes.includes(mode)) ? mode : null;
+  const boards = [{ group: "Daily", modes: days }, ...BOARDS];
+  const customMode = !boards.some((b) => b.modes.includes(mode)) ? mode : null;
 
   return (
     <div className="min-h-screen flex-1 bg-ink text-cream">
@@ -95,10 +112,14 @@ export function LeaderboardClient() {
 
         {/* Board picker */}
         <div className="mt-8 grid gap-3">
-          {BOARDS.map((b) => (
+          {boards.map((b) => (
             <div key={b.group} className="flex flex-wrap items-center gap-2" role="group" aria-label={`${b.group} boards`}>
               <span className="w-24 text-[11px] font-semibold tracking-[0.14em] text-cream/50 uppercase">{b.group}</span>
-              {[...b.modes, ...(b.group === "Solo" && customMode?.startsWith("timed") ? [customMode] : [])].map((m) => (
+              {[
+                ...b.modes,
+                ...(b.group === "Solo" && customMode?.startsWith("timed") ? [customMode] : []),
+                ...(b.group === "Daily" && customMode && isDailyKey(customMode) ? [customMode] : []),
+              ].map((m) => (
                 <button
                   key={m}
                   type="button"
@@ -106,52 +127,64 @@ export function LeaderboardClient() {
                   onClick={() => setMode(m)}
                   className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition ${mode === m ? "border-hoop bg-hoop text-cream" : "border-cream/15 text-cream/75 hover:border-cream/40"}`}
                 >
-                  {boardName(m)}
+                  {m === days[0] ? "Today" : boardName(m)}
                 </button>
               ))}
             </div>
           ))}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex rounded-xl bg-white/5 p-1" role="group" aria-label="Period">
-            {PERIODS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                aria-pressed={period === p.id}
-                onClick={() => setPeriod(p.id)}
-                className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold transition ${period === p.id ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <label className="flex items-center gap-2 text-sm text-cream/70">
-            Difficulty
-            <select
-              value={difficulty}
-              onChange={(e) => setDifficulty(e.target.value as DifficultyId | "")}
-              className="rounded-lg border border-cream/15 bg-ink px-3 py-1.5 text-cream outline-none focus:border-hoop"
-            >
-              <option value="">All</option>
-              {DIFFICULTY_ORDER.map((d) => (
-                <option key={d} value={d}>
-                  {DIFFICULTIES[d].name}
-                </option>
+        {daily ? (
+          <p className="mt-4 text-sm text-cream/70">
+            Daily Challenge · {dailyLabel(mode)} · {DIFFICULTIES[rulesForKey(mode)?.difficulty ?? "starter"].name}.
+            Same shots for everyone; a new one every midnight (UTC).{" "}
+            {mode === days[0] && (
+              <Link href="/play" className="font-semibold text-hoop hover:underline">
+                Play today&apos;s →
+              </Link>
+            )}
+          </p>
+        ) : (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex rounded-xl bg-white/5 p-1" role="group" aria-label="Period">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-pressed={period === p.id}
+                  onClick={() => setPeriod(p.id)}
+                  className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold transition ${period === p.id ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
+                >
+                  {p.label}
+                </button>
               ))}
-            </select>
-          </label>
-        </div>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-cream/70">
+              Difficulty
+              <select
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value as DifficultyId | "")}
+                className="rounded-lg border border-cream/15 bg-ink px-3 py-1.5 text-cream outline-none focus:border-hoop"
+              >
+                <option value="">All</option>
+                {DIFFICULTY_ORDER.map((d) => (
+                  <option key={d} value={d}>
+                    {DIFFICULTIES[d].name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
 
         {/* Personal bests */}
         {me && (
           <section aria-label="Your personal bests" className="mt-6 grid grid-cols-3 gap-2 rounded-3xl border border-cream/10 bg-white/[0.03] p-4">
-            {PERIODS.map((p) => {
+            {(daily ? PERIODS.filter((p) => p.id === "all") : PERIODS).map((p) => {
               const pb = mine?.[p.id];
               return (
-                <div key={p.id} className={`rounded-2xl px-3 py-2 ${period === p.id ? "bg-white/[0.06]" : ""}`}>
-                  <div className="text-[10px] font-semibold tracking-[0.14em] text-cream/50 uppercase">Your best · {p.label}</div>
+                <div key={p.id} className={`rounded-2xl px-3 py-2 ${period === p.id && !daily ? "bg-white/[0.06]" : ""}`}>
+                  <div className="text-[10px] font-semibold tracking-[0.14em] text-cream/50 uppercase">Your best · {daily ? dailyLabel(mode) : p.label}</div>
                   {pb ? (
                     <div className="mt-1 flex items-baseline gap-2">
                       <span className="display text-3xl text-sun">{pb.best}</span>
@@ -170,9 +203,11 @@ export function LeaderboardClient() {
         <section className="mt-6 overflow-hidden rounded-3xl border border-cream/10 bg-white/[0.03]" aria-live="polite" aria-busy={board.kind === "loading"}>
           <div className="flex items-center justify-between border-b border-cream/10 px-5 py-3 text-xs text-cream/55">
             <span>
-              {boardName(mode)} · {difficulty ? DIFFICULTIES[difficulty].name : "All difficulties"} · {PERIODS.find((p) => p.id === period)?.label}
+              {daily
+                ? `Daily Challenge · ${dailyLabel(mode)}`
+                : `${boardName(mode)} · ${difficulty ? DIFFICULTIES[difficulty].name : "All difficulties"} · ${PERIODS.find((p) => p.id === period)?.label}`}
             </span>
-            <span>{mode.startsWith("timed") || mode === "streak" ? "Best run per player" : "Server-verified matches"}</span>
+            <span>{mode.startsWith("timed") || mode === "streak" || daily ? "Best run per player" : "Server-verified matches"}</span>
           </div>
           {board.kind === "loading" ? (
             <ol>
@@ -190,8 +225,8 @@ export function LeaderboardClient() {
             <div className="px-5 py-12 text-center">
               <p className="display text-3xl">No scores yet</p>
               <p className="mt-1 text-sm text-cream/60">Be the first on this board.</p>
-              <Link href={mode.startsWith("timed") || mode === "streak" ? "/play" : "/multiplayer"} className="mt-4 inline-block rounded-full bg-hoop px-6 py-2.5 text-sm font-semibold hover:bg-hoop-soft">
-                {mode.startsWith("timed") || mode === "streak" ? "Play" : "Start a match"}
+              <Link href={mode.startsWith("timed") || mode === "streak" || daily ? "/play" : "/multiplayer"} className="mt-4 inline-block rounded-full bg-hoop px-6 py-2.5 text-sm font-semibold hover:bg-hoop-soft">
+                {mode.startsWith("timed") || mode === "streak" || daily ? "Play" : "Start a match"}
               </Link>
             </div>
           ) : (
@@ -226,7 +261,7 @@ export function LeaderboardClient() {
           )}
         </section>
         <p className="mt-4 text-xs text-cream/60">
-          Solo scores are posted from Game Over. Multiplayer boards are refereed by the server. Today = last 24 hours, this week = last 7 days.
+          Solo scores are posted from Game Over. Multiplayer boards are refereed by the server. Today = last 24 hours, this week = last 7 days. Daily boards run midnight to midnight (UTC).
         </p>
       </main>
     </div>

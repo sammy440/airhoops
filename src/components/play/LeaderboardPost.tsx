@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { loadProfile, saveProfile, validName } from "@/lib/game/avatar";
+import { dailyLabel, isDailyKey } from "@/lib/game/daily";
 import { DIFFICULTIES, type DifficultyId } from "@/lib/game/difficulty";
 import { api, ApiError, loadGuest, saveGuest, type RunSubmission } from "@/lib/net/api";
 
@@ -51,8 +52,9 @@ export function LeaderboardPost({ run }: { run: RunSubmission & { id: number } }
   }, [run.id]);
 
   if (run.score <= 0) return null;
-  const board = `/leaderboard?mode=${run.mode}&difficulty=${run.difficulty}`;
-  const where = `${DIFFICULTIES[run.difficulty as DifficultyId]?.name ?? run.difficulty}, all-time`;
+  const daily = isDailyKey(run.mode);
+  const board = daily ? `/leaderboard?mode=${run.mode}` : `/leaderboard?mode=${run.mode}&difficulty=${run.difficulty}`;
+  const where = daily ? `Daily, ${dailyLabel(run.mode)}` : `${DIFFICULTIES[run.difficulty as DifficultyId]?.name ?? run.difficulty}, all-time`;
 
   return (
     <div className="mt-4 rounded-2xl border border-cream/10 bg-white/[0.03] px-4 py-3 text-sm" aria-live="polite">

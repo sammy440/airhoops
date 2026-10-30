@@ -10,6 +10,7 @@ import { beep } from "@/lib/browser";
 import { calibrate, calibratedLaunch, CALIBRATION_THROWS, isOutlier, loadCalibration, saveCalibration, type Calibration } from "@/lib/game/calibration";
 import { loadProfile } from "@/lib/game/avatar";
 import { courtThemeId, DEFAULT_COURT_THEME, type CourtThemeId } from "@/lib/game/courts";
+import { dailyRandom, dailyRules } from "@/lib/game/daily";
 import { courtFor, DIFFICULTIES, rollWind, type DifficultyId } from "@/lib/game/difficulty";
 import { Game } from "@/lib/game/game";
 import {
@@ -28,7 +29,6 @@ import { setMuted, unlockAudio } from "@/lib/game/sfx";
 import { DEFAULT_TUNING, keyboardThrow, makeWindow, throwToLaunch } from "@/lib/game/shot";
 import type { KinematicsFrame, Side } from "@/lib/pose/kinematics";
 import type { BounceEvent } from "@/lib/pose/dribbleDetector";
-import type { RaiseHandEvent } from "@/lib/pose/raiseHandDetector";
 import type { ThrowEvent } from "@/lib/pose/throwDetector";
 import { CameraPip, useCourtInset } from "./CameraPip";
 import type { RunSubmission } from "@/lib/net/api";
@@ -67,6 +67,9 @@ const DEFAULT_PREFS: Prefs = {
   courtTheme: DEFAULT_COURT_THEME,
   setupPassed: false,
 };
+
+/** Stand-in until the clock can be read on the client (the page is prerendered). Never shown: the menu waits for hydration. */
+const BEFORE_DAILY = dailyRules(new Date(0));
 
 interface PendingShot {
   power: number;
@@ -109,8 +112,15 @@ export function PlayClient() {
   }, [prefs, hydrated]);
   const set = <K extends keyof Prefs>(k: K, v: Prefs[K]) => setPrefs((p) => ({ ...p, [k]: v }));
 
-  const difficulty = DIFFICULTIES[prefs.difficulty];
-  const mode = useMemo(() => modeWithClock(prefs.mode, prefs.timedSeconds), [prefs.mode, prefs.timedSeconds]);
+  // Daily mode plays today's rules (loaded after mount, refreshed whenever the menu opens) instead of the player's picks.
+  const [daily, setDaily] = useState(BEFORE_DAILY);
+  const isDaily = prefs.mode === "daily";
+  const difficultyId = isDaily ? daily.difficulty : prefs.difficulty;
+  const difficulty = DIFFICULTIES[difficultyId];
+  const mode = useMemo(
+    () => modeWithClock(prefs.mode, isDaily ? daily.seconds : prefs.timedSeconds),
+    [prefs.mode, isDaily, daily.seconds, prefs.timedSeconds],
+  );
   const court = useMemo(() => courtFor(difficulty), [difficulty]);
 
   // ── Flow state ──
@@ -145,15 +155,15 @@ export function PlayClient() {
 
   const endGame = useCallback(() => {
     const t = tallyRef.current;
-    setNewBest(recordBest(prefs.mode, prefs.difficulty, { points: t.points, makes: t.makes, streak: t.best }, prefs.timedSeconds));
+    setNewBest(recordBest(prefs.mode, difficultyId, { points: t.points, makes: t.makes, streak: t.best }, prefs.timedSeconds, daily.key));
     // Free play has no clock or end condition, so it has no leaderboard.
     setRun(
       prefs.mode === "free"
         ? null
         : {
             id: Date.now(),
-            mode: prefs.mode === "timed" ? `timed${prefs.timedSeconds}` : "streak",
-            difficulty: prefs.difficulty,
+            mode: prefs.mode === "daily" ? daily.key : prefs.mode === "timed" ? `timed${prefs.timedSeconds}` : "streak",
+            difficulty: difficultyId,
             score: prefs.mode === "streak" ? t.best : t.points,
             shots: t.shots,
             makes: t.makes,
@@ -161,7 +171,7 @@ export function PlayClient() {
     );
     setBests(loadBests());
     setScreen("over");
-  }, [prefs.mode, prefs.difficulty, prefs.timedSeconds]);
+  }, [prefs.mode, difficultyId, prefs.timedSeconds, daily.key]);
 
   // ── Game engine (created once; callbacks read the latest state through refs) ──
   const handlers = useRef<{ onResult: (sim: ShotSim) => string | void; onReady: () => void }>({
@@ -189,8 +199,11 @@ export function PlayClient() {
     };
   }, []);
 
-  // Wind lives in state; the engine just mirrors it.
-  const nextWind = useCallback((d = difficulty) => setWind(rollWind(d)), [difficulty]);
+  // Wind lives in state; the engine just mirrors it. Daily runs draw shot n's wind from today's seed.
+  const nextWind = useCallback(
+    (d = difficulty) => setWind(rollWind(d, isDaily ? dailyRandom(daily, tallyRef.current.shots) : Math.random)),
+    [difficulty, isDaily, daily],
+  );
   useEffect(() => {
     gameRef.current?.setWind(wind);
   }, [wind]);
@@ -233,7 +246,7 @@ export function PlayClient() {
   const shoot = useCallback((launch: Launch, power: number, input: LastShot["input"]) => {
     const game = gameRef.current;
     if (screenRef.current !== "playing" || buzzerRef.current || !game) return false;
-    const phase = game.clock;
+    const phase = game.hoopPhase;
     const w = wind;
     if (!game.throwBall(launch)) return false;
     pendingRef.current = { power, angle: launch.angle, input, wind: w, phase };
@@ -271,9 +284,9 @@ export function PlayClient() {
   const onBounce = useCallback((ev: BounceEvent) => gameRef.current?.bounce(ev.hand, ev.strength, ev.intervalMs), []);
   // What a raised hand does on the current screen (set below, once the flow functions exist).
   const raiseRunRef = useRef<{ action: RaiseAction; run: () => void } | null>(null);
-  const onRaiseHand = useCallback((ev: RaiseHandEvent) => {
+  const onRaiseHand = useCallback(() => {
     const current = raiseRunRef.current;
-    if (!current || (RAISE_ACTIONS[current.action].both && ev.hands !== "both")) return;
+    if (!current) return;
     beep(1046, 120);
     current.run();
   }, []);
@@ -323,11 +336,17 @@ export function PlayClient() {
     endsAtRef.current = null;
     setTimeLeft(mode.seconds ?? null);
     nextWind();
-    gameRef.current?.setCourt(court);
+    const game = gameRef.current;
+    game?.setCourt(court);
+    // Daily: the moving hoop starts from the same spot for everyone (its clock starts with the countdown).
+    if (game) {
+      const start = game.clock;
+      game.setPhaseSource(isDaily ? () => game.clock - start : null);
+    }
     pause(false);
     setCountdown(3);
     setScreen("countdown");
-  }, [mode, court, pause, nextWind]);
+  }, [mode, court, pause, nextWind, isDaily]);
 
   // A returning player who's already standing in a good spot goes straight to the countdown.
   const inPosition = prefs.setupPassed && tracking && stats.framing === null && stats.confidence >= 0.6;
@@ -377,13 +396,13 @@ export function PlayClient() {
     else setScreen("menu");
   };
 
-  // ── Raise a hand to press the main button, so nobody has to walk back to the keyboard ──
+  // ── Raise a hand to press the main button, so nobody has to walk back to the keyboard. Not during a run:
+  //    the set point ("hold it high, pause") looks too much like it. ──
   const calResult = calSamples.length >= CALIBRATION_THROWS ? calibrate(calSamples, calHand) : null;
   const inRun = screen === "playing" || screen === "countdown";
   let raiseAction: RaiseAction | null = null;
   if (prefs.camera && tracking) {
     if (paused && inRun) raiseAction = "resume";
-    else if (inRun) raiseAction = "pause";
     else if (hydrated && screen === "menu") raiseAction = "start";
     else if (screen === "calibrate" && calResult) raiseAction = "save";
     else if (screen === "over") raiseAction = "again";
@@ -391,7 +410,6 @@ export function PlayClient() {
   useEffect(() => {
     const runs: Record<RaiseAction, () => void> = {
       resume: () => pause(false),
-      pause: () => pause(true),
       start: begin,
       save: saveCalibrationAndGo,
       again: startRun,
@@ -403,6 +421,14 @@ export function PlayClient() {
   useEffect(() => {
     resetRaiseHand();
   }, [screen, paused, hasCalResult, resetRaiseHand]);
+
+  // A new day's challenge shows up the next time the menu opens.
+  useEffect(() => {
+    if (screen !== "menu") return;
+    const today = dailyRules();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- only changes at midnight UTC
+    setDaily((d) => (d.key === today.key ? d : today));
+  }, [screen]);
 
   // Countdown → playing
   useEffect(() => {
@@ -537,7 +563,7 @@ export function PlayClient() {
   // ── Render ──
   const accuracy = tally.shots ? Math.round((tally.makes / tally.shots) * 100) : 0;
   const mult = streakMultiplier(tally.streak);
-  const best = bests[bestKey(prefs.mode, prefs.difficulty, prefs.timedSeconds)];
+  const best = bests[bestKey(prefs.mode, difficultyId, prefs.timedSeconds, daily.key)];
   const clockSecs = timeLeft === null ? 0 : Math.ceil(timeLeft);
 
   return (
@@ -646,6 +672,7 @@ export function PlayClient() {
           mode={prefs.mode}
           difficulty={prefs.difficulty}
           timedSeconds={prefs.timedSeconds}
+          daily={daily}
           courtTheme={prefs.courtTheme}
           calibration={calibration}
           camera={prefs.camera}
@@ -705,8 +732,9 @@ export function PlayClient() {
       {screen === "over" && (
         <GameOver
           mode={prefs.mode}
-          difficulty={prefs.difficulty}
-          timedSeconds={prefs.timedSeconds}
+          difficulty={difficultyId}
+          seconds={mode.seconds}
+          daily={daily}
           tally={tally}
           newBest={newBest}
           best={best}
@@ -717,23 +745,18 @@ export function PlayClient() {
         />
       )}
 
-      {/* During a run the pause hint only appears once both hands are going up; elsewhere it's always offered. */}
-      {raiseAction && (!RAISE_ACTIONS[raiseAction].both || raiseHand.hands === "both") && (
-        <RaiseHandHint label={RAISE_ACTIONS[raiseAction].label} both={RAISE_ACTIONS[raiseAction].both} state={raiseHand} />
-      )}
+      {raiseAction && <RaiseHandHint label={RAISE_LABELS[raiseAction]} state={raiseHand} />}
     </div>
   );
 }
 
-type RaiseAction = "resume" | "pause" | "start" | "save" | "again";
+type RaiseAction = "resume" | "start" | "save" | "again";
 
-/** `both`: needs both hands up, so a one-handed shot can never trigger it. */
-const RAISE_ACTIONS: Record<RaiseAction, { label: string; both?: boolean }> = {
-  resume: { label: "Resume" },
-  pause: { label: "Pause", both: true },
-  start: { label: "Start" },
-  save: { label: "Save & continue" },
-  again: { label: "Play again" },
+const RAISE_LABELS: Record<RaiseAction, string> = {
+  resume: "Resume",
+  start: "Start",
+  save: "Save & continue",
+  again: "Play again",
 };
 
 function IconButton({ label, on, onClick, children }: { label: string; on: boolean; onClick: () => void; children: React.ReactNode }) {

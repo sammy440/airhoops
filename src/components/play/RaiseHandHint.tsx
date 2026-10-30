@@ -9,7 +9,7 @@ const CIRC = 2 * Math.PI * R;
  * "✋ Raise a hand to …" pill with a ring that fills while the hand is held up.
  * Sits above the screens' dialogs (z-40) so it works on any of them.
  */
-export function RaiseHandHint({ label, state, both }: { label: string; state: RaiseHandState; both?: boolean }) {
+export function RaiseHandHint({ label, state }: { label: string; state: RaiseHandState }) {
   const holding = state.progress > 0;
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4 sm:bottom-6">
@@ -32,11 +32,11 @@ export function RaiseHandHint({ label, state, both }: { label: string; state: Ra
             style={{ transition: holding ? "stroke-dashoffset 100ms linear" : "none" }}
           />
           <text x="12" y="12" transform="rotate(90 12 12)" textAnchor="middle" dominantBaseline="central" fontSize="10">
-            {both ? "🙌" : "✋"}
+            ✋
           </text>
         </svg>
         <span>
-          {both ? "Raise both hands" : "Raise a hand"} to <strong className="font-semibold text-cream">{label}</strong>
+          Raise a hand to <strong className="font-semibold text-cream">{label}</strong>
         </span>
       </div>
     </div>

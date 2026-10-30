@@ -2,10 +2,24 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Daily Challenge
+- New **Daily** mode (`lib/game/daily.ts`), first in the mode picker: one timed run per UTC day, the same for
+  everyone. The day's difficulty (Starter / All-Star / Legend) and clock (30 / 60 / 90 s) come from a 32-bit hash
+  of the day number; shot *n*'s wind comes from the same seed; the moving hoop's clock starts with the countdown,
+  so it's in the same place at the same moment for every player. Play as often as you like; your best run counts.
+- Start menu shows today's rules, a countdown to the next challenge and a link to today's board.
+- Leaderboard: a **Daily** row with today's and yesterday's boards (`daily20261030`). Daily boards ignore the
+  period and difficulty filters, since each one is a single day at a single difficulty.
+- The API ports the same rules (`app/game/daily.py`) and rejects daily runs with the wrong difficulty, too many
+  shots for the clock, or a date more than a day from today. `daily.test.ts` and the API's `test_daily.py` pin
+  the same dates, so the two can't drift apart silently.
+- Fix: the shot gauge's target window now uses the hoop's real phase (`game.hoopPhase`) instead of the raw clock.
+
 ## Hands-free menus
 - **Raise a hand** (`lib/pose/raiseHandDetector.ts`): hold a hand up high and still for 1 s to press the main
-  button: Start, Save & continue (calibration), Resume, Play again. **Both hands** up pauses a run (never one,
-  so a shot can't pause the game). A pill at the bottom shows what it will do, with a ring that fills as you hold.
+  button: Start, Save & continue (calibration), Resume, Play again. A pill at the bottom shows what it will do,
+  with a ring that fills as you hold. Not during a run: the set point ("hold it high, pause") looks too much like
+  it, and an accidental pause mid-run is worse than reaching for Esc.
   - Thresholds: wrist ≥ 0.7 torso above the shoulder, ≤ 1.2 torso/s, held 1000 ms (150 ms grace for tracking
     blips). In the recordings no throw, wave or head scratch stays that high and still for more than 360 ms,
     and a head scratch peaks at 0.5. Replayed in `raiseHandDetector.test.ts`.
