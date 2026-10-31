@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { calibrate, calibratedLaunch, consistency, isOutlier } from "./calibration";
+import { calibrate, calibratedLaunch, consistency, isOutlier, JUMP_GAIN } from "./calibration";
 import { courtFor, DIFFICULTIES, DIFFICULTY_ORDER, rollWind } from "./difficulty";
 import { hoopOffset, idealSpeed, simulateShot } from "./physics";
 import { addShot, EMPTY_TALLY, scoreShot, streakMultiplier } from "./scoring";
 import { DEFAULT_TUNING } from "./shot";
 
-const make = { scored: true, swish: false, bank: false, miss: null, error: 0 };
+const make = { scored: true, swish: false, bank: false, miss: null, error: 0, lateral: 0 };
 const swish = { ...make, swish: true };
-const miss = { scored: false, swish: false, bank: false, miss: "short" as const, error: -0.5 };
+const miss = { scored: false, swish: false, bank: false, miss: "short" as const, error: -0.5, lateral: 0 };
 
 describe("scoring", () => {
   it("base 2, swish +1", () => {
@@ -71,12 +71,13 @@ describe("moving hoop and wind", () => {
     expect(simulateShot(launch, court, { phase: 3.21, wind: 0.7 })).toEqual(simulateShot(launch, court, { phase: 3.21, wind: 0.7 }));
   });
 
-  it("wind toward the hoop carries the ball further; against it, less far", () => {
+  it("a crosswind pushes the ball sideways, not further", () => {
     const still = { ...court, hoopMotion: null };
     // Compare where the ball is at the same moment mid-flight (before any contact).
-    const xAt = (wind: number) => simulateShot(launch, still, { wind }).path.find(([t]) => t >= 0.6)![1];
-    expect(xAt(1.2)).toBeGreaterThan(xAt(0) + 0.1);
-    expect(xAt(-1.2)).toBeLessThan(xAt(0) - 0.1);
+    const at = (wind: number) => simulateShot(launch, still, { wind }).path.find(([t]) => t >= 0.6)!;
+    expect(at(1.2)[3]).toBeGreaterThan(0.15);
+    expect(at(-1.2)[3]).toBeLessThan(-0.15);
+    expect(at(1.2)[1]).toBe(at(0)[1]);
   });
 
   it("the hoop position follows the shared offset function", () => {
@@ -87,11 +88,13 @@ describe("moving hoop and wind", () => {
 });
 
 describe("calibration", () => {
-  const cal = calibrate([2.4, 2.8, 3.2], "right");
-  const ev = { peakSpeed: cal.avg, angle: 30, arc: 0.7 };
+  const practice = (speeds: number[], jump = 0) => speeds.map((speed) => ({ speed, jump, lean: -0.05 }));
+  const cal = calibrate(practice([2.4, 2.8, 3.2]), "right");
+  const ev = { armSpeed: cal.avg, jump: 0, angle: 30, arc: 0.7 };
 
   it("summarizes the practice throws", () => {
     expect(cal.avg).toBeCloseTo(2.8, 6);
+    expect(cal.leanCenter).toBe(-0.05);
     expect(consistency(cal)).toBeCloseTo(0.4 / 2.8, 6);
   });
 
@@ -107,8 +110,8 @@ describe("calibration", () => {
   it("throwing harder than your average goes long, softer goes short", () => {
     const d = DIFFICULTIES.starter;
     const court = courtFor(d);
-    const hard = simulateShot(calibratedLaunch({ ...ev, peakSpeed: cal.avg * 1.3 }, cal, court, d).launch, court).result;
-    const soft = simulateShot(calibratedLaunch({ ...ev, peakSpeed: cal.avg * 0.7 }, cal, court, d).launch, court).result;
+    const hard = simulateShot(calibratedLaunch({ ...ev, armSpeed: cal.avg * 1.3 }, cal, court, d).launch, court).result;
+    const soft = simulateShot(calibratedLaunch({ ...ev, armSpeed: cal.avg * 0.7 }, cal, court, d).launch, court).result;
     expect(hard.error).toBeGreaterThan(0);
     expect(soft.error).toBeLessThan(0);
   });
@@ -118,9 +121,21 @@ describe("calibration", () => {
       const d = DIFFICULTIES[id];
       const court = courtFor(d);
       const avg = calibratedLaunch(ev, cal, court, d).launch.speed;
-      return Math.abs(calibratedLaunch({ ...ev, peakSpeed: cal.avg * 1.2 }, cal, court, d).launch.speed / avg - 1);
+      return Math.abs(calibratedLaunch({ ...ev, armSpeed: cal.avg * 1.2 }, cal, court, d).launch.speed / avg - 1);
     };
     expect(deviation("rookie")).toBeLessThan(deviation("legend"));
+  });
+
+  it("jumping harder than in practice throws further; jumping like in practice still scores", () => {
+    const d = DIFFICULTIES.starter;
+    const court = { ...courtFor(d), hoopMotion: null };
+    const stood = calibratedLaunch(ev, cal, court, d).launch;
+    const jumped = calibratedLaunch({ ...ev, jump: 1 }, cal, court, d).launch;
+    expect(jumped.speed / stood.speed).toBeCloseTo(1 + JUMP_GAIN, 6);
+    expect(simulateShot(jumped, court).result.error).toBeGreaterThan(0); // long
+    // A player who jumps every time (and did in practice) isn't pushed long by it.
+    const jumper = calibrate(practice([2.4, 2.8, 3.2], 0.9), "right");
+    expect(simulateShot(calibratedLaunch({ ...ev, jump: 0.9 }, jumper, court, d).launch, court).result.scored).toBe(true);
   });
 
   it("flags wild practice throws", () => {

@@ -1,3 +1,4 @@
+import type { Launch, MissKind, PathPoint, ShotEvent } from "@/lib/game/physics";
 import { WS_URL, type RoomState } from "./api";
 
 /**
@@ -36,18 +37,20 @@ export interface ServerShot {
   scored: boolean;
   swish?: boolean;
   bank?: boolean;
-  miss?: "short" | "long" | "rim" | "airball" | null;
+  miss?: MissKind | null;
   error?: number;
+  /** Sideways error (m), + = right */
+  lateral?: number;
   points: number;
   multiplier?: number;
   streak?: number;
-  launch?: { speed: number; angle: number };
+  launch?: Launch;
   wind?: number;
   phase?: number;
   releaseAt?: number;
   duration?: number;
-  path?: [number, number, number][];
-  events?: { t: number; type: "rim" | "board" | "floor" | "score"; x: number; y: number; impact: number }[];
+  path?: PathPoint[];
+  events?: ShotEvent[];
   serverTime: number;
 }
 
@@ -100,7 +103,7 @@ export type ClientMessage =
   | { type: "settings"; mode?: MatchMode; difficulty?: string; raceSeconds?: number; bestOf?: 1 | 3 | 5 }
   | { type: "leave" }
   /** Only these numbers ever leave the device for a shot (never video). */
-  | { type: "throw"; power: number; angle: number; arc: number; t: number };
+  | { type: "throw"; power: number; angle: number; arc: number; aim: number; t: number };
 
 export interface RoomSocketHandlers {
   onMessage: (msg: ServerMessage) => void;

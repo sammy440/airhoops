@@ -48,9 +48,9 @@ describe("HotHand", () => {
 });
 
 describe("hot-hand scoring", () => {
-  const make = { scored: true, swish: false, bank: false, miss: null, error: 0 };
+  const make = { scored: true, swish: false, bank: false, miss: null, error: 0, lateral: 0 };
   const swish = { ...make, swish: true };
-  const miss = { scored: false, swish: false, bank: false, miss: "short" as const, error: -0.5 };
+  const miss = { scored: false, swish: false, bank: false, miss: "short" as const, error: -0.5, lateral: 0 };
 
   it("scores one streak tier up", () => {
     expect(hotMultiplier(0)).toBe(1.5);

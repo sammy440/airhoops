@@ -22,18 +22,21 @@ it.runIf(process.env.GEN_PARITY)("writes physics parity fixtures", () => {
     for (const power of [0.1, 0.25, 0.3, 0.33, 0.36, 0.4, 0.5, 0.65, 0.8, 1]) {
       for (const [angle, arc] of [[30, 0.7], [10, 0.4], [55, 0.95], [-20, 0.2]]) {
         for (const [wind, phase] of [[0, 0], [d.windMax, 1.7], [-d.windMax, 3.25]]) {
-          const launch = throwToLaunch({ power, angle, arc });
-          const sim = simulateShot(launch, court, { wind, phase });
-          cases.push({
-            input: { difficulty, power, angle, arc, wind, phase },
-            launch,
-            result: sim.result,
-            duration: sim.duration,
-            events: sim.events.map((e) => ({ t: e.t, type: e.type })),
-            pathLength: sim.path.length,
-            path: sim.path.filter((_, i) => i % 15 === 0),
-            points: [0, 4, 11].map((streak) => scoreShot(sim.result, streak, d.scoreMultiplier).points),
-          });
+          // Straight, a little right, and far enough left to hit the aim limit.
+          for (const aim of [0, 20, -45]) {
+            const launch = throwToLaunch({ power, angle, arc, aim });
+            const sim = simulateShot(launch, court, { wind, phase });
+            cases.push({
+              input: { difficulty, power, angle, arc, aim, wind, phase },
+              launch,
+              result: sim.result,
+              duration: sim.duration,
+              events: sim.events.map((e) => ({ t: e.t, type: e.type })),
+              pathLength: sim.path.length,
+              path: sim.path.filter((_, i) => i % 15 === 0),
+              points: [0, 4, 11].map((streak) => scoreShot(sim.result, streak, d.scoreMultiplier).points),
+            });
+          }
         }
       }
     }

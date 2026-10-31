@@ -1,127 +1,35 @@
-import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import type { Side } from "@/lib/pose/kinematics";
-import { DEFAULT_COURT, hoopOffset, simulateShot, type Court, type Launch, type ShotEvent, type ShotSim } from "./physics";
-import { DEFAULT_AVATAR, type Avatar } from "./avatar";
-import { COURT_THEMES, DEFAULT_COURT_THEME, drawScenery, type CourtTheme, type CourtThemeId } from "./courts";
+import type { Court } from "./physics";
+import { drawScenery } from "./courts";
 import { DEFAULT_POSE, drawPlayer, type Vec } from "./drawPlayer";
-import { sfx } from "./sfx";
+import { COLORS as C, GameCore, type GameCallbacks, type Vec3 } from "./engine";
+
+export type { GameCallbacks, GamePhase } from "./engine";
 
 /**
- * Canvas game scene: playback of a deterministic shot simulation plus all
- * the juice (trail, net ripple, particles, floating text, sound).
+ * 2D canvas renderer (side view): the court seen from the side, x = toward the hoop.
+ * Kept as the fallback for devices without WebGL; game logic lives in GameCore.
  *
- * World units are meters (y up). Physics never runs per-frame here: each
- * throw is simulated once (simulateShot) and played back by wall-clock time,
- * the same way multiplayer plays server-authoritative paths.
+ * The side view can't show anything sideways (aim, crosswind, the hoop sliding), so
+ * z is ignored here.
  */
-
-export type GamePhase = "ready" | "flying" | "result";
-
-export interface GameCallbacks {
-  onLaunch?: (sim: ShotSim) => void;
-  /**
-   * Fires at the moment of scoring, or when a miss settles. May return the
-   * points label to float above the rim (e.g. "+6 ×2"), so streak and
-   * difficulty multipliers show where the player is looking.
-   */
-  onResult?: (sim: ShotSim) => string | void;
-  onReady?: () => void;
-}
-
-interface Particle {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  max: number;
-  size: number;
-  color: string;
-}
-
-interface FloatText {
-  text: string;
-  sub?: string;
-  x: number;
-  y: number;
-  born: number;
-  color: string;
-}
-
-const C = {
-  hoop: "#ea3a1d",
-  ball: "#f07b2c",
-  cream: "#f7f1d6",
-  sun: "#f6a13a",
-  ink: "#0e0e0d",
-};
-const RESPAWN_MS = 650;
-const HAND_BLEND_S = 0.12;
-/** A dribble lasts one beat of the player's rhythm, within these limits. */
-const DRIBBLE_MS = { min: 280, max: 800, fallback: 450 };
-/** Fraction of the beat spent going down (pushed), the rest coming back up. */
-const DRIBBLE_DOWN = 0.42;
-
-export class Game {
-  court: Court;
-  phase: GamePhase = "ready";
-  /** Paused games freeze the clock: flight, hoop motion and timers all stop. */
-  paused = false;
-
+export class Game extends GameCore {
   private ctx: CanvasRenderingContext2D;
-  private w = 0;
-  private h = 0;
   private dpr = 1;
-  private raf = 0;
-  /** Game clock (ms). Advances only while unpaused, so pausing freezes everything. */
-  private now = 0;
-  private lastTs = 0;
-  /** Wind (m/s²) applied to the next shot and shown by the flag. */
-  private wind = 0;
   /** Static scenery + floor, re-rendered only on resize / court / theme change. */
   private bg: HTMLCanvasElement | null = null;
-
-  private sim: ShotSim | null = null;
-  private launchedAt = 0;
-  private eventIdx = 0;
-  private resultSent = false;
-  private respawnAt = 0;
-  private handOffset = { x: 0, y: 0 };
-
-  private ball = { x: 0, y: 0, rot: 0 };
-  private trail: { x: number; y: number }[] = [];
-  private ghost: [number, number, number][] | null = null;
-  private particles: Particle[] = [];
-  private texts: FloatText[] = [];
-  private netKick = 0;
-  private netKickAt = -1e9;
-  private theme: CourtTheme = COURT_THEMES[DEFAULT_COURT_THEME];
   private font = "Impact, sans-serif";
-
-  private pose: NormalizedLandmark[] | undefined;
-  /** Screen pixels on the left covered by UI (camera preview); the court fits beside it. */
-  private leftInset = 0;
-  private charge: number | null = null;
-  /** Ball bouncing from one hand to the floor and back (see bounce()). */
-  private dribble: { hand: Side; start: number; period: number; strength: number; hit: boolean } | null = null;
-  /** Body, skin, hair and kit (see avatar.ts). */
-  private look: Avatar = DEFAULT_AVATAR;
-  private loaded = false;
-  private hot = false;
 
   constructor(
     private canvas: HTMLCanvasElement,
-    private cb: GameCallbacks = {},
-    court: Court = DEFAULT_COURT,
+    cb: GameCallbacks = {},
+    court?: Court,
   ) {
-    this.court = court;
+    super(cb, court);
     this.ctx = canvas.getContext("2d")!;
-    this.ball = { x: 0, y: court.releaseHeight, rot: 0 };
     const display = getComputedStyle(document.documentElement).getPropertyValue("--font-display").trim();
     if (display) this.font = display;
   }
-
-  // ── Public API ──
 
   resize(cssW: number, cssH: number, dpr = window.devicePixelRatio || 1) {
     this.w = cssW;
@@ -133,151 +41,18 @@ export class Game {
     this.bg = null;
   }
 
-  start() {
-    const loop = (ts: number) => {
-      const dt = this.lastTs ? Math.min(100, ts - this.lastTs) : 16;
-      this.lastTs = ts;
-      if (!this.paused) this.now += dt;
-      if (!document.hidden) {
-        this.update();
-        this.draw();
-      }
-      this.raf = requestAnimationFrame(loop);
-    };
-    this.raf = requestAnimationFrame(loop);
-  }
-
-  setPaused(p: boolean) {
-    this.paused = p;
-  }
-
-  /** Switch difficulty: new distance / rim / motion. Clears the old ghost path. */
-  setCourt(court: Court) {
-    this.court = court;
-    this.ghost = null;
+  protected sceneChanged() {
     this.bg = null;
   }
 
-  /** Cosmetic court scenery (see courts.ts). */
-  setTheme(id: CourtThemeId) {
-    if (this.theme.id === id) return;
-    this.theme = COURT_THEMES[id];
-    this.bg = null;
-  }
-
-  setWind(w: number) {
-    this.wind = w;
-  }
-
-  /** Game clock in seconds (the phase a moving hoop is at). */
-  get clock() {
-    return this.now / 1000;
-  }
-
-  /**
-   * Hoop-motion phase (s). Multiplayer points this at the server's match
-   * clock so a moving hoop is in the same place for everyone.
-   */
-  private phaseSource: (() => number | null) | null = null;
-
-  setPhaseSource(fn: (() => number | null) | null) {
-    this.phaseSource = fn;
-  }
-
-  get hoopPhase() {
-    return this.phaseSource?.() ?? this.clock;
-  }
-
-  stop() {
-    cancelAnimationFrame(this.raf);
-  }
-
-  canThrow() {
-    return this.phase === "ready" && !this.paused;
-  }
-
-  /** A shot is in the air (its result hasn't been reported yet). */
-  get ballInFlight() {
-    return this.phase === "flying" && !this.resultSent;
-  }
-
-  /** Simulates and launches a shot. Returns the simulation, or null if a ball is in flight. */
-  throwBall(launch: Launch): ShotSim | null {
-    if (!this.canThrow()) return null;
-    const sim = simulateShot(launch, this.court, { wind: this.wind, phase: this.hoopPhase });
-    const hands = this.handsWorld();
-    this.play(sim, { x: hands.x, y: hands.y - this.court.releaseHeight });
-    return sim;
-  }
-
-  /**
-   * Animates a shot simulated elsewhere (e.g. an opponent's shot, straight
-   * from the server). Returns false if a ball is already in the air.
-   */
-  playSim(sim: ShotSim): boolean {
-    if (this.phase === "flying") return false;
-    this.play(sim, { x: 0, y: 0 });
-    return true;
-  }
-
-  private play(sim: ShotSim, handOffset: { x: number; y: number }) {
-    this.dribble = null;
-    this.handOffset = handOffset;
-    this.sim = sim;
-    this.launchedAt = this.now;
-    this.eventIdx = 0;
-    this.resultSent = false;
-    this.phase = "flying";
-    this.trail = [];
-    sfx.release();
-    this.cb.onLaunch?.(sim);
-  }
-
-  /** Live (smoothed) pose: drives the shooter silhouette and where the ball sits. */
-  setPose(pose: NormalizedLandmark[] | undefined) {
-    this.pose = pose;
-  }
-
-  /** Reserve `px` on the left (e.g. under the camera preview) so it never covers the player. */
-  setLeftInset(px: number) {
-    this.leftInset = Math.max(0, Math.min(px, this.w * 0.45));
-  }
-
-  setAvatar(look: Avatar) {
-    this.look = look;
-  }
-
-  /**
-   * The player patted the ball down (DribbleDetector): it drops from that
-   * hand to the floor and comes back up over one beat of their rhythm.
-   * Cosmetic; only while the ball is in hand and the camera sees the player.
-   */
-  bounce(hand: Side, strength: number, intervalMs: number | null) {
-    if (this.phase !== "ready" || this.paused || !this.avatar().live) return;
-    const period = Math.min(DRIBBLE_MS.max, Math.max(DRIBBLE_MS.min, intervalMs ?? DRIBBLE_MS.fallback));
-    this.dribble = { hand, start: this.now, period, strength, hit: false };
-  }
-
-  /** Keyboard charge 0..1 (null = not charging). */
-  setCharge(c: number | null) {
-    this.charge = c;
-  }
-
-  /** "Loaded" glow on the ball when the detector is in WINDUP. */
-  setLoaded(v: boolean) {
-    this.loaded = v;
-  }
-
-  /** Flickering orange halo on the ball while the hot hand is on (solo). */
-  setHot(v: boolean) {
-    this.hot = v;
+  protected render() {
+    this.draw();
   }
 
   // ── World ↔ screen ──
 
-  /** Hoop centre right now (moves on harder levels). */
   private get hoopX() {
-    return this.court.hoopDistance + hoopOffset(this.court, this.hoopPhase);
+    return this.court.hoopDistance;
   }
 
   private get boardX() {
@@ -313,170 +88,22 @@ export class Game {
     return v.floorY - y * v.s;
   }
 
-  // ── Update ──
-
-  private update() {
-    const dt = 1 / 60;
-    if (this.phase === "flying" && this.sim) {
-      const t = (this.now - this.launchedAt) / 1000;
-      const p = this.sample(t);
-      // Blend from where the hands were to the physics release point.
-      const k = Math.max(0, 1 - t / HAND_BLEND_S);
-      this.ball.x = p.x + this.handOffset.x * k;
-      this.ball.y = p.y + this.handOffset.y * k;
-      this.ball.rot = -t * 14; // backspin
-      this.trail.push({ x: this.ball.x, y: this.ball.y });
-      if (this.trail.length > 14) this.trail.shift();
-
-      while (this.eventIdx < this.sim.events.length && this.sim.events[this.eventIdx].t <= t) {
-        this.onEvent(this.sim.events[this.eventIdx++]);
-      }
-      if (t >= this.sim.duration) {
-        if (!this.resultSent) {
-          this.resultSent = true;
-          this.missFeedback(this.sim);
-          this.cb.onResult?.(this.sim);
-        }
-        this.ghost = this.sim.path;
-        this.phase = "result";
-        this.respawnAt = this.now + RESPAWN_MS;
-      }
-    } else if (this.phase === "result" && this.now >= this.respawnAt) {
-      this.phase = "ready";
-      this.trail = [];
-      this.cb.onReady?.();
-    }
-    if (this.phase === "ready" && this.dribble && !this.updateDribble()) this.dribble = null;
-    if (this.phase === "ready" && !this.dribble) {
-      const hands = this.handsWorld();
-      this.ball.x = hands.x;
-      this.ball.y = hands.y + Math.sin(this.now / 400) * 0.01;
-      this.ball.rot = Math.sin(this.now / 900) * 0.2;
-    }
-
-    for (const p of this.particles) {
-      p.vy -= 9.81 * dt * 0.6;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.life -= dt;
-    }
-    this.particles = this.particles.filter((p) => p.life > 0);
-    this.texts = this.texts.filter((t) => this.now - t.born < 1600);
-  }
-
-  /** Moves the ball through the current dribble. Returns false once it's back in hand. */
-  private updateDribble() {
-    const d = this.dribble!;
-    const k = (this.now - d.start) / d.period;
-    if (k >= 1) return false;
-    const { pts, live } = this.avatar();
-    if (!live) return false;
-    const wrist = pts[d.hand === "left" ? 15 : 16];
-    const r = this.court.ballRadius;
-    // Under the palm, never above the shooting pocket or below the floor.
-    const top = Math.max(r * 2, Math.min(2.2, wrist.y - r * 0.8));
-    let y: number;
-    if (k < DRIBBLE_DOWN) {
-      const u = k / DRIBBLE_DOWN;
-      y = top - (top - r) * u * u; // pushed: speeds up on the way down
-    } else {
-      const u = (k - DRIBBLE_DOWN) / (1 - DRIBBLE_DOWN);
-      y = r + (top - r) * (1 - (1 - u) * (1 - u)); // rebounds, slowing into the hand
-      if (!d.hit) {
-        d.hit = true;
-        sfx.bounce(2 + d.strength * 4);
-      }
-    }
-    this.ball.x = wrist.x;
-    this.ball.y = y;
-    this.ball.rot += 0.08;
-    return true;
-  }
-
-  private sample(t: number) {
-    const path = this.sim!.path;
-    if (path.length < 2) return { x: path[0][1], y: path[0][2] };
-    // Binary search by time: works for local 120 Hz paths and server 60 Hz ones.
-    let lo = 0;
-    let hi = path.length - 2;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (path[mid][0] <= t) lo = mid;
-      else hi = mid - 1;
-    }
-    const i = lo;
-    const [t0, x0, y0] = path[i];
-    const [t1, x1, y1] = path[i + 1];
-    const k = t1 > t0 ? Math.min(1, Math.max(0, (t - t0) / (t1 - t0))) : 1;
-    return { x: x0 + (x1 - x0) * k, y: y0 + (y1 - y0) * k };
-  }
-
-  private onEvent(e: ShotEvent) {
-    const sim = this.sim!;
-    switch (e.type) {
-      case "rim":
-        sfx.rim(e.impact);
-        this.burst(e.x, e.y, 6, C.sun, 1.2);
-        this.netKick = Math.max(this.netKick, 0.4);
-        this.netKickAt = this.now;
-        break;
-      case "board":
-        sfx.board(e.impact);
-        this.burst(e.x, e.y, 5, C.cream, 1);
-        break;
-      case "floor":
-        sfx.bounce(e.impact);
-        break;
-      case "score": {
-        const r = sim.result;
-        if (r.swish) sfx.swish();
-        else sfx.rim(2);
-        sfx.cheer(r.swish);
-        this.netKick = 1;
-        this.netKickAt = this.now;
-        this.burst(e.x, this.court.rimHeight - 0.2, r.swish ? 40 : 24, r.swish ? C.sun : C.cream, 2.6);
-        let label: string | void = undefined;
-        if (!this.resultSent) {
-          this.resultSent = true;
-          label = this.cb.onResult?.(sim);
-        }
-        this.texts.push({
-          text: r.swish ? "SWISH!" : r.bank ? "BANK!" : "BUCKET!",
-          sub: label || (r.swish ? "+3" : "+2"),
-          x: e.x,
-          y: this.court.rimHeight + 0.7,
-          born: this.now,
-          color: r.swish ? C.sun : C.cream,
-        });
-        break;
-      }
-    }
-  }
-
-  private missFeedback(sim: ShotSim) {
-    const r = sim.result;
-    if (r.scored) return;
-    const label = { short: "SHORT", long: "LONG", rim: "RIM OUT", airball: "AIRBALL" }[r.miss ?? "short"];
-    this.texts.push({ text: label, x: this.hoopX - 0.4, y: this.court.rimHeight + 0.6, born: this.now, color: "rgba(247,241,214,.85)" });
-  }
-
-  private burst(x: number, y: number, n: number, color: string, speed: number) {
-    for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const v = speed * (0.4 + Math.random());
-      this.particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v + 1, life: 0.6 + Math.random() * 0.6, max: 1.2, size: 1.5 + Math.random() * 2.5, color });
-    }
-  }
-
   /** Where the hands are (midpoint of wrists); the ball sits there until released. */
-  private handsWorld() {
-    const fallback = { x: 0, y: this.court.releaseHeight };
+  protected handsWorld(): Vec3 {
+    const fallback = { x: 0, y: this.court.releaseHeight, z: 0 };
     if (!this.pose) return fallback;
     const { pts } = this.avatar();
     const x = (pts[15].x + pts[16].x) / 2;
     const y = (pts[15].y + pts[16].y) / 2;
     // Keep the ball near the release point so the launch blend stays short.
-    return { x: Math.max(-0.6, Math.min(0.4, x)), y: Math.max(1.2, Math.min(2.6, y)) };
+    return { x: Math.max(-0.6, Math.min(0.4, x)), y: Math.max(1.2, Math.min(2.6, y)), z: 0 };
+  }
+
+  protected wristWorld(hand: Side): Vec3 | null {
+    const { pts, live } = this.avatar();
+    if (!live) return null;
+    const w = pts[hand === "left" ? 15 : 16];
+    return { x: w.x, y: w.y, z: 0 };
   }
 
   /**

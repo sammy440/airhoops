@@ -100,3 +100,53 @@ describe("makeWindow", () => {
     expect(w.hi - w.lo).toBeLessThan(0.2);
   });
 });
+
+describe("3D: aim, crosswind, moving hoop, backboard width", () => {
+  const angle = 55;
+  const v = idealSpeed(angle)!;
+  /** Aim (deg) that points straight at a spot `z` metres to the side of the rim. */
+  const aimAt = (z: number) => (Math.atan2(z, DEFAULT_COURT.hoopDistance) * 180) / Math.PI;
+
+  it("aiming wide misses to that side", () => {
+    const right = simulateShot({ speed: v, angle, aim: 4 }).result;
+    const left = simulateShot({ speed: v, angle, aim: -4 }).result;
+    expect(right.scored).toBe(false);
+    expect(right.lateral).toBeGreaterThan(0.2);
+    expect(left.lateral).toBeLessThan(-0.2);
+    expect(["right", "rim"]).toContain(right.miss);
+  });
+
+  it("a little off-centre still drops (the ring is round)", () => {
+    expect(simulateShot({ speed: v, angle, aim: aimAt(0.05) }).result.scored).toBe(true);
+    expect(simulateShot({ speed: v, angle, aim: aimAt(-0.05) }).result.scored).toBe(true);
+  });
+
+  it("aiming into a crosswind compensates for it", () => {
+    const wind = 1.2;
+    expect(simulateShot({ speed: v, angle }, DEFAULT_COURT, { wind }).result.scored).toBe(false);
+    const drift = simulateShot({ speed: v, angle }, DEFAULT_COURT, { wind }).result.lateral;
+    expect(simulateShot({ speed: v, angle, aim: aimAt(-drift) }, DEFAULT_COURT, { wind }).result.scored).toBe(true);
+  });
+
+  it("a hoop slid to the side needs the shot aimed at it", () => {
+    const court = { ...DEFAULT_COURT, hoopMotion: { amplitude: 0.5, frequency: 0.05 } };
+    const phase = 5; // sin(2π · 0.05 · 5) = 1 → hoop 0.5 m right at release, ~0.47 m when the ball arrives ~1 s later
+    expect(simulateShot({ speed: v, angle }, court, { phase }).result.scored).toBe(false);
+    const sim = simulateShot({ speed: v, angle, aim: aimAt(0.47) }, court, { phase });
+    expect(sim.result.scored).toBe(true);
+  });
+
+  it("the backboard is only so wide: a long shot past its edge flies on", () => {
+    const long = { speed: v * 1.06, angle }; // banks in off the board
+    expect(simulateShot(long).events.some((e) => e.type === "board")).toBe(true);
+    const wide = simulateShot({ ...long, aim: aimAt(1.3) });
+    expect(wide.events.some((e) => e.type === "board")).toBe(false);
+    expect(wide.result.miss).toBe("airball");
+  });
+
+  it("paths carry the sideways position", () => {
+    const sim = simulateShot({ speed: v, angle, aim: 3 });
+    expect(sim.path.every((p) => p.length === 4)).toBe(true);
+    expect(sim.path.at(-1)![3]).toBeGreaterThan(0);
+  });
+});
