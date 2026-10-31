@@ -27,6 +27,10 @@ const frame = (t: number, left: number | null, right: number | null, speed = 0.2
   arms: { left: left === null ? null : arm("left", left, speed), right: right === null ? null : arm("right", right, speed) },
   hand: "right",
   autoHand: "right",
+  handsApart: null,
+  fallback: false,
+  body: { x: 0, y: 0 },
+  lean: null,
 });
 
 /** Feed `ms` of the same pose; returns the events. */

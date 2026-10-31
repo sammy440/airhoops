@@ -52,6 +52,14 @@ export interface KinematicsFrame {
   hand: Side;
   /** What auto-detection currently thinks, regardless of override */
   autoHand: Side;
+  /** Wrist to wrist, torso lengths (null unless both wrists are visible) */
+  handsApart: number | null;
+  /** The chosen wrist is out of view and `hand` is the other one (fine for drawing, not for detecting a throw) */
+  fallback: boolean;
+  /** Shoulder-midpoint velocity, torso lengths/s, image orientation (0 while the shoulders aren't visible) */
+  body: Vec2;
+  /** Shoulders shifted sideways over the hips, torso lengths, image x (null unless both are visible): the aim control */
+  lean: number | null;
 }
 
 const ARM = {
@@ -131,6 +139,8 @@ interface Sample {
  */
 export class KinematicsTracker {
   private history: Record<Side, Sample[]> = { left: [], right: [] };
+  /** Shoulder midpoint positions, for the body's velocity (a jump). */
+  private bodyHistory: Sample[] = [];
   private scale = 0;
   private activity: Record<Side, number> = { left: 0, right: 0 };
   private lastT = 0;
@@ -138,6 +148,7 @@ export class KinematicsTracker {
 
   reset() {
     this.history = { left: [], right: [] };
+    this.bodyHistory = [];
     this.scale = 0;
     this.activity = { left: 0, right: 0 };
   }
@@ -152,7 +163,10 @@ export class KinematicsTracker {
     const torso = torsoLength(pose, aspect);
     const shoulders = shoulderWidth(pose, aspect);
     const raw = torso > 0 ? torso : !this.scale && shoulders > 0 ? shoulders * SHOULDER_TO_TORSO : this.scale;
-    if (raw <= 0) return null;
+    if (raw <= 0) {
+      this.bodyHistory = []; // the Python port restarts the body's velocity here too
+      return null;
+    }
     this.scale = this.scale ? this.scale + SCALE_EMA * (raw - this.scale) : raw;
 
     const dtMs = this.lastT ? Math.max(1, t - this.lastT) : 33;
@@ -176,9 +190,49 @@ export class KinematicsTracker {
     }
     // If the chosen wrist is out of view, fall back to the visible one.
     let hand: Side = choice === "auto" ? this.autoHand : choice;
-    if (!arms[hand] && arms[hand === "left" ? "right" : "left"]) hand = hand === "left" ? "right" : "left";
+    let fallback = false;
+    if (!arms[hand] && arms[hand === "left" ? "right" : "left"]) {
+      hand = hand === "left" ? "right" : "left";
+      fallback = true;
+    }
 
-    return { t, scale: this.scale, arms, hand, autoHand: this.autoHand };
+    const l = arms.left;
+    const r = arms.right;
+    const handsApart = l && r ? Math.hypot((l.wrist.x - r.wrist.x) * aspect, l.wrist.y - r.wrist.y) / this.scale : null;
+
+    const [ls, rs, lh, rh] = [LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER, LM.LEFT_HIP, LM.RIGHT_HIP].map((i) => pose[i]);
+    const lean = ok(ls) && ok(rs) && ok(lh) && ok(rh) ? (((ls.x + rs.x) / 2 - (lh.x + rh.x) / 2) * aspect) / this.scale : null;
+
+    return {
+      t,
+      scale: this.scale,
+      arms,
+      hand,
+      autoHand: this.autoHand,
+      handsApart,
+      fallback,
+      body: this.bodyVelocity(pose, t, aspect),
+      lean,
+    };
+  }
+
+  /** Shoulder-midpoint velocity, the same finite difference as the wrists. */
+  private bodyVelocity(pose: NormalizedLandmark[], t: number, aspect: number): Vec2 {
+    const ls = pose[LM.LEFT_SHOULDER];
+    const rs = pose[LM.RIGHT_SHOULDER];
+    if (!ok(ls) || !ok(rs)) {
+      this.bodyHistory = [];
+      return { x: 0, y: 0 };
+    }
+    const M = mid(toSquare(ls, aspect), toSquare(rs, aspect));
+    const hist = this.bodyHistory;
+    hist.push({ t, p: M });
+    while (hist.length > 2 && t - hist[1].t >= VELOCITY_WINDOW_MS) hist.shift();
+    const ref = hist[0];
+    if (!ref || ref.t >= t) return { x: 0, y: 0 };
+    const dt = (t - ref.t) / 1000;
+    const d = sub(M, ref.p);
+    return { x: d.x / dt / this.scale, y: d.y / dt / this.scale };
   }
 
   private arm(side: Side, pose: NormalizedLandmark[], t: number, aspect: number): ArmKinematics | null {

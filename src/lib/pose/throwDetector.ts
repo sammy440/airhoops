@@ -1,4 +1,4 @@
-import type { ArmKinematics, KinematicsFrame, Side } from "./kinematics";
+import type { ArmKinematics, KinematicsFrame, Side, Vec2 } from "./kinematics";
 
 /**
  * Throw detector state machine.
@@ -11,6 +11,14 @@ import type { ArmKinematics, KinematicsFrame, Side } from "./kinematics";
  * Why it differs from the README sketch: in the first recordings players held
  * the "ball" at head height and pushed, so the wrist never dropped below the
  * hip. PICKUP is tracked (it's reported on the event) but not required.
+ *
+ * A second trigger, the elbow snap, catches pushes towards the camera, which look
+ * short in 2D (little reach gained): both hands hold the ball overhead with the
+ * elbow bent and still, then the elbow straightens quickly and the wrist rises.
+ *
+ * Power comes from the arm's speed relative to the shoulders; a jump (the
+ * shoulders rising fast just before release) adds to it, so jumping throws
+ * further but isn't needed to throw.
  *
  * The Python lab has a line-for-line port (lab/airhoops_lab/detector.py) used
  * for tuning; a parity test replays real recordings through both.
@@ -30,6 +38,12 @@ export interface ThrowEvent {
   /** ms timestamp (performance.now() timebase) */
   t: number;
   peakSpeed: number;
+  /** Peak wrist speed relative to the shoulders (a jump doesn't count), torso lengths/s */
+  armSpeed: number;
+  /** 0..1: how hard the player jumped into the shot */
+  jump: number;
+  /** Shoulders over hips at release, torso lengths, image x (null if not visible): the aim */
+  lean: number | null;
   extension: number;
   height: number;
   pickedUp: boolean;
@@ -63,9 +77,24 @@ export interface ThrowParams {
   windupHeight: number;
   windupMaxSpeed: number;
   pickupMemoryMs: number;
-  // Power mapping
+  // Power mapping (arm speed relative to the shoulders)
   powerMinSpeed: number;
   powerMaxSpeed: number;
+  // Elbow snap
+  snapBent: number;
+  snapStraight: number;
+  snapSetHeight: number;
+  snapReleaseHeight: number;
+  snapMaxHandsApart: number;
+  snapMinRise: number;
+  snapMinRate: number;
+  snapWindowMs: number;
+  snapHoldMs: number;
+  // Jump
+  jumpMinRise: number;
+  jumpFullRise: number;
+  jumpWindowMs: number;
+  jumpPower: number;
 }
 
 /** Units: speeds in torso lengths/s, distances in torso lengths. See CHANGELOG.md. */
@@ -100,7 +129,56 @@ export const DEFAULT_THROW_PARAMS: ThrowParams = {
   // First recordings peaked at 2.2–3.2 torso/s, so 1.5–5 maps them to ~20–50%.
   powerMinSpeed: 1.5,
   powerMaxSpeed: 5.0,
+  // Elbow snap: from a held two-handed set overhead, the elbow straightens fast.
+  // Lab, Oct 31: recall on the aimed clips 72% → 94%, still no trigger on head
+  // scratching or dribbling; one on a two-handed overhead wave.
+  snapBent: 150,
+  snapStraight: 145,
+  snapSetHeight: 0.2,
+  snapReleaseHeight: 0.35,
+  snapMaxHandsApart: 0.8,
+  snapMinRise: 0.03,
+  snapMinRate: 80,
+  snapWindowMs: 500,
+  snapHoldMs: 200,
+  // Jump: peak shoulder rise in the last jumpWindowMs. Standing throws rose 0.2–0.8 torso/s, jumping ones 1.4–2.7.
+  jumpMinRise: 0.8,
+  jumpFullRise: 2.4,
+  jumpWindowMs: 500,
+  jumpPower: 0.2,
 };
+
+/** What the detector needs from the rest of the body each frame (NaN = not visible). */
+export interface BodyContext {
+  /** The other wrist's height above its shoulder, torso lengths */
+  otherHeight: number;
+  /** Wrist to wrist, torso lengths */
+  handsApart: number;
+  /** Shoulder-midpoint velocity, torso lengths/s, image orientation */
+  body: Vec2;
+  /** Shoulders over hips, torso lengths */
+  lean: number;
+}
+
+const NO_BODY: BodyContext = { otherHeight: NaN, handsApart: NaN, body: { x: 0, y: 0 }, lean: NaN };
+
+interface Frame {
+  t: number;
+  elbow: number;
+  height: number;
+  otherHeight: number;
+  handsApart: number;
+  speed: number;
+  armSpeed: number;
+  rise: number;
+  vx: number;
+  vy: number;
+  extension: number;
+  lean: number;
+}
+
+/** Upper median (sorted[n / 2]), same as the Python port. */
+const median = (v: number[]) => [...v].sort((a, b) => a - b)[Math.floor(v.length / 2)];
 
 interface ThrowInProgress {
   tStart: number;
@@ -110,6 +188,7 @@ interface ThrowInProgress {
   heightAtMax: number;
   vxSum: number;
   vySum: number;
+  armPeak: number;
 }
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -121,6 +200,10 @@ export class ThrowDetector {
   private lastPickupT = -1e9;
   private hist: { t: number; ext: number }[] = [];
   private speeds: { t: number; speed: number }[] = [];
+  /** Visible frames, for the elbow snap and the jump. */
+  private recent: Frame[] = [];
+  /** The arm being watched; its history means nothing for the other one. */
+  private watching: Side | null = null;
   /** False after a timeout until the wrist slows down, so THROW can't re-trigger every frame. */
   private armed = true;
 
@@ -137,15 +220,35 @@ export class ThrowDetector {
     this.lastPickupT = -1e9;
     this.hist = [];
     this.speeds = [];
+    this.recent = [];
+    this.watching = null;
     this.armed = true;
   }
 
-  /** Convenience: feed a whole KinematicsFrame (uses its chosen hand). */
+  /**
+   * Convenience: feed a whole KinematicsFrame (uses its chosen hand). A frame where the chosen
+   * wrist is out of view counts as the arm being lost, not as a throw by the other arm.
+   */
   updateFrame(kin: KinematicsFrame | null, t: number): ThrowEvent | null {
-    return this.update(t, kin?.arms[kin.hand] ?? null, kin?.hand ?? "right");
+    if (!kin || kin.fallback) return this.update(t, null, kin?.hand ?? "right");
+    if (kin.hand !== this.watching) {
+      // The shooting hand switched: start its history afresh (cooldown stays).
+      this.watching = kin.hand;
+      this.throw = null;
+      this.hist = [];
+      this.speeds = [];
+      this.recent = [];
+    }
+    const other = kin.arms[kin.hand === "left" ? "right" : "left"];
+    return this.update(t, kin.arms[kin.hand], kin.hand, {
+      otherHeight: other?.height ?? NaN,
+      handsApart: kin.handsApart ?? NaN,
+      body: kin.body,
+      lean: kin.lean ?? NaN,
+    });
   }
 
-  update(t: number, arm: ArmKinematics | null, hand: Side): ThrowEvent | null {
+  update(t: number, arm: ArmKinematics | null, hand: Side, ctx: BodyContext = NO_BODY): ThrowEvent | null {
     const p = this.params;
     if (!arm || !Number.isFinite(arm.speed)) {
       this.throw = null;
@@ -154,6 +257,23 @@ export class ThrowDetector {
     }
 
     const { extension: ext, height, speed } = arm;
+    const armSpeed = Math.hypot(arm.velocity.x - ctx.body.x, arm.velocity.y - ctx.body.y);
+    this.recent.push({
+      t,
+      elbow: arm.elbowAngle,
+      height,
+      otherHeight: ctx.otherHeight,
+      handsApart: ctx.handsApart,
+      speed,
+      armSpeed,
+      rise: -ctx.body.y,
+      vx: arm.velocity.x,
+      vy: arm.velocity.y,
+      extension: ext,
+      lean: ctx.lean,
+    });
+    const keep = Math.max(p.snapWindowMs + p.snapHoldMs, p.jumpWindowMs);
+    while (this.recent.length && t - this.recent[0].t > keep) this.recent.shift();
     this.hist.push({ t, ext });
     while (this.hist.length && t - this.hist[0].t > p.lookbackMs) this.hist.shift();
     if (arm.belowHip > p.pickupBelowHip) this.lastPickupT = t;
@@ -181,20 +301,29 @@ export class ThrowDetector {
           heightAtMax: -9,
           vxSum: 0,
           vySum: 0,
+          armPeak: 0,
         };
         this.state = "THROW";
-      } else if (arm.belowHip > p.pickupBelowHip) {
-        this.state = "PICKUP";
-      } else if (height >= p.windupHeight && speed < p.windupMaxSpeed) {
-        this.state = "WINDUP";
       } else {
-        this.state = "IDLE";
+        const snap = this.snap(t, hand);
+        if (snap) return this.fire(snap);
+        if (arm.belowHip > p.pickupBelowHip) this.state = "PICKUP";
+        else if (height >= p.windupHeight && speed < p.windupMaxSpeed) this.state = "WINDUP";
+        else this.state = "IDLE";
+        return null;
       }
-      if (this.state !== "THROW") return null;
     }
 
     const th = this.throw!;
     if (speed > th.peakSpeed) th.peakSpeed = speed;
+    th.armPeak = Math.max(th.armPeak, armSpeed);
+    // A snap can complete while the reach-based throw is still deciding (pushes towards the camera
+    // often start it, then fail its reach-gained check): take the snap.
+    const snap = this.snap(t, hand);
+    if (snap) {
+      this.throw = null;
+      return this.fire(snap);
+    }
     if (ext >= th.extMax) {
       th.extMax = ext;
       th.heightAtMax = height;
@@ -226,19 +355,92 @@ export class ThrowDetector {
       return null;
     }
 
-    this.state = "COOLDOWN";
-    this.cooldownUntil = t + p.cooldownMs;
-    return {
+    const jump = this.jump(t);
+    return this.fire({
       t,
-      power: clamp01((th.peakSpeed - p.powerMinSpeed) / (p.powerMaxSpeed - p.powerMinSpeed)),
+      power: this.power(th.armPeak, jump),
       angle,
       arc: clamp01((th.heightAtMax + 0.2) / 1.2),
       hand,
       peakSpeed: th.peakSpeed,
+      armSpeed: th.armPeak,
+      jump,
+      lean: this.lean(),
       extension: th.extMax,
       height: th.heightAtMax,
       pickedUp: t - this.lastPickupT <= p.pickupMemoryMs,
       durationMs: elapsed,
+    });
+  }
+
+  private fire(ev: ThrowEvent) {
+    this.state = "COOLDOWN";
+    this.cooldownUntil = ev.t + this.params.cooldownMs;
+    return ev;
+  }
+
+  // ── Elbow snap and jump ──
+
+  /** 0..1: how fast the shoulders rose in the last jumpWindowMs (a jump into the shot). */
+  private jump(t: number) {
+    const p = this.params;
+    let rise = 0;
+    for (const r of this.recent) if (r.t >= t - p.jumpWindowMs && r.rise > rise) rise = r.rise;
+    return clamp01((rise - p.jumpMinRise) / (p.jumpFullRise - p.jumpMinRise));
+  }
+
+  private lean() {
+    const lean = this.recent[this.recent.length - 1].lean;
+    return Number.isFinite(lean) ? lean : null;
+  }
+
+  private power(armSpeed: number, jump: number) {
+    const p = this.params;
+    return clamp01((armSpeed - p.powerMinSpeed) / (p.powerMaxSpeed - p.powerMinSpeed) + p.jumpPower * jump);
+  }
+
+  /** The current frame ends an elbow snap from a held two-handed set overhead → a throw. */
+  private snap(t: number, hand: Side): ThrowEvent | null {
+    const p = this.params;
+    const k = this.recent[this.recent.length - 1];
+    if (!(k.elbow >= p.snapStraight && k.height >= p.snapReleaseHeight)) return null;
+    const window = this.recent.slice(0, -1).filter((r) => r.t >= t - p.snapWindowMs && Number.isFinite(r.elbow));
+    if (window.length < 2) return null;
+    // The set: the most bent frame (the first, if tied)
+    const j = window.reduce((m, r) => (r.elbow < m.elbow ? r : m));
+    if (j.elbow > p.snapBent || j.height < p.snapSetHeight) return null;
+    // Both hands on the ball (NaN, i.e. not visible, fails these)
+    if (!(j.otherHeight >= p.snapSetHeight && j.handsApart <= p.snapMaxHandsApart)) return null;
+    if (k.height - j.height < p.snapMinRise) return null;
+    const seg = this.recent.filter((r) => r.t >= j.t);
+    const peak = Math.max(...seg.map((r) => r.speed));
+    if (peak < p.minPeakSpeed) return null;
+    if (((k.elbow - j.elbow) / Math.max(1, t - j.t)) * 1000 < p.snapMinRate) return null;
+    if (median(this.recent.filter((r) => r.t >= j.t - p.snapHoldMs && r.t <= j.t).map((r) => r.speed)) > p.maxSetSpeed) return null;
+    let vx = 0;
+    let vy = 0;
+    for (const r of seg) {
+      vx += r.vx;
+      vy += r.vy;
+    }
+    const angle = vx || vy ? (Math.atan2(-vy, Math.abs(vx)) * 180) / Math.PI : 0;
+    if (angle < p.minAngle) return null;
+    const armPeak = Math.max(...seg.map((r) => r.armSpeed));
+    const jump = this.jump(t);
+    return {
+      t,
+      power: this.power(armPeak, jump),
+      angle,
+      arc: clamp01((k.height + 0.2) / 1.2),
+      hand,
+      peakSpeed: peak,
+      armSpeed: armPeak,
+      jump,
+      lean: this.lean(),
+      extension: k.extension,
+      height: k.height,
+      pickedUp: t - this.lastPickupT <= p.pickupMemoryMs,
+      durationMs: t - j.t,
     };
   }
 }
