@@ -7,12 +7,23 @@ import { Logo } from "@/components/ui/Logo";
 import { useLighting } from "@/hooks/useLighting";
 import { useThrowInput } from "@/hooks/useThrowInput";
 import { beep } from "@/lib/browser";
-import { calibrate, calibratedLaunch, CALIBRATION_THROWS, isOutlier, loadCalibration, saveCalibration, type Calibration } from "@/lib/game/calibration";
+import {
+  calibrate,
+  calibratedLaunch,
+  CALIBRATION_THROWS,
+  isOutlier,
+  loadCalibration,
+  saveCalibration,
+  type Calibration,
+  type PracticeThrow,
+} from "@/lib/game/calibration";
 import { loadProfile } from "@/lib/game/avatar";
 import { courtThemeId, DEFAULT_COURT_THEME, type CourtThemeId } from "@/lib/game/courts";
 import { dailyRandom, dailyRules } from "@/lib/game/daily";
 import { courtFor, DIFFICULTIES, rollWind, type DifficultyId } from "@/lib/game/difficulty";
-import { Game } from "@/lib/game/game";
+import { AimCenter, leanAim, MAX_LEAN_AIM } from "@/lib/game/aim";
+import { createGame, rendererId, type RendererId } from "@/lib/game/createGame";
+import type { GameCore } from "@/lib/game/engine";
 import { HOT_BOUNCES, HotHand } from "@/lib/game/hotHand";
 import {
   bestKey,
@@ -27,7 +38,7 @@ import {
 import type { Launch, ShotSim } from "@/lib/game/physics";
 import { addShot, EMPTY_TALLY, hotMultiplier, streakMultiplier, type Tally } from "@/lib/game/scoring";
 import { setMuted, unlockAudio } from "@/lib/game/sfx";
-import { DEFAULT_TUNING, keyboardThrow, makeWindow, throwToLaunch } from "@/lib/game/shot";
+import { DEFAULT_TUNING, keyboardThrow, makeWindow, throwAimFor, throwToLaunch } from "@/lib/game/shot";
 import type { KinematicsFrame, Side } from "@/lib/pose/kinematics";
 import type { BounceEvent } from "@/lib/pose/dribbleDetector";
 import type { ThrowEvent } from "@/lib/pose/throwDetector";
@@ -55,6 +66,8 @@ interface Prefs {
   timedSeconds: number;
   /** Cosmetic court scenery; multiplayer reads it from here too. */
   courtTheme: CourtThemeId;
+  /** 3D court or the classic 2D side view; multiplayer reads it from here too. */
+  renderer: RendererId;
   /** Passed the camera setup check before; next time it's skipped if they're already in position. */
   setupPassed: boolean;
 }
@@ -66,6 +79,7 @@ const DEFAULT_PREFS: Prefs = {
   difficulty: "starter",
   timedSeconds: DEFAULT_TIMED_SECONDS,
   courtTheme: DEFAULT_COURT_THEME,
+  renderer: "3d",
   setupPassed: false,
 };
 
@@ -75,6 +89,7 @@ const BEFORE_DAILY = dailyRules(new Date(0));
 interface PendingShot {
   power: number;
   angle: number;
+  aim: number;
   input: LastShot["input"];
   wind: number;
   phase: number;
@@ -88,7 +103,7 @@ export function PlayClient() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const pipRef = useRef<SkeletonOverlayHandle>(null);
   const pipBoxRef = useRef<HTMLDivElement>(null);
-  const gameRef = useRef<Game | null>(null);
+  const gameRef = useRef<GameCore | null>(null);
   const pendingRef = useRef<PendingShot | null>(null);
 
   // ── Preferences ──
@@ -100,7 +115,12 @@ export function PlayClient() {
     try {
       const stored = { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") };
       // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from localStorage
-      setPrefs({ ...stored, timedSeconds: clampTimedSeconds(stored.timedSeconds), courtTheme: courtThemeId(stored.courtTheme) });
+      setPrefs({
+        ...stored,
+        timedSeconds: clampTimedSeconds(stored.timedSeconds),
+        courtTheme: courtThemeId(stored.courtTheme),
+        renderer: rendererId(stored.renderer),
+      });
     } catch {}
     setCalibration(loadCalibration());
     setBests(loadBests());
@@ -133,12 +153,19 @@ export function PlayClient() {
   const tallyRef = useRef<Tally>(EMPTY_TALLY);
   const [last, setLast] = useState<LastShot | null>(null);
   const [kbAngle, setKbAngle] = useState(DEFAULT_TUNING.baseAngle);
+  /** Keyboard aim, launch degrees (+ = right) */
+  const [kbAim, setKbAim] = useState(0);
+  // Camera aim: lean relative to the player's straight lean (calibrated, else learned from their throws)
+  const [aimCenter] = useState(() => new AimCenter());
+  useEffect(() => {
+    aimCenter.setCalibrated(calibration?.leanCenter ?? null);
+  }, [aimCenter, calibration]);
   const [wind, setWind] = useState(0);
   const [countdown, setCountdown] = useState(3);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [newBest, setNewBest] = useState(false);
   const [run, setRun] = useState<(RunSubmission & { id: number }) | null>(null);
-  const [calSamples, setCalSamples] = useState<number[]>([]);
+  const [calSamples, setCalSamples] = useState<PracticeThrow[]>([]);
   const [calOutlier, setCalOutlier] = useState(false);
   const [calHand, setCalHand] = useState<Side>("right");
   const calReturnRef = useRef<"menu" | "play">("menu");
@@ -185,15 +212,28 @@ export function PlayClient() {
     onResult: () => undefined,
     onReady: () => {},
   });
+  // What a freshly created engine needs to catch up on (the effects below only push changes).
+  const sceneRef = useRef({ court, theme: prefs.courtTheme, wind: 0 });
+  useEffect(() => {
+    sceneRef.current = { court, theme: prefs.courtTheme, wind };
+  });
   useEffect(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
-    if (!canvas || !wrap) return;
-    const game = new Game(canvas, {
-      onResult: (sim) => handlers.current.onResult(sim),
-      onReady: () => handlers.current.onReady(),
-    });
+    if (!canvas || !wrap || !hydrated) return;
+    const game = createGame(
+      canvas,
+      {
+        onResult: (sim) => handlers.current.onResult(sim),
+        onReady: () => handlers.current.onReady(),
+      },
+      prefs.renderer,
+    );
+    const scene = sceneRef.current;
     game.setAvatar(loadProfile().avatar);
+    game.setCourt(scene.court);
+    game.setTheme(scene.theme);
+    game.setWind(scene.wind);
     gameRef.current = game;
     const ro = new ResizeObserver(() => game.resize(wrap.clientWidth, wrap.clientHeight));
     ro.observe(wrap);
@@ -204,7 +244,7 @@ export function PlayClient() {
       game.stop();
       gameRef.current = null;
     };
-  }, []);
+  }, [hydrated, prefs.renderer]);
 
   // Wind lives in state; the engine just mirrors it. Daily runs draw shot n's wind from today's seed.
   const nextWind = useCallback(
@@ -237,7 +277,7 @@ export function PlayClient() {
           angle: p.angle,
           input: p.input,
           result: sim.result,
-          window: makeWindow(p.angle, court, DEFAULT_TUNING, { wind: p.wind, phase: p.phase }),
+          window: makeWindow(p.angle, court, DEFAULT_TUNING, { wind: p.wind, phase: p.phase }, p.aim),
         });
       }
       if (screenRef.current === "playing") {
@@ -259,7 +299,7 @@ export function PlayClient() {
     const hot = hotHand.shoot(performance.now());
     setHotBounces(0);
     game.setHot(false);
-    pendingRef.current = { power, angle: launch.angle, input, wind: w, phase, hot };
+    pendingRef.current = { power, angle: launch.angle, aim: launch.aim ?? 0, input, wind: w, phase, hot };
     return true;
   }, [wind, hotHand]);
 
@@ -270,27 +310,36 @@ export function PlayClient() {
       if (s === "calibrate") {
         setCalSamples((prev) => {
           if (prev.length >= CALIBRATION_THROWS) return prev;
-          setCalOutlier(isOutlier(prev, ev.peakSpeed));
+          setCalOutlier(isOutlier(prev.map((s) => s.speed), ev.armSpeed));
           setCalHand(ev.hand);
           beep(880 + prev.length * 220, 140);
-          return [...prev, ev.peakSpeed];
+          return [...prev, { speed: ev.armSpeed, jump: ev.jump, lean: ev.lean }];
         });
         return;
       }
       if (s !== "playing") return;
+      // Aim: how far they leaned at release, as the throw's sideways angle
+      const thrown = { ...ev, aim: throwAimFor(leanAim(ev.lean, aimCenter.value)) };
+      aimCenter.observe(ev.lean);
       if (calibration) {
-        const { launch, power } = calibratedLaunch(ev, calibration, court, difficulty);
+        const { launch, power } = calibratedLaunch(thrown, calibration, court, difficulty);
         shoot(launch, power, "camera");
       } else {
-        shoot(throwToLaunch(ev), ev.power, "camera");
+        shoot(throwToLaunch(thrown), ev.power, "camera");
       }
     },
-    [calibration, court, difficulty, shoot],
+    [calibration, court, difficulty, shoot, aimCenter],
   );
-  const onPose = useCallback((smoothed: NormalizedLandmark[] | undefined, kin: KinematicsFrame | null) => {
-    gameRef.current?.setPose(smoothed);
-    pipRef.current?.draw(smoothed, { kin });
-  }, []);
+  const onPose = useCallback(
+    (smoothed: NormalizedLandmark[] | undefined, kin: KinematicsFrame | null) => {
+      const game = gameRef.current;
+      game?.setPose(smoothed);
+      // The guide shows where a throw right now would go.
+      game?.setAim(kin ? leanAim(kin.lean, aimCenter.value) : null);
+      pipRef.current?.draw(smoothed, { kin });
+    },
+    [aimCenter],
+  );
   const onBounce = useCallback(
     (ev: BounceEvent) => {
       const game = gameRef.current;
@@ -354,7 +403,7 @@ export function PlayClient() {
     return () => window.clearInterval(id);
   }, [tracking]);
 
-  useCourtInset(gameRef, pipBoxRef, prefs.camera);
+  useCourtInset(gameRef, pipBoxRef, prefs.camera, prefs.renderer);
 
   // ── Flow ──
   const startRun = useCallback(() => {
@@ -506,11 +555,17 @@ export function PlayClient() {
   }, [pause]);
 
   // ── Keyboard / mouse / touch: Space or press-and-hold on the court shoots (tap = medium, hold = charge),
-  //    ↑/↓ arc, Esc/P pause ──
+  //    ↑/↓ arc, ←/→ aim, Esc/P pause ──
   const kbAngleRef = useRef(kbAngle);
+  const kbAimRef = useRef(kbAim);
   useEffect(() => {
     kbAngleRef.current = kbAngle;
-  }, [kbAngle]);
+    kbAimRef.current = kbAim;
+  }, [kbAngle, kbAim]);
+  // Without the camera the guide shows the keyboard aim (with it, the lean drives it in onPose).
+  useEffect(() => {
+    if (!prefs.camera) gameRef.current?.setAim(kbAim);
+  }, [prefs.camera, kbAim, prefs.renderer]);
   useEffect(() => {
     let downAt: number | null = null;
     let raf = 0;
@@ -535,6 +590,9 @@ export function PlayClient() {
       } else if (e.code === "ArrowUp" || e.code === "ArrowDown") {
         e.preventDefault();
         setKbAngle((a) => Math.min(DEFAULT_TUNING.maxAngle, Math.max(DEFAULT_TUNING.minAngle, a + (e.code === "ArrowUp" ? 2 : -2))));
+      } else if (e.code === "ArrowLeft" || e.code === "ArrowRight") {
+        e.preventDefault();
+        setKbAim((a) => Math.min(MAX_LEAN_AIM, Math.max(-MAX_LEAN_AIM, a + (e.code === "ArrowRight" ? 1 : -1))));
       }
     };
     const startCharge = () => {
@@ -555,7 +613,7 @@ export function PlayClient() {
           ? keyboardThrow(undefined, gameRef.current?.court).power + (Math.random() * 2 - 1) * TAP_WOBBLE
           : Math.min(1, held / FULL_CHARGE_MS);
       const t = DEFAULT_TUNING;
-      shoot({ speed: t.minSpeed + power * (t.maxSpeed - t.minSpeed), angle: kbAngleRef.current }, power, "keys");
+      shoot({ speed: t.minSpeed + power * (t.maxSpeed - t.minSpeed), angle: kbAngleRef.current, aim: kbAimRef.current }, power, "keys");
     };
     const onUp = (e: KeyboardEvent) => {
       if (e.code !== "Space" || downAt === null) return;
@@ -602,7 +660,13 @@ export function PlayClient() {
   return (
     <div id="main" className="fixed inset-0 overflow-hidden bg-ink text-cream select-none">
       <div ref={wrapRef} className="absolute inset-0">
-        <canvas ref={canvasRef} className="block h-full w-full touch-none select-none" aria-label="Court. Press and hold to charge a shot, release to shoot." role="img" />
+        <canvas
+          key={prefs.renderer}
+          ref={canvasRef}
+          className="block h-full w-full touch-none select-none"
+          aria-label="Court. Press and hold to charge a shot, release to shoot."
+          role="img"
+        />
       </div>
 
       {/* ── Top HUD ── */}
@@ -702,7 +766,7 @@ export function PlayClient() {
         {last && screen === "playing" && <ShotGauge shot={last} />}
         {screen === "playing" && (
           <p className="hidden text-[11px] text-cream/45 sm:block">
-            Space or click: tap = medium · hold = charge · ↑↓ arc {kbAngle}° · Esc pause
+            Space or click: tap = medium · hold = charge · ↑↓ arc {kbAngle}° · ←→ aim {kbAim > 0 ? `${kbAim}° R` : kbAim < 0 ? `${-kbAim}° L` : "straight"} · Esc pause
           </p>
         )}
       </div>
@@ -725,6 +789,8 @@ export function PlayClient() {
           timedSeconds={prefs.timedSeconds}
           daily={daily}
           courtTheme={prefs.courtTheme}
+          renderer={prefs.renderer}
+          onRenderer={(r) => set("renderer", r)}
           calibration={calibration}
           camera={prefs.camera}
           best={best}
@@ -749,7 +815,7 @@ export function PlayClient() {
       )}
       {screen === "calibrate" && (
         <CalibrationPanel
-          samples={calSamples}
+          samples={calSamples.map((s) => s.speed)}
           outlier={calOutlier}
           loaded={tracking && detectorState === "WINDUP"}
           result={calResult}

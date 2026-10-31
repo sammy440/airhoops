@@ -4,7 +4,7 @@ import { useEffect, type RefObject } from "react";
 import { SkeletonOverlay, type SkeletonOverlayHandle } from "@/components/lab/SkeletonOverlay";
 import type { CameraErrorKind, CameraState } from "@/hooks/useCamera";
 import type { MotionReadout } from "@/hooks/useThrowInput";
-import type { Game } from "@/lib/game/game";
+import type { GameCore } from "@/lib/game/engine";
 import type { DetectorState, ThrowParams } from "@/lib/pose/throwDetector";
 import type { TrackerState } from "@/hooks/usePoseTracking";
 import { MotionOverlay } from "./MotionOverlay";
@@ -111,7 +111,8 @@ function Problem({ text, onRetry }: { text: string; onRetry: () => void }) {
 }
 
 /** Keeps the court beside the camera preview (it's left-aligned and tall on wide screens). */
-export function useCourtInset(gameRef: RefObject<Game | null>, boxRef: RefObject<HTMLDivElement | null>, camera: boolean) {
+/** `engine`: changes when the game engine is recreated (e.g. a renderer switch), so the new one gets the inset too. */
+export function useCourtInset(gameRef: RefObject<GameCore | null>, boxRef: RefObject<HTMLDivElement | null>, camera: boolean, engine?: string) {
   useEffect(() => {
     const box = boxRef.current;
     const update = () => {
@@ -128,5 +129,5 @@ export function useCourtInset(gameRef: RefObject<Game | null>, boxRef: RefObject
       ro.disconnect();
       window.removeEventListener("resize", update);
     };
-  }, [gameRef, boxRef, camera]);
+  }, [gameRef, boxRef, camera, engine]);
 }

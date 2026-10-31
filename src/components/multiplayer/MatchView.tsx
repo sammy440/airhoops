@@ -12,11 +12,13 @@ import { DEFAULT_AVATAR, loadProfile, sanitizeAvatar } from "@/lib/game/avatar";
 import { courtThemeId, DEFAULT_COURT_THEME, type CourtThemeId } from "@/lib/game/courts";
 import { calibratedLaunch, loadCalibration } from "@/lib/game/calibration";
 import { courtFor, DIFFICULTIES, type DifficultyId } from "@/lib/game/difficulty";
-import { Game } from "@/lib/game/game";
+import { AimCenter, leanAim, MAX_LEAN_AIM } from "@/lib/game/aim";
+import { createGame, rendererId, type RendererId } from "@/lib/game/createGame";
+import type { GameCore } from "@/lib/game/engine";
 import { formatDuration } from "@/lib/game/modes";
 import type { Launch, ShotSim } from "@/lib/game/physics";
 import { setMuted, unlockAudio } from "@/lib/game/sfx";
-import { keyboardThrow, throwToLaunch } from "@/lib/game/shot";
+import { keyboardThrow, throwAimFor, throwToLaunch } from "@/lib/game/shot";
 import type { RoomState, Series } from "@/lib/net/api";
 import type { ClientMessage, ServerShot } from "@/lib/net/socket";
 import type { KinematicsFrame } from "@/lib/pose/kinematics";
@@ -50,17 +52,17 @@ function toSim(shot: ServerShot): ShotSim | null {
     launch: shot.launch,
     path: shot.path,
     events: shot.events ?? [],
-    result: { scored: shot.scored, swish: !!shot.swish, bank: !!shot.bank, miss: shot.miss ?? null, error: shot.error ?? 0 },
+    result: { scored: shot.scored, swish: !!shot.swish, bank: !!shot.bank, miss: shot.miss ?? null, error: shot.error ?? 0, lateral: shot.lateral ?? 0 },
     duration: shot.duration,
   };
 }
 
-function loadPlayPrefs(): { camera: boolean; sound: boolean; courtTheme: CourtThemeId } {
+function loadPlayPrefs(): { camera: boolean; sound: boolean; courtTheme: CourtThemeId; renderer: RendererId } {
   try {
     const p = JSON.parse(localStorage.getItem("airhoops.play.prefs") ?? "{}");
-    return { camera: p.camera ?? true, sound: p.sound ?? true, courtTheme: courtThemeId(p.courtTheme) };
+    return { camera: p.camera ?? true, sound: p.sound ?? true, courtTheme: courtThemeId(p.courtTheme), renderer: rendererId(p.renderer) };
   } catch {
-    return { camera: true, sound: true, courtTheme: DEFAULT_COURT_THEME };
+    return { camera: true, sound: true, courtTheme: DEFAULT_COURT_THEME, renderer: "3d" };
   }
 }
 
@@ -70,13 +72,17 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
   const videoRef = useRef<HTMLVideoElement>(null);
   const pipRef = useRef<SkeletonOverlayHandle>(null);
   const pipBoxRef = useRef<HTMLDivElement>(null);
-  const gameRef = useRef<Game | null>(null);
+  const gameRef = useRef<GameCore | null>(null);
   const labelRef = useRef<string | null>(null);
   const predictedRef = useRef<ShotSim | null>(null);
   const handledShotRef = useRef<string | null>(null);
 
   const [prefs] = useState(loadPlayPrefs);
   const [calibration] = useState(loadCalibration);
+  // Aim by leaning (camera) or ←/→ (keyboard), as in solo play
+  const [aimCenter] = useState(() => new AimCenter(calibration?.leanCenter ?? null));
+  const [kbAim, setKbAim] = useState(0);
+  const kbAimRef = useRef(0);
   const start = match.start;
   const difficulty = DIFFICULTIES[start.difficulty as DifficultyId] ?? DIFFICULTIES.starter;
   const court = useMemo(() => courtFor(difficulty), [difficulty]);
@@ -93,13 +99,17 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
     if (!canvas || !wrap) return;
-    const game = new Game(canvas, {
-      onResult: () => {
-        const label = labelRef.current;
-        labelRef.current = null;
-        return label ?? undefined;
+    const game = createGame(
+      canvas,
+      {
+        onResult: () => {
+          const label = labelRef.current;
+          labelRef.current = null;
+          return label ?? undefined;
+        },
       },
-    });
+      prefs.renderer,
+    );
     gameRef.current = game;
     const ro = new ResizeObserver(() => game.resize(wrap.clientWidth, wrap.clientHeight));
     ro.observe(wrap);
@@ -110,7 +120,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       game.stop();
       gameRef.current = null;
     };
-  }, []);
+  }, [prefs.renderer]);
   useEffect(() => {
     gameRef.current?.setTheme(prefs.courtTheme);
   }, [prefs.courtTheme]);
@@ -163,7 +173,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
 
   /** Local prediction for instant feedback; the server's call decides the score. */
   const shoot = useCallback(
-    (launch: Launch, payload: { power: number; angle: number; arc: number }) => {
+    (launch: Launch, payload: { power: number; angle: number; arc: number; aim: number }) => {
       const game = gameRef.current;
       if (!game || !canShootRef.current || !game.canThrow()) return;
       const t = serverNow();
@@ -177,25 +187,39 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
 
   const onThrow = useCallback(
     (ev: ThrowEvent) => {
+      // The server gets the same numbers and simulates the shot itself (aim included).
+      const aim = throwAimFor(leanAim(ev.lean, aimCenter.value));
+      aimCenter.observe(ev.lean);
       if (calibration) {
-        const { launch, power } = calibratedLaunch(ev, calibration, court, difficulty);
-        shoot(launch, { power, angle: ev.angle, arc: ev.arc });
+        const { launch, power } = calibratedLaunch({ ...ev, aim }, calibration, court, difficulty);
+        shoot(launch, { power, angle: ev.angle, arc: ev.arc, aim });
       } else {
-        shoot(throwToLaunch(ev), { power: ev.power, angle: ev.angle, arc: ev.arc });
+        shoot(throwToLaunch({ ...ev, aim }), { power: ev.power, angle: ev.angle, arc: ev.arc, aim });
       }
     },
-    [calibration, court, difficulty, shoot],
+    [calibration, court, difficulty, shoot, aimCenter],
   );
-  const onPose = useCallback((smoothed: NormalizedLandmark[] | undefined, kin: KinematicsFrame | null) => {
-    if (!watchingRef.current) gameRef.current?.setPose(smoothed);
-    pipRef.current?.draw(smoothed, { kin });
-  }, []);
+  const onPose = useCallback(
+    (smoothed: NormalizedLandmark[] | undefined, kin: KinematicsFrame | null) => {
+      if (!watchingRef.current) {
+        gameRef.current?.setPose(smoothed);
+        gameRef.current?.setAim(kin ? leanAim(kin.lean, aimCenter.value) : null);
+      }
+      pipRef.current?.draw(smoothed, { kin });
+    },
+    [aimCenter],
+  );
   // Your dribbles show on court only while it's your player out there.
   const onBounce = useCallback((ev: BounceEvent) => {
     if (!watchingRef.current) gameRef.current?.bounce(ev.hand, ev.strength, ev.intervalMs);
   }, []);
   const input = useThrowInput(videoRef, { enabled: prefs.camera, onThrow, onBounce, onPose });
   useCourtInset(gameRef, pipBoxRef, prefs.camera);
+  // Aim guide: the keyboard aim without a camera; nothing while watching someone else's turn.
+  useEffect(() => {
+    if (watching) gameRef.current?.setAim(null);
+    else if (!prefs.camera) gameRef.current?.setAim(kbAim);
+  }, [watching, prefs.camera, kbAim]);
   useEffect(() => {
     gameRef.current?.setLoaded(canShoot && input.tracker.status === "ready" && input.detectorState === "WINDUP");
   }, [canShoot, input.tracker.status, input.detectorState]);
@@ -216,6 +240,13 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       return true;
     };
     const onDown = (e: KeyboardEvent) => {
+      if (e.code === "ArrowLeft" || e.code === "ArrowRight") {
+        e.preventDefault();
+        const next = Math.min(MAX_LEAN_AIM, Math.max(-MAX_LEAN_AIM, kbAimRef.current + (e.code === "ArrowRight" ? 1 : -1)));
+        kbAimRef.current = next;
+        setKbAim(next);
+        return;
+      }
       if (e.code !== "Space") return;
       e.preventDefault();
       if (!e.repeat) startCharge();
@@ -228,7 +259,8 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       gameRef.current?.setCharge(null);
       const power =
         held < TAP_MS ? keyboardThrow(undefined, court).power + (Math.random() * 2 - 1) * TAP_WOBBLE : Math.min(1, held / FULL_CHARGE_MS);
-      shoot(throwToLaunch({ power, ...KEYBOARD_THROW }), { power, ...KEYBOARD_THROW });
+      const throwInput = { power, ...KEYBOARD_THROW, aim: throwAimFor(kbAimRef.current) };
+      shoot(throwToLaunch(throwInput), throwInput);
     };
     const onUp = (e: KeyboardEvent) => {
       if (e.code !== "Space" || downAt === null) return;
@@ -406,7 +438,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
         onRetryTracker={input.retryTracker}
       />
       <p className="absolute inset-x-0 bottom-3 z-10 hidden text-center text-[11px] text-cream/45 sm:block">
-        Space or click: tap = medium · hold = charge · or throw on camera. The server referees every shot.
+        Space or click: tap = medium · hold = charge · ←→ aim · or throw on camera (lean to aim). The server referees every shot.
       </p>
 
       {/* Countdown */}

@@ -7,6 +7,7 @@ import { CourtPreview } from "@/components/ui/CourtPreview";
 import { ShareCardButton } from "@/components/ui/ShareCardButton";
 import type { LightingStatus } from "@/hooks/useLighting";
 import { COURT_THEME_ORDER, COURT_THEMES, type CourtThemeId } from "@/lib/game/courts";
+import { webglAvailable, type RendererId } from "@/lib/game/createGame";
 import { CALIBRATION_THROWS, consistency, type Calibration } from "@/lib/game/calibration";
 import { dailyLabel, msUntilNextDaily, type DailyRules } from "@/lib/game/daily";
 import { DIFFICULTIES, DIFFICULTY_ORDER, type DifficultyId } from "@/lib/game/difficulty";
@@ -109,6 +110,41 @@ function CourtPicker({ value, onChange }: { value: CourtThemeId; onChange: (t: C
   );
 }
 
+/** 3D court or the classic side view (no choice without WebGL: 2D it is). */
+function ViewPicker({ value, onChange }: { value: RendererId; onChange: (r: RendererId) => void }) {
+  // Rendered only after hydration, so probing WebGL here is safe.
+  const [has3d] = useState(webglAvailable);
+  const current = has3d ? value : "2d";
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+      <span className="text-xs font-semibold tracking-[0.14em] text-cream/55 uppercase">View</span>
+      {has3d ? (
+        <div className="flex rounded-xl bg-white/5 p-1" role="radiogroup" aria-label="View">
+          {(
+            [
+              ["3d", "3D court"],
+              ["2d", "Classic 2D"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={current === id}
+              onClick={() => onChange(id)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${current === id ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <span className="text-xs text-cream/60">Classic 2D (this browser has no 3D graphics)</span>
+      )}
+    </div>
+  );
+}
+
 /* ───────── Start menu ───────── */
 
 const HOW_TO = [
@@ -126,6 +162,8 @@ export function StartMenu(p: {
   timedSeconds: number;
   daily: DailyRules;
   courtTheme: CourtThemeId;
+  renderer: RendererId;
+  onRenderer: (r: RendererId) => void;
   calibration: Calibration | null;
   camera: boolean;
   best: Best | undefined;
@@ -227,6 +265,7 @@ export function StartMenu(p: {
       )}
 
       <CourtPicker value={p.courtTheme} onChange={p.onCourtTheme} />
+      <ViewPicker value={p.renderer} onChange={p.onRenderer} />
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/[0.04] px-4 py-3 text-sm">
         {p.camera ? (
