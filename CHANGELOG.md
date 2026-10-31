@@ -2,6 +2,20 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## The avatar never distorts
+- `Retargeter` (`pose3d.ts`) replaces copying joint positions. The avatar keeps its own proportions (`BONES`, the
+  stance's bone lengths) and the pose only steers it: each arm bone's direction, the upper body's lean (±0.15 m),
+  the shoulders' tilt (±25°), the knee dip. Standing too close, off to the side, or with the hips out of frame
+  gives the same body (scale is learned from the torso and kept when the hips leave).
+- A bone that looks shorter on camera than it is points at the camera: the missing length becomes forward reach
+  (towards the hoop), so a push at the screen reads as one instead of shrinking the arm.
+- A bone the camera loses keeps its last direction for 0.6 s, then eases back to the stance over 0.4 s.
+- Checked by replaying the lab recordings as recorded and scaled ×1.8 / shifted sideways: same body.
+- **Fix: aim direction.** Frames reach MediaPipe unmirrored (only the preview is flipped), and the recordings
+  confirm it (the right wrist sits on the image's left), so the player's right is the image's left. `leanAim`
+  now follows that geometry; it had been fitted to the lean clips' labels, which most likely followed the
+  mirrored preview (screen left = the player's right) and would have aimed every lean the wrong way.
+
 ## Throws that register, jump for distance, lean to aim (3D stage 2)
 - **Elbow snap** (`throwDetector.ts` + `detector.py`): a second throw trigger for pushes towards the camera,
   which gain little reach in 2D. From a still, two-handed set overhead, the elbow straightens fast and the wrist

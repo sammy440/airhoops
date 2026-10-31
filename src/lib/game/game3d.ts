@@ -5,7 +5,7 @@ import { COURTS_3D, type Court3D } from "./courts3d";
 import { COLORS, GameCore, type FloatText, type GameCallbacks, type Vec3 } from "./engine";
 import { hoopOffset, type Court } from "./physics";
 import { Player3D } from "./player3d";
-import { liveBody, restBody, type Body } from "./pose3d";
+import { restBody, Retargeter, type Body } from "./pose3d";
 
 /**
  * 3D WebGL renderer (three.js): the court from behind the shooter's right shoulder.
@@ -88,6 +88,7 @@ export class Game3D extends GameCore {
 
   // Player
   private player: Player3D;
+  private retarget = new Retargeter();
   private playerShadow: THREE.Mesh;
 
   constructor(
@@ -401,7 +402,7 @@ export class Game3D extends GameCore {
 
   /** The live pose as a skeleton, or the animated stance without one. */
   private body(): Body {
-    return liveBody(this.pose) ?? restBody(this.sinceLaunch, this.charge);
+    return this.retarget.body(this.pose, this.now) ?? restBody(this.sinceLaunch, this.charge);
   }
 
   // ── Frame ──

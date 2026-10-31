@@ -6,12 +6,12 @@ import type { Vec3 } from "./engine";
  * The shooter's skeleton in physics space (x = toward the hoop, y = up, z = right),
  * for the 3D renderer.
  *
- * With a camera: the live pose, mirror-style (we see the player's back, so their right
- * is our right), scaled so the torso is TORSO_M long. Only image x / y are used: the
- * pose's depth (z) is too noisy to turn the body with (±30° frame to frame when
- * standing square in the lab recordings). Legs are solved, not tracked: the camera
- * rarely sees them well, so hips sit at a height (lower when the knees bend, if the
- * camera does see them) and fixed-length thighs and shins bend to reach the floor.
+ * With a camera: Retargeter. The avatar keeps its own proportions and the pose only
+ * steers it (bone directions, lean, tilt, knee dip), so standing too close, off to the
+ * side or half out of frame never stretches or squashes it. Only image x / y are used:
+ * the pose's depth (z) is too noisy (±30° frame to frame standing square in the lab).
+ * Legs are solved, not tracked: hips sit at a height (lower when the camera sees the
+ * knees bend) and fixed-length thighs and shins bend to reach the floor.
  *
  * Without one (keyboard, or watching someone else's shot): a set-shot stance that
  * dips while charging and plays a release, jump and follow-through after each launch.
@@ -36,8 +36,6 @@ const ANKLE_Y = 0.08;
 const MAX_DIP = 0.3;
 const MIN_VIS = 0.4;
 
-const UPPER: Joint[] = [0, 11, 12, 13, 14, 15, 16, 19, 20, 23, 24];
-const ARMS = new Set<Joint>([13, 14, 15, 16, 19, 20]);
 
 const v = (x: number, y: number, z: number): Vec3 => ({ x, y, z });
 const lerp = (a: Vec3, b: Vec3, k: number): Vec3 => v(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, a.z + (b.z - a.z) * k);
@@ -148,38 +146,118 @@ function dipFrom(p: NormalizedLandmark[], aspect: number) {
   return clamp(bend * 1.6, 0, MAX_DIP);
 }
 
-/** The live pose as a 3D skeleton, or null if the shoulders aren't visible. */
-export function liveBody(p: NormalizedLandmark[] | undefined, aspect = 16 / 9): Body | null {
-  if (!p) return null;
-  const ls = p[LM.LEFT_SHOULDER];
-  const rs = p[LM.RIGHT_SHOULDER];
-  const lh = p[LM.LEFT_HIP];
-  const rh = p[LM.RIGHT_HIP];
-  if (visibilityOf(ls) < 0.5 || visibilityOf(rs) < 0.5) return null;
-  const sx = (ls.x + rs.x) / 2;
-  const sy = (ls.y + rs.y) / 2;
-  const hipsOk = visibilityOf(lh) > MIN_VIS && visibilityOf(rh) > MIN_VIS;
-  const torso = hipsOk ? Math.hypot(((lh.x + rh.x) / 2 - sx) * aspect, (lh.y + rh.y) / 2 - sy) : 0;
-  const k = TORSO_M / (torso || 0.3);
-  const dip = dipFrom(p, aspect);
-  const shoulderY = STAND.y - dip;
+// ── Live pose → the avatar's own body (retargeting) ──
 
-  const upper: Partial<Skeleton> = { ...shift(SET, -dip) };
-  for (const i of UPPER) {
-    const lm = p[i];
-    if (visibilityOf(lm) < MIN_VIS) continue;
-    const y = shoulderY - (lm.y - sy) * k;
-    const z = -(lm.x - sx) * aspect * k;
-    // Raised arms reach forward over the head, towards the hoop.
-    const reach = ARMS.has(i) ? clamp((y - shoulderY) * 0.4, 0, 0.3) : 0;
-    upper[i] = v(STAND.x + reach, y, z);
+const dist = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+const add = (a: Vec3, d: Vec3, k: number): Vec3 => v(a.x + d.x * k, a.y + d.y * k, a.z + d.z * k);
+const unit = (a: Vec3, b: Vec3): Vec3 => {
+  const n = dist(a, b) || 1;
+  return v((b.x - a.x) / n, (b.y - a.y) / n, (b.z - a.z) / n);
+};
+
+/** The avatar's proportions: the stance's own bone lengths, so the live pose and the stance match. */
+export const BONES = {
+  shoulderHalf: 0.2,
+  hipHalf: 0.12,
+  upperArm: dist(SET[11]!, SET[13]!),
+  forearm: dist(SET[13]!, SET[15]!),
+  hand: dist(SET[15]!, SET[19]!),
+};
+
+type Bone = "lUpper" | "lFore" | "lHand" | "rUpper" | "rFore" | "rHand";
+/** Each arm bone: landmarks it runs between, its length, and its direction in the stance (the fallback). */
+const ARM_BONES: { bone: Bone; from: Joint; to: Joint; len: number }[] = [
+  { bone: "lUpper", from: 11, to: 13, len: BONES.upperArm },
+  { bone: "lFore", from: 13, to: 15, len: BONES.forearm },
+  { bone: "lHand", from: 15, to: 19, len: BONES.hand },
+  { bone: "rUpper", from: 12, to: 14, len: BONES.upperArm },
+  { bone: "rFore", from: 14, to: 16, len: BONES.forearm },
+  { bone: "rHand", from: 16, to: 20, len: BONES.hand },
+];
+const REST_DIR = Object.fromEntries(ARM_BONES.map((b) => [b.bone, unit(SET[b.from]!, SET[b.to]!)])) as Record<Bone, Vec3>;
+
+/** A bone the camera loses keeps its last direction this long, then eases back to the stance. */
+const HOLD_MS = 600;
+const RETURN_MS = 400;
+/** Most the upper body leans / the shoulders tilt, whatever the camera says. */
+const MAX_LEAN_M = 0.15;
+const MAX_TILT = (25 * Math.PI) / 180;
+
+/**
+ * Drives the avatar from the camera without ever distorting it.
+ *
+ * Copying joint positions would carry every camera problem onto the body: standing too
+ * close (scale off), arms pointing at the camera (they look short), joints dropping out
+ * (they jump). So the avatar keeps its own proportions (BONES) and the pose only gives
+ * directions: which way each arm bone points, how far the upper body leans and the
+ * shoulders tilt, how deep the knees bend. Where you stand in the frame doesn't matter.
+ *
+ * A bone that looks shorter on camera than it is points towards the camera (towards the
+ * hoop): the missing length becomes forward reach, so a push at the screen reads as one.
+ * A bone the camera loses holds its last direction for HOLD_MS, then eases back to the stance.
+ */
+export class Retargeter {
+  /** Image size of a metre of body (square units), learned from the torso. */
+  private scale = 0;
+  private memory: Partial<Record<Bone, { dir: Vec3; t: number }>> = {};
+
+  /** The live pose as the avatar's skeleton, or null if the shoulders aren't visible. */
+  body(p: NormalizedLandmark[] | undefined, t: number, aspect = 16 / 9): Body | null {
+    if (!p) return null;
+    const [ls, rs, lh, rh] = [p[LM.LEFT_SHOULDER], p[LM.RIGHT_SHOULDER], p[LM.LEFT_HIP], p[LM.RIGHT_HIP]];
+    if (visibilityOf(ls) < 0.5 || visibilityOf(rs) < 0.5) return null;
+    const sq = (lm: NormalizedLandmark) => ({ x: lm.x * aspect, y: lm.y });
+    const S = { x: (sq(ls).x + sq(rs).x) / 2, y: (sq(ls).y + sq(rs).y) / 2 };
+    const hipsOk = visibilityOf(lh) > MIN_VIS && visibilityOf(rh) > MIN_VIS;
+    const H = hipsOk ? { x: (sq(lh).x + sq(rh).x) / 2, y: (sq(lh).y + sq(rh).y) / 2 } : null;
+
+    // Scale from the torso (steady as people turn); before the hips are ever seen, from the shoulders.
+    const raw = H ? Math.hypot(S.x - H.x, S.y - H.y) / TORSO_M : this.scale ? 0 : Math.abs(sq(ls).x - sq(rs).x) / (2 * BONES.shoulderHalf);
+    if (raw > 0) this.scale = this.scale ? this.scale + 0.2 * (raw - this.scale) : raw;
+    const scale = this.scale;
+
+    // Trunk: a dip (knees), a sideways lean (shoulders over hips), a shoulder tilt. Player's right is image left.
+    const dip = dipFrom(p, aspect);
+    const shoulderY = STAND.y - dip;
+    const lean = H ? clamp(-(S.x - H.x) / scale, -MAX_LEAN_M, MAX_LEAN_M) : 0;
+    // + when the right shoulder sits higher (image y grows downwards)
+    const tilt = clamp(Math.atan2(sq(ls).y - sq(rs).y, Math.abs(sq(ls).x - sq(rs).x)), -MAX_TILT, MAX_TILT);
+    const across = v(0, Math.sin(tilt), Math.cos(tilt)); // from the left shoulder to the right one
+    const mid = v(STAND.x, shoulderY, lean);
+    const pts = { ...shift(SET, -dip) } as Skeleton;
+    pts[11] = add(mid, across, -BONES.shoulderHalf);
+    pts[12] = add(mid, across, BONES.shoulderHalf);
+    pts[23] = v(STAND.x, shoulderY - TORSO_M, -BONES.hipHalf);
+    pts[24] = v(STAND.x, shoulderY - TORSO_M, BONES.hipHalf);
+
+    // Arms: fixed lengths along the camera's directions
+    for (const b of ARM_BONES) pts[b.to] = add(pts[b.from], this.direction(b.bone, p[b.from], p[b.to], b.len, scale, t, aspect), b.len);
+
+    // Head: above the shoulders, nodding sideways towards the nose
+    const nose = p[LM.NOSE];
+    const nod = visibilityOf(nose) >= 0.5 ? clamp(-((nose.x * aspect - S.x) / scale), -0.06, 0.06) : 0;
+    pts[0] = v(STAND.x, shoulderY + 0.24, lean + nod);
+
+    return { pts: withLegs(pts), live: true };
   }
-  if (!hipsOk) {
-    upper[23] = v(STAND.x, shoulderY - TORSO_M, upper[11]!.z * 0.7);
-    upper[24] = v(STAND.x, shoulderY - TORSO_M, upper[12]!.z * 0.7);
+
+  private direction(bone: Bone, a: NormalizedLandmark | undefined, b: NormalizedLandmark | undefined, len: number, scale: number, t: number, aspect: number): Vec3 {
+    if (visibilityOf(a) >= MIN_VIS && visibilityOf(b) >= MIN_VIS && scale > 0) {
+      const dx = (b!.x - a!.x) * aspect;
+      const dy = b!.y - a!.y;
+      const seen = Math.hypot(dx, dy);
+      // How much of the bone the camera sees side-on; the rest points at the camera (forward).
+      const f = Math.min(1, seen / (len * scale));
+      const dir = seen > 1e-9 ? v(Math.sqrt(1 - f * f), (-dy / seen) * f, (-dx / seen) * f) : v(1, 0, 0);
+      this.memory[bone] = { dir, t };
+      return dir;
+    }
+    // Not seen: hold the last direction, then ease back to the stance.
+    const m = this.memory[bone];
+    if (!m) return REST_DIR[bone];
+    const k = clamp((t - m.t - HOLD_MS) / RETURN_MS, 0, 1);
+    const d = lerp(m.dir, REST_DIR[bone], smoothstep(k));
+    const n = Math.hypot(d.x, d.y, d.z) || 1;
+    return v(d.x / n, d.y / n, d.z / n);
   }
-  // Feet: under the tracked ankles if seen, else a stance just wider than the hips.
-  const foot = (ankle: number, fallback: number) => (visibilityOf(p[ankle]) >= 0.5 ? clamp(-(p[ankle].x - sx) * aspect * k, -0.6, 0.6) : fallback);
-  const pts = withLegs(upper, { left: foot(27, upper[23]!.z - 0.05), right: foot(28, upper[24]!.z + 0.05) });
-  return { pts, live: true };
 }

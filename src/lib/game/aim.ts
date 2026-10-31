@@ -11,8 +11,12 @@
  * running average of their recent throws.
  *
  * Tuned on the Oct 31 lean recordings: with these numbers 6 of 7 straight throws
- * stayed within ±1.3° (still a make), 10 of 12 left leans aimed left, 9 of 9 right
- * leans aimed right.
+ * stayed within ±1.3° (still a make), and the two lean clips aimed opposite ways
+ * (10 of 12 and 9 of 9). Their labels can't be trusted for the direction (the
+ * preview is mirrored, so "left" was probably the screen's left): the sign comes
+ * from the geometry instead. Camera frames reach MediaPipe unmirrored, and in the
+ * recordings the right wrist sits on the image's left: a player's right is the
+ * image's left.
  */
 
 /** Lean (torso lengths) inside which a throw counts as straight. */
@@ -24,12 +28,12 @@ export const MAX_LEAN_AIM = 12;
 
 /**
  * Launch aim in degrees (+ = right) for a lean, relative to the player's straight lean.
- * Image x grows towards the player's right in our camera's frames, so leaning right
- * raises the lean.
+ * Lean is measured in image x, and the player's right is the image's left, so leaning
+ * right lowers it.
  */
 export function leanAim(lean: number | null, center: number): number {
   if (lean === null || !Number.isFinite(lean)) return 0;
-  const d = lean - center;
+  const d = center - lean; // + = leaning to the player's right
   const beyond = Math.abs(d) - LEAN_DEADZONE;
   if (beyond <= 0) return 0;
   return Math.sign(d) * Math.min(MAX_LEAN_AIM, beyond * LEAN_GAIN);

@@ -6,13 +6,14 @@ describe("leanAim", () => {
   it("is straight inside the dead zone, and signed outside it", () => {
     expect(leanAim(-0.05 + LEAN_DEADZONE * 0.9, -0.05)).toBe(0);
     expect(leanAim(-0.05 - LEAN_DEADZONE * 0.9, -0.05)).toBe(0);
-    expect(leanAim(0, -0.05)).toBeGreaterThan(2); // leaning right
-    expect(leanAim(-0.1, -0.05)).toBeLessThan(-2); // leaning left
+    // The player's right is the image's left: shoulders moving to lower image x = leaning right
+    expect(leanAim(-0.1, -0.05)).toBeGreaterThan(2);
+    expect(leanAim(0, -0.05)).toBeLessThan(-2);
   });
 
   it("is capped, and straight without a lean reading", () => {
-    expect(leanAim(1, 0)).toBe(MAX_LEAN_AIM);
-    expect(leanAim(-1, 0)).toBe(-MAX_LEAN_AIM);
+    expect(leanAim(-1, 0)).toBe(MAX_LEAN_AIM);
+    expect(leanAim(1, 0)).toBe(-MAX_LEAN_AIM);
     expect(leanAim(null, 0)).toBe(0);
   });
 });
@@ -35,7 +36,8 @@ describe("AimCenter", () => {
 });
 
 describe("leanAim on the lab's lean recordings", () => {
-  // Oct 31: throw-straight, left (leaning to the player's left), right
+  // Oct 31: throw-straight and two lean clips. Which way each lean went is unclear (the labels likely follow the
+  // mirrored preview), so this checks they aim consistently and in opposite directions.
   const leans = (prefix: string) =>
     expected.clips.find((c) => c.id.startsWith(prefix))!.events.map((e) => e.lean).filter((l): l is number => l !== null);
   const straight = leans("dc7dcd");
@@ -45,10 +47,10 @@ describe("leanAim on the lab's lean recordings", () => {
     expect(straight.filter((l) => Math.abs(leanAim(l, center)) <= 1.3).length).toBeGreaterThanOrEqual(straight.length - 1);
   });
 
-  it("aims left leans left and right leans right", () => {
-    const left = leans("95862c").map((l) => leanAim(l, center));
-    const right = leans("e0abe0").map((l) => leanAim(l, center));
-    expect(left.filter((a) => a < -1).length / left.length).toBeGreaterThanOrEqual(0.8);
-    expect(right.every((a) => a > 1)).toBe(true);
+  it("aims each lean clip one way, consistently, and the two clips opposite ways", () => {
+    const a = leans("95862c").map((l) => leanAim(l, center));
+    const b = leans("e0abe0").map((l) => leanAim(l, center));
+    expect(a.filter((x) => x > 1).length / a.length).toBeGreaterThanOrEqual(0.8);
+    expect(b.every((x) => x < -1)).toBe(true);
   });
 });
