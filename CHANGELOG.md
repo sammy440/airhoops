@@ -2,6 +2,80 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Throws that register, jump for distance, lean to aim (3D stage 2)
+- **Elbow snap** (`throwDetector.ts` + `detector.py`): a second throw trigger for pushes towards the camera,
+  which gain little reach in 2D. From a still, two-handed set overhead, the elbow straightens fast and the wrist
+  rises → a throw. A snap can also complete a throw the reach-based path started. Lab (Oct 31 aimed clips): 72%
+  → 94% of throws counted (left 13/13, right 9/11, straight 8/8); head scratching and dribbling never trigger;
+  a two-handed overhead wave triggers once. Thresholds in the lab README.
+- **Jump adds distance instead of being needed.** Power comes from the arm's speed relative to the shoulders
+  (`armSpeed`); the shoulders' rise just before release gives `jump` (0..1: standing throws rose 0.2–0.8
+  torso/s, jumping ones 1.4–2.7), worth +0.2 power uncalibrated. Calibration (now version 2: old ones are
+  dropped, players recalibrate once) learns your arm speed and your usual jump; jumping harder than in practice
+  adds up to 12% launch speed (`JUMP_GAIN`).
+- **Aim by leaning** (`lib/game/aim.ts`): shoulders over hips at release, against your straight lean
+  (calibration, else a running average of your throws). Dead zone 0.01 torso, 100° per torso, ±12°. On the lab
+  clips: 6/7 straight throws within a make, 10/12 left leans aimed left, 9/9 right leans aimed right.
+  ←/→ aim from the keyboard. Multiplayer sends the aim; the API already simulates it.
+- **Aim guide** on the 3D court: a row of dots and a chevron from the shooter to the rim, swung by the aim
+  (live lean, or the keyboard aim), shown while the ball is in hand.
+- Kinematics gained `handsApart`, `body` (shoulder velocity), `lean`, and `fallback` (the chosen wrist is out of
+  view): the detector treats a fallback frame as the arm being lost instead of following the other arm, and
+  starts afresh when the shooting hand switches. Same in the Python port; parity fixtures regenerated with all
+  15 recordings (75 events, identical in both). `throw-right` (Oct 30, wrist visible in 31% of frames) is kept for
+  parity but excluded from the "detects the throw" check.
+
+## 3D, stage 4: the 3D player
+- `lib/game/pose3d.ts`: pose → 3D skeleton, mirror-style, from image x / y only. Legs are solved (two-bone,
+  real thigh/shin lengths) so knees bend and feet stay on the floor; a knee bend the camera sees becomes a
+  **dip** of the whole body. Without a camera (keyboard, or watching another player's shot): an animated stance
+  that **sinks while charging**, then plays the **release, hop and follow-through** (shooting arm up, wrist
+  flicked) and settles back into the set.
+- `lib/game/player3d.ts`: the player model. Capsule limbs, shaped torso (sleeveless jersey with neck and hem
+  trim, number on the back), shorts over the thighs, hands pointing along the fingers, head with ears, all six
+  hair styles, socks and shoes with white soles, slimmer build for the female body. Joints ease towards each
+  pose (snappy for the camera, softer for the stance).
+- Camera moved back and tilted down a little so the player's back and shoulders are in view.
+- **Tried and dropped: turning the body with the shoulders.** A shoulder turn from MediaPipe depth (z) looked
+  right on big turns, but standing square it swings ±30° frame to frame, and side-on MediaPipe swaps the left
+  and right shoulders, so the sign flips (lab: `turn-left` read anywhere from −75° to +82°). Hips are no better.
+  Too noisy to draw, and unusable as an aim control.
+- Aim lead for stage 2: **lean** (shoulder midpoint over hip midpoint, image x only) was steady across straight
+  throws (sd 0.013–0.020 torso lengths) and separated the left- and right-turn clips by ~10× that.
+
+## 3D, stage 3: the 3D court
+- New WebGL renderer (`lib/game/game3d.ts`, three.js 0.186.1): the court from behind the shooter's right
+  shoulder. Hardwood/blacktop/sand floor with real markings (lane, free-throw circle, three-point arc,
+  baseline), glass backboard with target square, rim and bracket, a 12-strand net that swings on makes,
+  stanchion behind the baseline, and the wind flag on the board's corner (points downwind, longer when gusty).
+  The hoop group slides sideways with the moving-hoop phase. Ball with seams, backspin, blob shadow, trail,
+  "loaded" ring, hot-hand halo, charge ring; dashed path of the last shot; sparks; floating text sprites.
+- A basic 3D player in your look (skin, hair style + colour, jersey with your number on the back, shorts,
+  shoes), arms following the live pose; a set-shot stance without a camera. Full 3D player: stage 4.
+- Game logic moved out of the 2D engine into `engine.ts` (`GameCore`: clock, playback, events, results,
+  respawn, dribbles, particles, texts), now in 3D coordinates. `game.ts` is just the 2D painter on top.
+- `createGame()` picks the renderer: **3D by default**, Classic 2D from the new "View" switch in the start
+  menu, and automatically when the browser has no WebGL (or context creation fails). Multiplayer uses the
+  same choice. Per-theme 3D colours in `courts3d.ts`.
+- Cheap on purpose (pose tracking already busy): no shadow maps, low-poly meshes, two lights, DPR ≤ 2.
+- Known gap: the post-shot gauge only understands distance, so with a sideways hoop it can say "that arc
+  can't reach" for a shot that was just aimed wrong. Coaching for aim is stage 5.
+
+## 3D, stage 1: physics
+- `physics.ts` is now 3D: x = toward the hoop, y = up, **z = sideways** (+ = the shooter's right). Paths are
+  `[t, x, y, z]`, events and results carry z / `lateral`, misses can be `left` / `right`.
+  - Rim: the nearest point of a real ring. Backboard: a 1.83 m rectangle with face and four edges.
+  - Launches have an `aim` (degrees). `throwToLaunch` maps a throw's sideways angle through `aimGain` 0.3,
+    clamped to ±12° (placeholders until aim from the camera is tuned in stage 2).
+  - **Gameplay change:** the All-Star / Legend hoop now slides **sideways** and wind is a **crosswind**, so aim
+    matters. A straight, windless shot at a still hoop is bit-for-bit the old 2D physics (checked against all
+    240 such cases in the old parity fixtures before regenerating them).
+  - Distances use `Math.sqrt` of sums, not `Math.hypot`: IEEE sqrt rounds identically in JS and Python.
+- Parity fixtures regenerated with aim: 1,440 cases (straight, right, past the left limit), all matching the
+  API's Python port. Multiplayer throws now send `aim`.
+- **Not shippable on its own:** the 2D view can't show a sideways hoop or crosswind, and camera throws send aim 0
+  until stage 2. Ship together with the 3D renderer (stage 3).
+
 ## Quick match
 - `/multiplayer` has a **Quick match** card: pick a difficulty (or "Any", fastest) and **Find a game**. The
   waiting screen polls `POST /quickmatch` every 2 s, shows how long you've waited and how many others are
