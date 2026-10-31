@@ -69,6 +69,8 @@ export const COLORS = {
 };
 export const MISS_LABELS = { short: "SHORT", long: "LONG", left: "WIDE LEFT", right: "WIDE RIGHT", rim: "RIM OUT", airball: "AIRBALL" } as const;
 const RESPAWN_MS = 650;
+/** Makes in a row to catch fire: the ×2 streak tier (scoring.ts). */
+export const ON_FIRE = 5;
 const HAND_BLEND_S = 0.12;
 /** A dribble lasts one beat of the player's rhythm, within these limits. */
 const DRIBBLE_MS = { min: 280, max: 800, fallback: 450 };
@@ -134,6 +136,10 @@ export abstract class GameCore {
   protected hot = false;
   /** Where the next shot will go sideways (launch aim, degrees, + = right); null hides the guide. */
   protected aim: number | null = null;
+  /** Makes in a row before the current shot (solo, or yours in a match). */
+  protected streak = 0;
+  /** Game clock (ms) of the last make, for the camera punch. */
+  protected madeAt = -1e9;
 
   /**
    * Hoop-motion phase (s). Multiplayer points this at the server's match
@@ -291,6 +297,16 @@ export abstract class GameCore {
     this.hot = v;
   }
 
+  /** Makes in a row: ON_FIRE and up sets the ball and rim alight. */
+  setStreak(n: number) {
+    if (n >= ON_FIRE && this.streak < ON_FIRE) sfx.fire();
+    this.streak = n;
+  }
+
+  get onFire() {
+    return this.streak >= ON_FIRE;
+  }
+
   /** The aim guide on the floor (3D only): launch aim in degrees, or null to hide it. */
   setAim(deg: number | null) {
     this.aim = deg;
@@ -413,9 +429,10 @@ export abstract class GameCore {
         const r = sim.result;
         if (r.swish) sfx.swish();
         else sfx.rim(2);
-        sfx.cheer(r.swish);
+        sfx.cheer(r.swish, Math.min(1, (this.streak + 1) / 10));
         this.netKick = 1;
         this.netKickAt = this.now;
+        this.madeAt = this.now;
         this.burst({ x: e.x, y: this.court.rimHeight - 0.2, z }, r.swish ? 40 : 24, r.swish ? COLORS.sun : COLORS.cream, 2.6);
         let label: string | void = undefined;
         if (!this.resultSent) {
@@ -439,6 +456,7 @@ export abstract class GameCore {
   private missFeedback(sim: ShotSim) {
     const r = sim.result;
     if (r.scored) return;
+    if (this.streak >= 3) sfx.groan();
     const label = MISS_LABELS[r.miss ?? "short"];
     // Over the hoop, wherever it has slid to.
     const z = hoopOffset(this.court, this.hoopPhase);

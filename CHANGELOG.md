@@ -2,6 +2,20 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## 3D, stage 5: aim coaching, effects, performance
+- **Coaching knows direction** (`coachShot` in `shot.ts`, `ShotGauge`). Direction comes from where the ball was
+  heading as it reached the hoop, before any rim or board contact (x is unaccelerated, so it's exact: aim,
+  crosswind drift and where a moving hoop will be). Distance is the power window with the direction put right, so
+  a shot that was only wide isn't told its power was off (this replaces the old "that arc can't reach" for aim
+  misses). Tips combine both: "Wide right and short: lean a little left and push about 10% harder"; keyboard
+  players get "aim 3° left (←)". A second bar shows your direction against where the rim was.
+- **On fire** at 5 in a row (the ×2 streak tier, `ON_FIRE`): flame halo on the ball, a fire trail in flight
+  (2D too), the rim glows and the net burns orange. Catching fire whooshes; the crowd's cheer grows with the
+  streak; a streak of 3+ ending on a miss gets an "aww". Matches use your server-side streak.
+- **Camera punch** on a make (bigger on a swish or on fire, a shake on fire); off with `prefers-reduced-motion`.
+- **Adaptive quality** in the 3D renderer: below ~40 fps for 2 s the resolution drops a step (to 0.6× at the
+  least), above ~58 fps for 6 s it climbs back. The slow-tracking hint suggests Classic 2D.
+
 ## The avatar never distorts
 - `Retargeter` (`pose3d.ts`) replaces copying joint positions. The avatar keeps its own proportions (`BONES`, the
   stance's bone lengths) and the pose only steers it: each arm bone's direction, the upper body's lean (±0.15 m),

@@ -121,7 +121,10 @@ export class Game3D extends GameCore {
     this.chargeRing = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, depthTest: false }));
     this.scene.add(this.ballMesh, this.ballShadow, this.glow, this.halo, this.chargeRing);
     for (let i = 0; i < 14; i++) {
-      const m = new THREE.Mesh(this.ballMesh.geometry, new THREE.MeshBasicMaterial({ color: COLORS.sun, transparent: true, depthWrite: false }));
+      const m = new THREE.Mesh(
+        this.ballMesh.geometry,
+        new THREE.MeshBasicMaterial({ color: COLORS.sun, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+      );
       m.visible = false;
       this.trailMeshes.push(m);
       this.scene.add(m);
@@ -172,9 +175,49 @@ export class Game3D extends GameCore {
   resize(cssW: number, cssH: number, dpr = window.devicePixelRatio || 1) {
     this.w = cssW;
     this.h = cssH;
-    this.renderer.setPixelRatio(Math.min(2, dpr));
+    this.maxRatio = Math.min(2, dpr);
+    this.ratio = Math.min(this.ratio || this.maxRatio, this.maxRatio);
+    this.renderer.setPixelRatio(this.ratio);
     this.renderer.setSize(cssW, cssH, false);
     this.frameCamera();
+  }
+
+  // ── Adaptive quality ──
+  // Pose tracking shares the machine, so the scene lowers its resolution when frames get slow
+  // (and raises it again when there's room). Resolution is the biggest cost and the least visible cut.
+
+  private maxRatio = 1;
+  private ratio = 0;
+  private lastFrame = 0;
+  private slowMs = 0;
+  private fastMs = 0;
+
+  /** Current pixel ratio (for the lab / debugging). */
+  get quality() {
+    return this.ratio;
+  }
+
+  private adaptQuality() {
+    const t = performance.now();
+    const dt = this.lastFrame ? t - this.lastFrame : 16;
+    this.lastFrame = t;
+    if (dt > 250) return; // tab was hidden or the page stalled: not a real frame time
+    if (dt > QUALITY.slowFrameMs) {
+      this.slowMs += dt;
+      this.fastMs = 0;
+    } else if (dt < QUALITY.fastFrameMs) {
+      this.fastMs += dt;
+      this.slowMs = 0;
+    }
+    let next = this.ratio;
+    if (this.slowMs > QUALITY.downAfterMs) next = Math.max(QUALITY.minRatio, this.ratio - QUALITY.step);
+    else if (this.fastMs > QUALITY.upAfterMs) next = Math.min(this.maxRatio, this.ratio + QUALITY.step);
+    if (next !== this.ratio) {
+      this.ratio = next;
+      this.slowMs = this.fastMs = 0;
+      this.renderer.setPixelRatio(next);
+      this.renderer.setSize(this.w, this.h, false);
+    }
   }
 
   setLeftInset(px: number) {
@@ -225,6 +268,12 @@ export class Game3D extends GameCore {
   // ── Camera ──
 
   /** Behind the shooter's right shoulder, looking up the floor at the hoop; the court fits beside the left inset. */
+  /** Where the camera rests and looks; render() adds the punch on a make. */
+  private camBase = new THREE.Vector3();
+  private camTarget = new THREE.Vector3();
+  private calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  private rimMat: THREE.MeshStandardMaterial | null = null;
+
   private frameCamera() {
     if (!this.w || !this.h) return;
     const portrait = this.h > this.w;
@@ -232,8 +281,10 @@ export class Game3D extends GameCore {
     this.camera.fov = portrait ? 62 : 40;
     this.camera.aspect = this.w / this.h;
     // Far enough back to see the player's back and shoulders (the turn you aim with), hoop in the upper third.
-    toThree({ x: portrait ? -5.2 : -4.5, y: 2.75, z: 0.9 }, this.camera.position);
-    this.camera.lookAt(toThree({ x: d * 0.55, y: 2.05, z: 0.1 }));
+    toThree({ x: portrait ? -5.2 : -4.5, y: 2.75, z: 0.9 }, this.camBase);
+    toThree({ x: d * 0.55, y: 2.05, z: 0.1 }, this.camTarget);
+    this.camera.position.copy(this.camBase);
+    this.camera.lookAt(this.camTarget);
     if (this.leftInset) this.camera.setViewOffset(this.w, this.h, -this.leftInset / 2, 0, this.w, this.h);
     else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
@@ -305,7 +356,7 @@ export class Game3D extends GameCore {
     this.hoop.add(glass, frame, sq);
 
     // Rim and its bracket
-    const rimMat = new THREE.MeshStandardMaterial({ color: COLORS.hoop, metalness: 0.4, roughness: 0.4 });
+    const rimMat = (this.rimMat = new THREE.MeshStandardMaterial({ color: COLORS.hoop, metalness: 0.4, roughness: 0.4 }));
     const rim = new THREE.Mesh(new THREE.TorusGeometry(c.rimRadius + 0.008, 0.012, 10, 48), rimMat);
     rim.rotation.x = Math.PI / 2;
     toThree({ x: c.hoopDistance, y: c.rimHeight, z: 0 }, rim.position);
@@ -409,6 +460,7 @@ export class Game3D extends GameCore {
 
   protected render() {
     if (!this.w) return;
+    this.adaptQuality();
     const c = this.court;
     const hoopZ = hoopOffset(c, this.hoopPhase);
     this.hoop.position.x = hoopZ; // physics z → three x
@@ -416,6 +468,8 @@ export class Game3D extends GameCore {
     this.updateNet();
     this.updateFlag();
     this.updateGuide();
+    this.updateFire();
+    this.updateCamera();
     this.player.update(this.body());
     this.playerShadow.position.copy(this.player.footprint).setY(0.004);
     this.updateBall();
@@ -450,7 +504,8 @@ export class Game3D extends GameCore {
       this.glow.position.copy(pos);
       this.glow.scale.setScalar(r * 3.4 * (1 + Math.sin(this.now / 140) * 0.08));
     }
-    this.halo.visible = this.hot && ready;
+    // Hot hand (ready) or on fire (in hand and in flight): the flame halo
+    this.halo.visible = (this.hot && ready) || (this.onFire && this.phase !== "result");
     if (this.halo.visible) {
       this.halo.position.copy(pos);
       this.halo.scale.setScalar(r * 5 * (1 + Math.sin(this.now / 60) * 0.06 + Math.sin(this.now / 23) * 0.04));
@@ -474,8 +529,17 @@ export class Game3D extends GameCore {
       if (!p) return;
       toThree(p, m.position);
       const f = i / this.trail.length;
-      m.scale.setScalar(0.25 + f * 0.5);
-      (m.material as THREE.MeshBasicMaterial).opacity = f * 0.18;
+      const mat = m.material as THREE.MeshBasicMaterial;
+      if (this.onFire) {
+        // Fire trail: bigger, brighter, yellow at the ball fading to deep orange
+        m.scale.setScalar(0.5 + f * 0.9);
+        mat.color.setRGB(1, 0.35 + f * 0.5, 0.05 + f * 0.15);
+        mat.opacity = f * 0.55;
+      } else {
+        m.scale.setScalar(0.25 + f * 0.5);
+        mat.color.set(COLORS.sun);
+        mat.opacity = f * 0.18;
+      }
     });
   }
 
@@ -514,6 +578,33 @@ export class Game3D extends GameCore {
     }
     // The net hangs from the hoop group, which already carries the sideways offset.
     this.net.geometry.getAttribute("position").needsUpdate = true;
+  }
+
+  /** On fire: the rim glows and the net burns orange. */
+  private updateFire() {
+    const flicker = 0.75 + Math.sin(this.now / 70) * 0.15 + Math.sin(this.now / 31) * 0.1;
+    this.rimMat?.emissive.set(this.onFire ? "#ff5a10" : "#000000");
+    if (this.rimMat) this.rimMat.emissiveIntensity = this.onFire ? flicker : 0;
+    (this.net.material as THREE.LineBasicMaterial).color.set(this.onFire ? "#ff9a3c" : this.palette.net);
+  }
+
+  /** A make punches the camera in a little (more on a swish or on fire); shakes when on fire. Off with reduced motion. */
+  private updateCamera() {
+    const since = this.now - this.madeAt;
+    if (this.calm || since > 700) {
+      if (!this.camera.position.equals(this.camBase)) {
+        this.camera.position.copy(this.camBase);
+        this.camera.lookAt(this.camTarget);
+      }
+      return;
+    }
+    const k = Math.exp(-since / 220);
+    const swish = this.sim?.result.swish ? 1.5 : 1;
+    const push = 0.25 * k * swish * (this.onFire ? 1.4 : 1);
+    const dir = new THREE.Vector3().subVectors(this.camTarget, this.camBase).normalize();
+    this.camera.position.copy(this.camBase).addScaledVector(dir, push);
+    if (this.onFire) this.camera.position.add(new THREE.Vector3(Math.sin(since / 18), Math.cos(since / 23), 0).multiplyScalar(0.025 * k));
+    this.camera.lookAt(this.camTarget);
   }
 
   /** Aim guide: from the release spot towards the hoop, turned by the aim; only while the ball is in hand. */
@@ -616,6 +707,8 @@ export class Game3D extends GameCore {
 }
 
 const NET_STRANDS = 12;
+/** Below ~40 fps for 2 s: a step down in resolution; above ~58 fps for 6 s: a step back up. */
+const QUALITY = { slowFrameMs: 25, fastFrameMs: 17.2, downAfterMs: 2000, upAfterMs: 6000, step: 0.25, minRatio: 0.6 };
 const GUIDE_DOTS = 12;
 
 function ballTexture() {

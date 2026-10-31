@@ -38,7 +38,7 @@ import {
 import type { Launch, ShotSim } from "@/lib/game/physics";
 import { addShot, EMPTY_TALLY, hotMultiplier, streakMultiplier, type Tally } from "@/lib/game/scoring";
 import { setMuted, unlockAudio } from "@/lib/game/sfx";
-import { DEFAULT_TUNING, keyboardThrow, makeWindow, throwAimFor, throwToLaunch } from "@/lib/game/shot";
+import { coachShot, DEFAULT_TUNING, keyboardThrow, throwAimFor, throwToLaunch } from "@/lib/game/shot";
 import type { KinematicsFrame, Side } from "@/lib/pose/kinematics";
 import type { BounceEvent } from "@/lib/pose/dribbleDetector";
 import type { ThrowEvent } from "@/lib/pose/throwDetector";
@@ -271,13 +271,18 @@ export function PlayClient() {
       const { tally: t, score } = addShot(tallyRef.current, sim.result, difficulty.scoreMultiplier, p?.hot);
       tallyRef.current = t;
       setTally(t);
+      gameRef.current?.setStreak(t.streak);
       if (p) {
+        const coach = coachShot(sim.launch, court, DEFAULT_TUNING, { wind: p.wind, phase: p.phase });
         setLast({
           power: p.power,
           angle: p.angle,
+          aim: p.aim,
           input: p.input,
           result: sim.result,
-          window: makeWindow(p.angle, court, DEFAULT_TUNING, { wind: p.wind, phase: p.phase }, p.aim),
+          window: coach.window,
+          aimTarget: coach.aimTarget,
+          aimTolerance: coach.aimTolerance,
         });
       }
       if (screenRef.current === "playing") {
@@ -412,6 +417,7 @@ export function PlayClient() {
     hotHand.reset();
     setHotBounces(0);
     gameRef.current?.setHot(false);
+    gameRef.current?.setStreak(0);
     setLast(null);
     setNewBest(false);
     buzzerRef.current = false;

@@ -1,5 +1,5 @@
 import type { ThrowEvent } from "@/lib/pose/throwDetector";
-import { DEFAULT_COURT, idealSpeed, simulateShot, type Court, type Launch, type ShotConditions } from "./physics";
+import { DEFAULT_COURT, hoopOffset, idealSpeed, simulateShot, type Court, type Launch, type ShotConditions } from "./physics";
 
 /**
  * Maps a detected throw to a ball launch: speed from power, elevation from angle,
@@ -93,4 +93,42 @@ export function makeWindow(
     }
   }
   return lo === null || hi === null ? null : { lo, hi };
+}
+
+export interface Coaching {
+  /** Power (0..1) range that scores with the direction put right, or null if no power does at this arc */
+  window: { lo: number; hi: number } | null;
+  /** Launch aim (degrees, + = right) that would have gone through the middle of the rim */
+  aimTarget: number;
+  /** How far either side of aimTarget still goes in (degrees) */
+  aimTolerance: number;
+}
+
+/**
+ * Post-shot coaching in 3D: direction and distance, judged separately.
+ *
+ * Direction: where the ball was heading as it reached the hoop, before any rim or board
+ * could deflect it. Nothing pushes the ball along x, so it gets there at t = d / vx;
+ * by then aim and crosswind have moved it sideways by vz·t + ½·wind·t², and a moving
+ * hoop has slid to hoopOffset(phase + t). That miss becomes the aim change that would
+ * have centred it. Distance: the make window for power with that change applied, so a
+ * shot that was only wide doesn't get told its power was wrong.
+ */
+export function coachShot(
+  launch: Launch,
+  court: Court = DEFAULT_COURT,
+  tuning: LaunchTuning = DEFAULT_TUNING,
+  cond: ShotConditions = {},
+): Coaching {
+  const aim = launch.aim ?? 0;
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const deg = (r: number) => (r * 180) / Math.PI;
+  const flat = launch.speed * Math.cos(rad(launch.angle));
+  const vx = flat * Math.cos(rad(aim));
+  const vz = flat * Math.sin(rad(aim));
+  const t = court.hoopDistance / Math.max(1e-6, vx);
+  const miss = vz * t + 0.5 * (cond.wind ?? 0) * t * t - hoopOffset(court, (cond.phase ?? 0) + t);
+  const aimTarget = clamp(aim - deg(Math.atan2(miss, court.hoopDistance)), -tuning.maxAim, tuning.maxAim);
+  const aimTolerance = deg(Math.atan2(court.rimRadius - court.ballRadius, court.hoopDistance));
+  return { window: makeWindow(launch.angle, court, tuning, cond, aimTarget), aimTarget, aimTolerance };
 }

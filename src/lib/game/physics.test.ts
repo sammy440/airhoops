@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_COURT, idealSpeed, simulateShot } from "./physics";
-import { DEFAULT_TUNING, idealPower, keyboardThrow, throwToLaunch } from "./shot";
+import { coachShot, DEFAULT_TUNING, idealPower, keyboardThrow, throwToLaunch } from "./shot";
 
 describe("simulateShot", () => {
   it("swishes the closed-form ideal shot when the arc is high enough", () => {
@@ -148,5 +148,38 @@ describe("3D: aim, crosswind, moving hoop, backboard width", () => {
     const sim = simulateShot({ speed: v, angle, aim: 3 });
     expect(sim.path.every((p) => p.length === 4)).toBe(true);
     expect(sim.path.at(-1)![3]).toBeGreaterThan(0);
+  });
+});
+
+describe("coachShot", () => {
+  const t = DEFAULT_TUNING;
+  const angle = 55;
+  const v = idealSpeed(angle)!;
+  const power = (v - t.minSpeed) / (t.maxSpeed - t.minSpeed);
+
+  it("a shot that was only wide: aim back to straight, and the power was fine", () => {
+    const launch = { speed: v, angle, aim: 4 };
+    const c = coachShot(launch);
+    expect(Math.abs(c.aimTarget)).toBeLessThan(c.aimTolerance);
+    expect(c.window).not.toBeNull();
+    expect(power).toBeGreaterThanOrEqual(c.window!.lo);
+    expect(power).toBeLessThanOrEqual(c.window!.hi);
+  });
+
+  it("in a crosswind, says how far to aim into it (and that aim scores)", () => {
+    const cond = { wind: 1.2 };
+    const launch = { speed: v, angle };
+    const c = coachShot(launch, DEFAULT_COURT, t, cond);
+    expect(c.aimTarget).toBeLessThan(-1); // wind pushes right: aim left
+    expect(simulateShot({ ...launch, aim: c.aimTarget }, DEFAULT_COURT, cond).result.scored).toBe(true);
+  });
+
+  it("with a sliding hoop, aims where the hoop will be when the ball gets there", () => {
+    const court = { ...DEFAULT_COURT, hoopMotion: { amplitude: 0.5, frequency: 0.05 } };
+    const cond = { phase: 5 };
+    const launch = { speed: v, angle };
+    const c = coachShot(launch, court, t, cond);
+    expect(c.aimTarget).toBeGreaterThan(4);
+    expect(simulateShot({ ...launch, aim: c.aimTarget }, court, cond).result.scored).toBe(true);
   });
 });

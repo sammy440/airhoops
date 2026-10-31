@@ -155,6 +155,11 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
   const shooterId = start.mode === "shootout" && turn ? turn.playerId : you;
   const watching = shooterId !== you;
   const watchingRef = useRef(watching);
+  // Your streak sets the ball alight (shown while it's you on court)
+  const myStreak = match.scores[you]?.streak ?? 0;
+  useEffect(() => {
+    gameRef.current?.setStreak(watching ? 0 : myStreak);
+  }, [myStreak, watching]);
   const shooterAvatar = room.players.find((p) => p.id === shooterId)?.avatar;
   const shooterLook = JSON.stringify(shooterAvatar ? sanitizeAvatar(shooterAvatar) : watching ? DEFAULT_AVATAR : null);
   useEffect(() => {

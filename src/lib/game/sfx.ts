@@ -113,11 +113,29 @@ export const sfx = {
       noise(400, 1, 0.15 * v, 0.002, 0.06, "lowpass");
     } catch {}
   },
-  cheer(big: boolean) {
+  /** `heat` 0..1: the crowd gets louder and longer as the streak builds. */
+  cheer(big: boolean, heat = 0) {
     if (muted) return;
     try {
-      noise(1400, 0.6, big ? 0.22 : 0.12, 0.15, big ? 1.4 : 0.8);
-      noise(700, 0.5, big ? 0.15 : 0.08, 0.2, big ? 1.2 : 0.7);
+      const k = 1 + heat * 0.8;
+      noise(1400, 0.6, (big ? 0.22 : 0.12) * k, 0.15, (big ? 1.4 : 0.8) * k);
+      noise(700, 0.5, (big ? 0.15 : 0.08) * k, 0.2, (big ? 1.2 : 0.7) * k);
+    } catch {}
+  },
+  /** Catching fire: a rising whoosh. */
+  fire() {
+    if (muted) return;
+    try {
+      noise(500, 0.8, 0.18, 0.25, 0.9, "lowpass");
+      tone(180, 0.08, 0.7, "sawtooth", 520);
+    } catch {}
+  },
+  /** A streak ends on a miss: the crowd's "aww". */
+  groan() {
+    if (muted) return;
+    try {
+      noise(420, 0.7, 0.14, 0.12, 1.0);
+      tone(240, 0.04, 0.9, "triangle", 150);
     } catch {}
   },
 };

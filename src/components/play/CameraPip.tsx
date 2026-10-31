@@ -81,7 +81,7 @@ export function CameraPip({
       )}
       {camera && tracking && <div className={`mt-2 rounded-full px-3 py-1 text-center text-xs font-semibold transition-colors ${coach.tone}`}>{coach.text}</div>}
       {slowFps != null && (
-        <div className="mt-2 rounded-full bg-warn/20 px-3 py-1 text-center text-[11px] text-warn">Slow tracking ({Math.round(slowFps)} fps): close other tabs</div>
+        <div className="mt-2 rounded-full bg-warn/20 px-3 py-1 text-center text-[11px] text-warn">Slow tracking ({Math.round(slowFps)} fps): close other tabs, or pick Classic 2D in the menu</div>
       )}
     </div>
   );

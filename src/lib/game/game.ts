@@ -348,8 +348,9 @@ export class Game extends GameCore {
     const { ctx } = this;
     const r = this.court.ballRadius * s;
     this.trail.forEach((p, i) => {
-      const a = (i / this.trail.length) * 0.22;
-      ctx.fillStyle = `rgba(246,161,58,${a})`;
+      const f = i / this.trail.length;
+      // On fire: a brighter, yellow-to-orange flame trail
+      ctx.fillStyle = this.onFire ? `rgba(255,${Math.round(90 + f * 130)},20,${f * 0.6})` : `rgba(246,161,58,${f * 0.22})`;
       ctx.beginPath();
       ctx.arc(this.X(p.x), this.Y(p.y), r * (0.4 + (i / this.trail.length) * 0.6), 0, Math.PI * 2);
       ctx.fill();
