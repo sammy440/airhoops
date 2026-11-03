@@ -16,6 +16,11 @@ describe("scoring", () => {
     expect(scoreShot(miss, 4)).toMatchObject({ points: 0, streak: 0 });
   });
 
+  it("a bank shot earns +1 too", () => {
+    expect(scoreShot({ ...make, bank: true }, 0)).toMatchObject({ points: 3, bankBonus: 1, swishBonus: 0 });
+    expect(scoreShot({ ...make, bank: true }, 10).points).toBe(9);
+  });
+
   it("streak multiplier tiers apply from the shot after the streak is reached", () => {
     expect(streakMultiplier(2)).toBe(1);
     expect(streakMultiplier(3)).toBe(1.5);

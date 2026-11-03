@@ -2,6 +2,23 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Instant replays, bank bonus, phone look tip
+- **Instant replay** (solo, 3D): the make that catches fire and every 5 in a row after it, every bank shot, and a
+  swish once 4+ shots have passed since the last replay (`replay.ts`). Kept rare so it's a treat, not a toll.
+  The last ~1.4 s of flight (0.95 s before the drop through the net, 0.45 s after) replays at 0.45× speed (about 3 s), from
+  courtside level with the rim, drifting along the baseline and easing in and out of the player's view.
+  Rim, board and net sounds replay; no points. Letterbox bars with the caption ("BANK SHOT", "ON FIRE").
+- The game clock stands still during a replay, so timed and daily runs don't lose time, and a moving hoop slides
+  exactly as it did. Replay speed follows real frame time, so it lasts as long on a slow phone.
+- A tap, a click, Space or a throw skips it. Off in matches (they keep their pace) and with `prefers-reduced-motion`
+  (the camera sweeps). A toggle sits under View in the start menu ("Instant replays of great makes", on by default).
+- **Bank shots earn +1** (`BANK_BONUS`), like a swish. The two never stack (a swish touches nothing), so a make still
+  earns at most +1 and the API's per-make cap holds. The backend scores matches the same way; parity fixtures were
+  regenerated (25 of 1,440 cases are banks). Shot tip: "Off the glass! Bank shots earn +1."; match toasts say BANK.
+- **Phones get a one-time tip** in their first 3D run: "Swipe to look around · pinch to zoom" (from 1.5 s to 8 s
+  into the run, or until they swipe), since the hint line is hidden on small screens.
+- `ON_FIRE` moved to `scoring.ts` next to the streak tiers (re-exported from `engine.ts`).
+
 ## Look around the 3D court
 - **Drag (mouse) or swipe (touch) to swing the camera around the court**; a swipe glides on for a moment after
   you let go. **Mouse wheel or two-finger pinch to zoom.** The camera orbits the middle of the court and stays

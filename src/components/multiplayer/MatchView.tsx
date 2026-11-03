@@ -322,7 +322,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
         gameRef.current?.playSim(sim);
       }
     } else if (shot.scored) {
-      toast(`${name} ${label}${shot.swish ? " SWISH" : ""}`, "good");
+      toast(`${name} ${label}${shot.swish ? " SWISH" : shot.bank ? " BANK" : ""}`, "good");
     }
   }, [shot, you, names, start.mode, toast]);
 

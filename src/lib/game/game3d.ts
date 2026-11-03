@@ -526,7 +526,7 @@ export class Game3D extends GameCore {
 
     this.trailMeshes.forEach((m, i) => {
       const p = this.trail[i];
-      m.visible = !!p && this.phase === "flying";
+      m.visible = !!p && (this.phase === "flying" || this.phase === "replay");
       if (!p) return;
       toThree(p, m.position);
       const f = i / this.trail.length;
@@ -604,6 +604,11 @@ export class Game3D extends GameCore {
     return true;
   }
 
+  /** Replays sweep the camera around, so not with reduced motion. */
+  get canReplay() {
+    return !this.calm;
+  }
+
   lookAround(dx: number, dy: number) {
     this.dragging = true;
     // A drag across the whole screen swings the camera a bit over half a turn; dragging down lifts it (like OrbitControls).
@@ -668,6 +673,35 @@ export class Game3D extends GameCore {
       this.camera.position.add(new THREE.Vector3(Math.sin(since / 18), Math.cos(since / 23), 0).multiplyScalar(0.025 * k));
       this.camera.lookAt(this.camTarget);
     }
+    this.replayCamera();
+  }
+
+  /** 0 = the player's view, 1 = the replay camera; eases between them. */
+  private cine = 0;
+  private cinePos = new THREE.Vector3();
+  private cineLook = new THREE.Vector3();
+
+  /**
+   * Instant replay: from courtside, level with the rim, drifting in along the baseline as the
+   * ball comes down, watching between the ball and the rim. Eases in and back out of the player's view.
+   */
+  private replayCamera() {
+    const r = this.replay;
+    this.cine += ((r ? 1 : 0) - this.cine) * (r ? 0.1 : 0.14);
+    if (this.cine < 0.002) return;
+    if (r) {
+      const c = this.court;
+      const u = (r.t - r.from) / Math.max(0.01, r.to - r.from);
+      const hoopZ = hoopOffset(c, this.hoopPhase);
+      const side = this.h > this.w ? 4.6 : 3.4;
+      toThree({ x: c.hoopDistance - 2.1 + u * 0.9, y: c.rimHeight - 0.35 + (1 - u) * 0.35, z: hoopZ - side + u * 0.5 }, this.cinePos);
+      const rim = toThree({ x: c.hoopDistance, y: c.rimHeight, z: hoopZ });
+      this.cineLook.copy(toThree(this.ball)).lerp(rim, 0.55);
+    }
+    const e = this.cine * this.cine * (3 - 2 * this.cine);
+    const look = new THREE.Vector3().copy(this.camTarget).lerp(this.cineLook, e);
+    this.camera.position.lerp(this.cinePos, e);
+    this.camera.lookAt(look);
   }
 
   /** Aim guide: from the release spot towards the hoop, turned by the aim; only while the ball is in hand. */
@@ -700,7 +734,7 @@ export class Game3D extends GameCore {
 
   /** Dashed line along the last shot, so a miss shows how far off it was. */
   private updateGhost() {
-    const show = !!this.ghost && this.phase !== "flying";
+    const show = !!this.ghost && this.phase !== "flying" && this.phase !== "replay";
     if (this.ghostOf !== this.ghost) {
       this.ghostOf = this.ghost;
       if (this.ghostLine) {

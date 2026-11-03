@@ -23,7 +23,10 @@ const along = (deg: number) => `${((Math.max(-MAX_AIM, Math.min(MAX_AIM, deg)) +
 /** What to say about the shot: direction and distance, each only when it was off. */
 export function shotTip(shot: LastShot): string {
   const { power, window: w, result } = shot;
-  if (result.scored) return result.swish ? "Nothing but net. Do that again." : "Bucket! Aim for the middle of the zone to swish.";
+  if (result.scored) {
+    if (result.swish) return "Nothing but net. Do that again.";
+    return result.bank ? "Off the glass! Bank shots earn +1." : "Bucket! Aim for the middle of the zone to swish.";
+  }
   const off = shot.aim - shot.aimTarget; // + = too far right
   const wide = Math.abs(off) > shot.aimTolerance ? (off > 0 ? "right" : "left") : null;
   const fix = off > 0 ? "left" : "right";

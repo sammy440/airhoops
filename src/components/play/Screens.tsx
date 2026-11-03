@@ -111,7 +111,17 @@ function CourtPicker({ value, onChange }: { value: CourtThemeId; onChange: (t: C
 }
 
 /** 3D court or the classic side view (no choice without WebGL: 2D it is). */
-function ViewPicker({ value, onChange }: { value: RendererId; onChange: (r: RendererId) => void }) {
+function ViewPicker({
+  value,
+  onChange,
+  replays,
+  onReplays,
+}: {
+  value: RendererId;
+  onChange: (r: RendererId) => void;
+  replays: boolean;
+  onReplays: (on: boolean) => void;
+}) {
   // Rendered only after hydration, so probing WebGL here is safe.
   const [has3d] = useState(webglAvailable);
   const current = has3d ? value : "2d";
@@ -141,6 +151,12 @@ function ViewPicker({ value, onChange }: { value: RendererId; onChange: (r: Rend
       ) : (
         <span className="text-xs text-cream/60">Classic 2D (this browser has no 3D graphics)</span>
       )}
+      {current === "3d" && (
+        <label className="flex w-full cursor-pointer items-center justify-between gap-3 text-xs text-cream/70">
+          <span>Instant replays of great makes</span>
+          <input type="checkbox" checked={replays} onChange={(e) => onReplays(e.target.checked)} className="size-4 accent-hoop" />
+        </label>
+      )}
     </div>
   );
 }
@@ -164,6 +180,8 @@ export function StartMenu(p: {
   courtTheme: CourtThemeId;
   renderer: RendererId;
   onRenderer: (r: RendererId) => void;
+  replays: boolean;
+  onReplays: (on: boolean) => void;
   calibration: Calibration | null;
   camera: boolean;
   best: Best | undefined;
@@ -265,7 +283,7 @@ export function StartMenu(p: {
       )}
 
       <CourtPicker value={p.courtTheme} onChange={p.onCourtTheme} />
-      <ViewPicker value={p.renderer} onChange={p.onRenderer} />
+      <ViewPicker value={p.renderer} onChange={p.onRenderer} replays={p.replays} onReplays={p.onReplays} />
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/[0.04] px-4 py-3 text-sm">
         {p.camera ? (

@@ -2,6 +2,8 @@ import type { ShotResult } from "./physics";
 
 export const BASE_POINTS = 2;
 export const SWISH_BONUS = 1;
+/** Banked in off the board. Never on top of a swish (a swish touches nothing), so a make still earns at most +1. */
+export const BANK_BONUS = 1;
 
 /** Multiplier by how many makes in a row came *before* this shot. */
 export const STREAK_TIERS = [
@@ -10,6 +12,9 @@ export const STREAK_TIERS = [
   { from: 5, multiplier: 2 },
   { from: 10, multiplier: 3 },
 ] as const;
+
+/** Makes in a row to catch fire: the ×2 streak tier. */
+export const ON_FIRE = 5;
 
 export function streakMultiplier(streakBefore: number) {
   let m = 1;
@@ -30,6 +35,7 @@ export interface ShotScore {
   points: number;
   base: number;
   swishBonus: number;
+  bankBonus: number;
   multiplier: number;
   /** Streak after this shot */
   streak: number;
@@ -38,13 +44,15 @@ export interface ShotScore {
 }
 
 export function scoreShot(result: ShotResult, streakBefore: number, difficultyMultiplier = 1, hot = false): ShotScore {
-  if (!result.scored) return { points: 0, base: 0, swishBonus: 0, multiplier: 1, streak: 0, hot: false };
+  if (!result.scored) return { points: 0, base: 0, swishBonus: 0, bankBonus: 0, multiplier: 1, streak: 0, hot: false };
   const swishBonus = result.swish ? SWISH_BONUS : 0;
+  const bankBonus = result.bank ? BANK_BONUS : 0;
   const multiplier = (hot ? hotMultiplier(streakBefore) : streakMultiplier(streakBefore)) * difficultyMultiplier;
   return {
-    points: Math.round((BASE_POINTS + swishBonus) * multiplier),
+    points: Math.round((BASE_POINTS + swishBonus + bankBonus) * multiplier),
     base: BASE_POINTS,
     swishBonus,
+    bankBonus,
     multiplier,
     streak: streakBefore + 1,
     hot,

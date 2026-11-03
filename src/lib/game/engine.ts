@@ -3,7 +3,11 @@ import type { Side } from "@/lib/pose/kinematics";
 import { DEFAULT_AVATAR, type Avatar } from "./avatar";
 import { COURT_THEMES, DEFAULT_COURT_THEME, type CourtTheme, type CourtThemeId } from "./courts";
 import { DEFAULT_COURT, hoopOffset, simulateShot, type Court, type Launch, type PathPoint, type ShotEvent, type ShotSim } from "./physics";
+import { replayReason, replayWindow, REPLAY_SPEED } from "./replay";
+import { ON_FIRE } from "./scoring";
 import { sfx } from "./sfx";
+
+export { ON_FIRE };
 
 /**
  * What every renderer shares: the game clock, shot playback, events and results,
@@ -16,7 +20,7 @@ import { sfx } from "./sfx";
  * multiplayer plays server-authoritative paths.
  */
 
-export type GamePhase = "ready" | "flying" | "result";
+export type GamePhase = "ready" | "flying" | "replay" | "result";
 
 export interface GameCallbacks {
   onLaunch?: (sim: ShotSim) => void;
@@ -27,6 +31,21 @@ export interface GameCallbacks {
    */
   onResult?: (sim: ShotSim) => string | void;
   onReady?: () => void;
+  /** An instant replay started (its caption, e.g. "BANK SHOT") or ended (null). */
+  onReplay?: (reason: string | null) => void;
+}
+
+/** An instant replay in progress: a slice of the last shot, played again in slow motion. */
+export interface Replay {
+  sim: ShotSim;
+  reason: string;
+  /** Flight time (s) being shown, and the slice it runs over */
+  t: number;
+  from: number;
+  to: number;
+  /** Hoop-motion phase at launch, so a moving hoop slides exactly as it did */
+  phase: number;
+  eventIdx: number;
 }
 
 export interface Vec3 {
@@ -69,8 +88,6 @@ export const COLORS = {
 };
 export const MISS_LABELS = { short: "SHORT", long: "LONG", left: "WIDE LEFT", right: "WIDE RIGHT", rim: "RIM OUT", airball: "AIRBALL" } as const;
 const RESPAWN_MS = 650;
-/** Makes in a row to catch fire: the ×2 streak tier (scoring.ts). */
-export const ON_FIRE = 5;
 const HAND_BLEND_S = 0.12;
 /** A dribble lasts one beat of the player's rhythm, within these limits. */
 const DRIBBLE_MS = { min: 280, max: 800, fallback: 450 };
@@ -140,6 +157,14 @@ export abstract class GameCore {
   protected streak = 0;
   /** Game clock (ms) of the last make, for the camera punch. */
   protected madeAt = -1e9;
+  /** Instant replays of great makes (solo; renderers that can film them). */
+  private replays = false;
+  protected replay: Replay | null = null;
+  private replayNext: string | null = null;
+  private shotsSinceReplay = Infinity;
+  private launchPhase = 0;
+  /** Time (ms) spent in replays: the game clock stands still meanwhile, so timed runs don't lose it. */
+  private replayMs = 0;
 
   /**
    * Hoop-motion phase (s). Multiplayer points this at the server's match
@@ -174,9 +199,12 @@ export abstract class GameCore {
     const loop = (ts: number) => {
       const dt = this.lastTs ? Math.min(100, ts - this.lastTs) : 16;
       this.lastTs = ts;
-      if (!this.paused) this.now += dt;
+      if (!this.paused) {
+        this.now += dt;
+        if (this.replay) this.replayMs += dt;
+      }
       if (!document.hidden) {
-        this.update();
+        this.update(this.paused ? 0 : dt);
         this.render();
       }
       this.raf = requestAnimationFrame(loop);
@@ -211,9 +239,9 @@ export abstract class GameCore {
     this.wind = w;
   }
 
-  /** Game clock in seconds (the phase a moving hoop is at). */
+  /** Game clock in seconds (the phase a moving hoop is at). Stands still during a replay. */
   get clock() {
-    return this.now / 1000;
+    return (this.now - this.replayMs) / 1000;
   }
 
   setPhaseSource(fn: (() => number | null) | null) {
@@ -221,6 +249,7 @@ export abstract class GameCore {
   }
 
   get hoopPhase() {
+    if (this.replay) return this.replay.phase + this.replay.t;
     return this.phaseSource?.() ?? this.clock;
   }
 
@@ -307,6 +336,27 @@ export abstract class GameCore {
     return this.streak >= ON_FIRE;
   }
 
+  // ── Instant replay ──
+
+  /** The renderer can film a replay (the 3D court). */
+  get canReplay() {
+    return false;
+  }
+
+  /** Replay great makes (solo play turns this on; matches keep their pace). */
+  setReplays(on: boolean) {
+    this.replays = on;
+  }
+
+  get replaying() {
+    return this.replay !== null;
+  }
+
+  /** Cut the replay short (a tap, Space or a throw); the ball comes back as usual. */
+  skipReplay() {
+    if (this.replay) this.endReplay();
+  }
+
   // ── Looking around (3D only; the 2D side view ignores these) ──
 
   /** The view can be swung around by dragging. */
@@ -340,11 +390,15 @@ export abstract class GameCore {
     this.resultSent = false;
     this.phase = "flying";
     this.trail = [];
+    this.replayNext = null;
+    this.launchPhase = this.hoopPhase;
+    this.shotsSinceReplay++;
     sfx.release();
     this.cb.onLaunch?.(sim);
   }
 
-  private update() {
+  /** `frameMs`: game time since the last frame (0 while paused). */
+  private update(frameMs: number) {
     const dt = 1 / 60;
     if (this.phase === "flying" && this.sim) {
       const t = this.sinceLaunch!;
@@ -368,9 +422,14 @@ export abstract class GameCore {
           this.cb.onResult?.(this.sim);
         }
         this.ghost = this.sim.path;
-        this.phase = "result";
-        this.respawnAt = this.now + RESPAWN_MS;
+        if (this.replayNext) this.startReplay(this.sim, this.replayNext);
+        else {
+          this.phase = "result";
+          this.respawnAt = this.now + RESPAWN_MS;
+        }
       }
+    } else if (this.phase === "replay" && this.replay) {
+      this.updateReplay(this.replay, frameMs / 1000);
     } else if (this.phase === "result" && this.now >= this.respawnAt) {
       this.phase = "ready";
       this.trail = [];
@@ -394,6 +453,53 @@ export abstract class GameCore {
     }
     this.particles = this.particles.filter((p) => p.life > 0);
     this.texts = this.texts.filter((t) => this.now - t.born < 1600);
+  }
+
+  private startReplay(sim: ShotSim, reason: string) {
+    const scored = sim.events.find((e) => e.type === "score");
+    if (!scored) return;
+    const { from, to } = replayWindow(scored.t, sim.duration);
+    this.replayNext = null;
+    this.shotsSinceReplay = 0;
+    this.replay = { sim, reason, t: from, from, to, phase: this.launchPhase, eventIdx: sim.events.findIndex((e) => e.t >= from) };
+    if (this.replay.eventIdx < 0) this.replay.eventIdx = sim.events.length;
+    this.phase = "replay";
+    this.trail = [];
+    this.cb.onReplay?.(reason);
+  }
+
+  /** Advances the replay by `dt` seconds of real time (frame-rate independent, so it lasts as long on a slow phone). */
+  private updateReplay(r: Replay, dt: number) {
+    r.t = Math.min(r.to, r.t + dt * REPLAY_SPEED);
+    const p = samplePath(r.sim.path, r.t);
+    this.ball.x = p.x;
+    this.ball.y = p.y;
+    this.ball.z = p.z;
+    this.ball.rot = -r.t * 14;
+    this.trail.push({ ...p });
+    if (this.trail.length > 14) this.trail.shift();
+    // The sounds and the net, again (no points this time)
+    while (r.eventIdx < r.sim.events.length && r.sim.events[r.eventIdx].t <= r.t) {
+      const e = r.sim.events[r.eventIdx++];
+      if (e.type === "rim") sfx.rim(e.impact);
+      else if (e.type === "board") sfx.board(e.impact);
+      else if (e.type === "score") {
+        if (r.sim.result.swish) sfx.swish();
+        else sfx.rim(2);
+        this.netKick = 1;
+        this.netKickAt = this.now;
+        this.burst({ x: e.x, y: this.court.rimHeight - 0.2, z: e.z ?? 0 }, 30, COLORS.sun, 2.2);
+      }
+    }
+    if (r.t >= r.to) this.endReplay();
+  }
+
+  private endReplay() {
+    this.replay = null;
+    this.phase = "result";
+    this.trail = [];
+    this.respawnAt = this.now + RESPAWN_MS / 2;
+    this.cb.onReplay?.(null);
   }
 
   /** Moves the ball through the current dribble. Returns false once it's back in hand. */
@@ -456,9 +562,11 @@ export abstract class GameCore {
           this.resultSent = true;
           label = this.cb.onResult?.(sim);
         }
+        // After onResult, so the streak counts this make.
+        if (this.replays && this.canReplay) this.replayNext = replayReason(r, this.streak, this.shotsSinceReplay);
         this.texts.push({
           text: r.swish ? "SWISH!" : r.bank ? "BANK!" : "BUCKET!",
-          sub: label || (r.swish ? "+3" : "+2"),
+          sub: label || (r.swish || r.bank ? "+3" : "+2"),
           x: e.x,
           y: this.court.rimHeight + 0.7,
           z,

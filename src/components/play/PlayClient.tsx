@@ -71,6 +71,10 @@ interface Prefs {
   renderer: RendererId;
   /** Passed the camera setup check before; next time it's skipped if they're already in position. */
   setupPassed: boolean;
+  /** Slow-motion replays of great makes (3D). */
+  replays: boolean;
+  /** Seen the one-time "swipe to look around" tip (3D on phones). */
+  seenLookTip: boolean;
 }
 const DEFAULT_PREFS: Prefs = {
   camera: true,
@@ -82,6 +86,8 @@ const DEFAULT_PREFS: Prefs = {
   courtTheme: DEFAULT_COURT_THEME,
   renderer: "3d",
   setupPassed: false,
+  replays: true,
+  seenLookTip: false,
 };
 
 /** Stand-in until the clock can be read on the client (the page is prerendered). Never shown: the menu waits for hydration. */
@@ -213,10 +219,12 @@ export function PlayClient() {
     onResult: () => undefined,
     onReady: () => {},
   });
+  /** Caption of the instant replay on screen, if any */
+  const [replay, setReplay] = useState<string | null>(null);
   // What a freshly created engine needs to catch up on (the effects below only push changes).
-  const sceneRef = useRef({ court, theme: prefs.courtTheme, wind: 0 });
+  const sceneRef = useRef({ court, theme: prefs.courtTheme, wind: 0, replays: prefs.replays });
   useEffect(() => {
-    sceneRef.current = { court, theme: prefs.courtTheme, wind };
+    sceneRef.current = { court, theme: prefs.courtTheme, wind, replays: prefs.replays };
   });
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -227,10 +235,12 @@ export function PlayClient() {
       {
         onResult: (sim) => handlers.current.onResult(sim),
         onReady: () => handlers.current.onReady(),
+        onReplay: setReplay,
       },
       prefs.renderer,
     );
     const scene = sceneRef.current;
+    game.setReplays(scene.replays);
     game.setAvatar(loadProfile().avatar);
     game.setCourt(scene.court);
     game.setTheme(scene.theme);
@@ -261,6 +271,9 @@ export function PlayClient() {
   useEffect(() => {
     gameRef.current?.setTheme(prefs.courtTheme);
   }, [prefs.courtTheme]);
+  useEffect(() => {
+    gameRef.current?.setReplays(prefs.replays);
+  }, [prefs.replays]);
   const changeDifficulty = (d: DifficultyId) => {
     set("difficulty", d);
     nextWind(DIFFICULTIES[d]);
@@ -299,6 +312,11 @@ export function PlayClient() {
   const shoot = useCallback((launch: Launch, power: number, input: LastShot["input"]) => {
     const game = gameRef.current;
     if (screenRef.current !== "playing" || buzzerRef.current || !game) return false;
+    // A throw during a replay just cuts it short; the ball is back in hand a moment later.
+    if (game.replaying) {
+      game.skipReplay();
+      return false;
+    }
     const phase = game.hoopPhase;
     const w = wind;
     if (!game.throwBall(launch)) return false;
@@ -413,6 +431,7 @@ export function PlayClient() {
 
   // ── Flow ──
   const startRun = useCallback(() => {
+    gameRef.current?.skipReplay();
     tallyRef.current = EMPTY_TALLY;
     setTally(EMPTY_TALLY);
     hotHand.reset();
@@ -605,6 +624,11 @@ export function PlayClient() {
       }
     };
     const startCharge = () => {
+      // Space, a click or a tap during a replay skips it.
+      if (playing() && gameRef.current?.replaying) {
+        gameRef.current.skipReplay();
+        return false;
+      }
       if (downAt !== null || !playing() || !gameRef.current?.canThrow()) return false;
       downAt = performance.now();
       raf = requestAnimationFrame(tick);
@@ -649,6 +673,27 @@ export function PlayClient() {
   // Drag / swipe to look around the 3D court, wheel / pinch to zoom
   const [looked, setLooked] = useState(false);
   const onLooked = useCallback(() => setLooked(true), []);
+  // Phones hide the hint line, so the first 3D run there shows a one-time tip instead.
+  const [lookTip, setLookTip] = useState(false);
+  useEffect(() => {
+    if (screen !== "playing" || prefs.renderer !== "3d" || prefs.seenLookTip) return;
+    if (!matchMedia("(pointer: coarse)").matches && innerWidth >= 640) return;
+    const show = window.setTimeout(() => setLookTip(true), 1500);
+    const hide = window.setTimeout(() => {
+      setLookTip(false);
+      setPrefs((p) => ({ ...p, seenLookTip: true }));
+    }, 8000);
+    return () => {
+      window.clearTimeout(show);
+      window.clearTimeout(hide);
+    };
+  }, [screen, prefs.renderer, prefs.seenLookTip]);
+  useEffect(() => {
+    if (!looked || !lookTip) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- they found it: the tip has done its job
+    setLookTip(false);
+    setPrefs((p) => ({ ...p, seenLookTip: true }));
+  }, [looked, lookTip]);
   useCourtGestures(canvasRef, gameRef, chargeRef, onLooked, prefs.renderer);
   const resetView = () => {
     gameRef.current?.resetView();
@@ -772,14 +817,34 @@ export function PlayClient() {
 
       {/* ── Shot feedback ── */}
       <div className="absolute inset-x-0 bottom-4 z-10 flex flex-col items-center gap-2 px-4 sm:bottom-6 sm:items-end sm:pr-6 xl:items-center xl:pr-4">
-        {last && screen === "playing" && <ShotGauge shot={last} />}
-        {screen === "playing" && (
+        {last && screen === "playing" && !replay && <ShotGauge shot={last} />}
+        {screen === "playing" && !replay && (
           <p className="hidden text-[11px] text-cream/45 sm:block">
             Space or click: tap = medium · hold = charge · ↑↓ arc {kbAngle}° · ←→ aim {kbAim > 0 ? `${kbAim}° R` : kbAim < 0 ? `${-kbAim}° L` : "straight"} ·{" "}
             {prefs.renderer === "3d" ? "drag to look around · " : ""}Esc pause
           </p>
         )}
       </div>
+
+      {/* ── Instant replay: letterbox and caption; a tap, Space or a throw skips it ── */}
+      {replay && screen === "playing" && (
+        <div className="pointer-events-none absolute inset-0 z-[5]" aria-live="polite">
+          <div className="animate-letterbox absolute inset-x-0 top-0 h-[9vh] origin-top bg-ink/85" />
+          <div className="animate-letterbox absolute inset-x-0 bottom-0 grid h-[9vh] origin-bottom place-items-center bg-ink/85">
+            <p className="text-[11px] tracking-[0.16em] text-cream/55 uppercase">
+              <span className="mr-2 inline-block size-2 animate-pulse rounded-full bg-hoop align-middle" aria-hidden />
+              Instant replay · <span className="font-semibold text-sun">{replay}</span>
+              <span className="hidden sm:inline"> · tap or Space to skip</span>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {lookTip && screen === "playing" && !replay && (
+        <div className="animate-count-pop pointer-events-none absolute inset-x-0 top-[38%] z-10 flex justify-center px-4">
+          <p className="glass rounded-full px-4 py-2 text-sm text-cream">👆 Swipe to look around · pinch to zoom</p>
+        </div>
+      )}
 
       {/* ── Countdown ── */}
       {screen === "countdown" && !paused && (
@@ -801,6 +866,8 @@ export function PlayClient() {
           courtTheme={prefs.courtTheme}
           renderer={prefs.renderer}
           onRenderer={(r) => set("renderer", r)}
+          replays={prefs.replays}
+          onReplays={(on) => set("replays", on)}
           calibration={calibration}
           camera={prefs.camera}
           best={best}

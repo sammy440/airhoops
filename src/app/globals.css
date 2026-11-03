@@ -150,6 +150,13 @@ body {
   to { transform: scaleX(1); }
 }
 
+/* Instant replay: letterbox bars slide in */
+@keyframes letterbox {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+.animate-letterbox { animation: letterbox 0.35s cubic-bezier(.2,.8,.2,1) both; }
+
 @media (prefers-reduced-motion: reduce) {
   .animate-marquee, .animate-pulse-ring, .animate-bob, .animate-count-pop, .animate-throw-flash { animation: none; }
   .reveal { opacity: 1; transform: none; transition: none; }
