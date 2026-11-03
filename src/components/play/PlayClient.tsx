@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SkeletonOverlayHandle } from "@/components/lab/SkeletonOverlay";
 import { Logo } from "@/components/ui/Logo";
 import { useLighting } from "@/hooks/useLighting";
+import { useCourtGestures, type ChargeControls } from "@/hooks/useCourtGestures";
 import { useThrowInput } from "@/hooks/useThrowInput";
 import { beep } from "@/lib/browser";
 import {
@@ -564,6 +565,8 @@ export function PlayClient() {
   //    ↑/↓ arc, ←/→ aim, Esc/P pause ──
   const kbAngleRef = useRef(kbAngle);
   const kbAimRef = useRef(kbAim);
+  /** Shot charging, for mouse / touch on the court (useCourtGestures) */
+  const chargeRef = useRef<ChargeControls | null>(null);
   useEffect(() => {
     kbAngleRef.current = kbAngle;
     kbAimRef.current = kbAim;
@@ -602,7 +605,7 @@ export function PlayClient() {
       }
     };
     const startCharge = () => {
-      if (downAt !== null || !gameRef.current?.canThrow()) return false;
+      if (downAt !== null || !playing() || !gameRef.current?.canThrow()) return false;
       downAt = performance.now();
       raf = requestAnimationFrame(tick);
       return true;
@@ -621,41 +624,36 @@ export function PlayClient() {
       const t = DEFAULT_TUNING;
       shoot({ speed: t.minSpeed + power * (t.maxSpeed - t.minSpeed), angle: kbAngleRef.current, aim: kbAimRef.current }, power, "keys");
     };
+    const cancel = () => {
+      downAt = null;
+      cancelAnimationFrame(raf);
+      gameRef.current?.setCharge(null);
+    };
     const onUp = (e: KeyboardEvent) => {
       if (e.code !== "Space" || downAt === null) return;
       e.preventDefault();
       release();
     };
-    // Mouse / touch on the court itself (buttons and dialogs sit above it, so they never trigger a shot).
-    const canvas = canvasRef.current;
-    let pointer: number | null = null;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!e.isPrimary || e.button !== 0 || !playing() || gameRef.current?.paused) return;
-      if (startCharge()) {
-        pointer = e.pointerId;
-        canvas?.setPointerCapture(e.pointerId);
-        e.preventDefault();
-      }
-    };
-    const onPointerUp = (e: PointerEvent) => {
-      if (e.pointerId !== pointer) return;
-      pointer = null;
-      release();
-    };
+    // Mouse / touch on the court (useCourtGestures): a press charges, a drag looks around instead.
+    chargeRef.current = { start: startCharge, release, cancel };
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
-    canvas?.addEventListener("pointerdown", onPointerDown);
-    canvas?.addEventListener("pointerup", onPointerUp);
-    canvas?.addEventListener("pointercancel", onPointerUp);
     return () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
-      canvas?.removeEventListener("pointerdown", onPointerDown);
-      canvas?.removeEventListener("pointerup", onPointerUp);
-      canvas?.removeEventListener("pointercancel", onPointerUp);
+      chargeRef.current = null;
       cancelAnimationFrame(raf);
     };
   }, [shoot, pause]);
+
+  // Drag / swipe to look around the 3D court, wheel / pinch to zoom
+  const [looked, setLooked] = useState(false);
+  const onLooked = useCallback(() => setLooked(true), []);
+  useCourtGestures(canvasRef, gameRef, chargeRef, onLooked, prefs.renderer);
+  const resetView = () => {
+    gameRef.current?.resetView();
+    setLooked(false);
+  };
 
   // ── Render ──
   const accuracy = tally.shots ? Math.round((tally.makes / tally.shots) * 100) : 0;
@@ -735,6 +733,11 @@ export function PlayClient() {
           <IconButton label={prefs.sound ? "Mute" : "Unmute"} on={prefs.sound} onClick={() => set("sound", !prefs.sound)}>
             {prefs.sound ? <path d="M4 9v6h4l5 4V5L8 9H4zm12 .5a4 4 0 0 1 0 5M18.5 7a7.5 7.5 0 0 1 0 10" /> : <path d="M4 9v6h4l5 4V5L8 9H4zm12 1 5 5m0-5-5 5" />}
           </IconButton>
+          {looked && prefs.renderer === "3d" && (
+            <IconButton label="Reset view" on onClick={resetView}>
+              <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" />
+            </IconButton>
+          )}
           <IconButton label={prefs.camera ? "Camera off (keyboard only)" : "Camera on"} on={prefs.camera} onClick={() => set("camera", !prefs.camera)}>
             <path d="M4 7h3l2-3h6l2 3h3v12H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />
             {!prefs.camera && <path d="M3 3l18 18" />}
@@ -772,7 +775,8 @@ export function PlayClient() {
         {last && screen === "playing" && <ShotGauge shot={last} />}
         {screen === "playing" && (
           <p className="hidden text-[11px] text-cream/45 sm:block">
-            Space or click: tap = medium · hold = charge · ↑↓ arc {kbAngle}° · ←→ aim {kbAim > 0 ? `${kbAim}° R` : kbAim < 0 ? `${-kbAim}° L` : "straight"} · Esc pause
+            Space or click: tap = medium · hold = charge · ↑↓ arc {kbAngle}° · ←→ aim {kbAim > 0 ? `${kbAim}° R` : kbAim < 0 ? `${-kbAim}° L` : "straight"} ·{" "}
+            {prefs.renderer === "3d" ? "drag to look around · " : ""}Esc pause
           </p>
         )}
       </div>

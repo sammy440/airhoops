@@ -2,6 +2,18 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Look around the 3D court
+- **Drag (mouse) or swipe (touch) to swing the camera around the court**; a swipe glides on for a moment after
+  you let go. **Mouse wheel or two-finger pinch to zoom.** The camera orbits the middle of the court and stays
+  between nearly overhead and just above head height, 0.45–1.9× the normal distance. The make "punch" and the
+  on-fire shake still play from wherever you're looking.
+- **Reset view** (top-right button, Play and matches) eases back to the shooting view the short way round; it only
+  shows once the view has moved.
+- Press and hold without moving still charges a shot; once the press moves more than 8 px it becomes a look and the
+  charge is dropped, so looking around never fires a shot. Two fingers never shoot.
+- One gesture handler for both screens (`hooks/useCourtGestures.ts`); the screens only supply start / release /
+  cancel for a charge. The 2D view ignores looking around.
+
 ## 3D, stage 5: aim coaching, effects, performance
 - **Coaching knows direction** (`coachShot` in `shot.ts`, `ShotGauge`). Direction comes from where the ball was
   heading as it reached the hoop, before any rim or board contact (x is unaccelerated, so it's exact: aim,

@@ -267,13 +267,13 @@ export class Game3D extends GameCore {
 
   // ── Camera ──
 
-  /** Behind the shooter's right shoulder, looking up the floor at the hoop; the court fits beside the left inset. */
-  /** Where the camera rests and looks; render() adds the punch on a make. */
+  /** The shooting view (behind the shooter's right shoulder), and the point the camera looks at and orbits. */
   private camBase = new THREE.Vector3();
   private camTarget = new THREE.Vector3();
   private calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   private rimMat: THREE.MeshStandardMaterial | null = null;
 
+  /** Behind the shooter's right shoulder, looking up the floor at the hoop; the court fits beside the left inset. */
   private frameCamera() {
     if (!this.w || !this.h) return;
     const portrait = this.h > this.w;
@@ -283,8 +283,9 @@ export class Game3D extends GameCore {
     // Far enough back to see the player's back and shoulders (the turn you aim with), hoop in the upper third.
     toThree({ x: portrait ? -5.2 : -4.5, y: 2.75, z: 0.9 }, this.camBase);
     toThree({ x: d * 0.55, y: 2.05, z: 0.1 }, this.camTarget);
-    this.camera.position.copy(this.camBase);
-    this.camera.lookAt(this.camTarget);
+    this.basePhi = new THREE.Spherical().setFromVector3(new THREE.Vector3().subVectors(this.camBase, this.camTarget)).phi;
+    this.view.pitch = this.clampPitch(this.view.pitch);
+    this.placeCamera(0);
     if (this.leftInset) this.camera.setViewOffset(this.w, this.h, -this.leftInset / 2, 0, this.w, this.h);
     else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
@@ -588,23 +589,85 @@ export class Game3D extends GameCore {
     (this.net.material as THREE.LineBasicMaterial).color.set(this.onFire ? "#ff9a3c" : this.palette.net);
   }
 
-  /** A make punches the camera in a little (more on a swish or on fire); shakes when on fire. Off with reduced motion. */
-  private updateCamera() {
-    const since = this.now - this.madeAt;
-    if (this.calm || since > 700) {
-      if (!this.camera.position.equals(this.camBase)) {
-        this.camera.position.copy(this.camBase);
-        this.camera.lookAt(this.camTarget);
-      }
-      return;
-    }
-    const k = Math.exp(-since / 220);
-    const swish = this.sim?.result.swish ? 1.5 : 1;
-    const push = 0.25 * k * swish * (this.onFire ? 1.4 : 1);
-    const dir = new THREE.Vector3().subVectors(this.camTarget, this.camBase).normalize();
-    this.camera.position.copy(this.camBase).addScaledVector(dir, push);
-    if (this.onFire) this.camera.position.add(new THREE.Vector3(Math.sin(since / 18), Math.cos(since / 23), 0).multiplyScalar(0.025 * k));
+  // ── Looking around: orbit the court by dragging / swiping, zoom by wheel / pinch ──
+
+  /** Requested view (yaw / pitch in radians from the shooting view, zoom as a distance factor) … */
+  private view = { yaw: 0, pitch: 0, zoom: 1 };
+  /** … what's on screen, easing towards it … */
+  private shown = { yaw: 0, pitch: 0, zoom: 1 };
+  /** … and a swipe's glide after release (radians per frame). */
+  private glide = { yaw: 0, pitch: 0 };
+  private dragging = false;
+  private basePhi = Math.PI / 2;
+
+  get canLookAround() {
+    return true;
+  }
+
+  lookAround(dx: number, dy: number) {
+    this.dragging = true;
+    // A drag across the whole screen swings the camera a bit over half a turn; dragging down lifts it (like OrbitControls).
+    const k = (1.15 * Math.PI) / Math.max(320, this.w);
+    this.glide = { yaw: -dx * k, pitch: -dy * k * 0.7 };
+    this.view.yaw += this.glide.yaw;
+    this.view.pitch = this.clampPitch(this.view.pitch + this.glide.pitch);
+  }
+
+  endLookAround() {
+    this.dragging = false;
+  }
+
+  zoomView(factor: number) {
+    this.view.zoom = Math.min(VIEW.maxZoom, Math.max(VIEW.minZoom, this.view.zoom * factor));
+  }
+
+  resetView() {
+    // The short way round, so the camera doesn't unwind several turns
+    this.shown.yaw -= Math.round(this.shown.yaw / (2 * Math.PI)) * 2 * Math.PI;
+    this.view = { yaw: 0, pitch: 0, zoom: 1 };
+    this.glide = { yaw: 0, pitch: 0 };
+  }
+
+  /** Keeps the camera between nearly overhead and just above the floor. */
+  private clampPitch(pitch: number) {
+    return Math.min(VIEW.maxPhi - this.basePhi, Math.max(VIEW.minPhi - this.basePhi, pitch));
+  }
+
+  /** The camera at the shown view, punched in by `push` metres. */
+  private placeCamera(push: number) {
+    const offset = new THREE.Vector3().subVectors(this.camBase, this.camTarget);
+    const s = new THREE.Spherical().setFromVector3(offset);
+    s.theta += this.shown.yaw;
+    s.phi = Math.min(VIEW.maxPhi, Math.max(VIEW.minPhi, s.phi + this.shown.pitch));
+    s.radius = s.radius * this.shown.zoom - push;
+    this.camera.position.setFromSpherical(s).add(this.camTarget);
     this.camera.lookAt(this.camTarget);
+  }
+
+  /**
+   * Eases towards the requested view (a released swipe glides on), then adds the punch on a make
+   * (more on a swish or on fire, a shake on fire). Punch and shake are off with reduced motion.
+   */
+  private updateCamera() {
+    if (!this.dragging && (Math.abs(this.glide.yaw) > 1e-4 || Math.abs(this.glide.pitch) > 1e-4)) {
+      this.view.yaw += this.glide.yaw;
+      this.view.pitch = this.clampPitch(this.view.pitch + this.glide.pitch);
+      this.glide.yaw *= VIEW.glide;
+      this.glide.pitch *= VIEW.glide;
+    }
+    const ease = this.dragging ? 0.5 : 0.18;
+    this.shown.yaw += (this.view.yaw - this.shown.yaw) * ease;
+    this.shown.pitch += (this.view.pitch - this.shown.pitch) * ease;
+    this.shown.zoom += (this.view.zoom - this.shown.zoom) * ease;
+
+    const since = this.now - this.madeAt;
+    const k = this.calm || since > 700 ? 0 : Math.exp(-since / 220);
+    const swish = this.sim?.result.swish ? 1.5 : 1;
+    this.placeCamera(0.25 * k * swish * (this.onFire ? 1.4 : 1));
+    if (k && this.onFire) {
+      this.camera.position.add(new THREE.Vector3(Math.sin(since / 18), Math.cos(since / 23), 0).multiplyScalar(0.025 * k));
+      this.camera.lookAt(this.camTarget);
+    }
   }
 
   /** Aim guide: from the release spot towards the hoop, turned by the aim; only while the ball is in hand. */
@@ -707,6 +770,8 @@ export class Game3D extends GameCore {
 }
 
 const NET_STRANDS = 12;
+/** Looking around: polar angle limits (from straight down), zoom range, how much a swipe glides per frame. */
+const VIEW = { minPhi: 0.12, maxPhi: 1.48, minZoom: 0.45, maxZoom: 1.9, glide: 0.92 };
 /** Below ~40 fps for 2 s: a step down in resolution; above ~58 fps for 6 s: a step back up. */
 const QUALITY = { slowFrameMs: 25, fastFrameMs: 17.2, downAfterMs: 2000, upAfterMs: 6000, step: 0.25, minRatio: 0.6 };
 const GUIDE_DOTS = 12;

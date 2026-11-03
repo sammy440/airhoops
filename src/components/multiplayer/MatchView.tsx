@@ -7,6 +7,7 @@ import { CameraPip, useCourtInset } from "@/components/play/CameraPip";
 import { Logo } from "@/components/ui/Logo";
 import { ShareCardButton } from "@/components/ui/ShareCardButton";
 import type { MatchState } from "@/hooks/useRoom";
+import { useCourtGestures, type ChargeControls } from "@/hooks/useCourtGestures";
 import { useThrowInput } from "@/hooks/useThrowInput";
 import { DEFAULT_AVATAR, loadProfile, sanitizeAvatar } from "@/lib/game/avatar";
 import { courtThemeId, DEFAULT_COURT_THEME, type CourtThemeId } from "@/lib/game/courts";
@@ -229,7 +230,8 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
     gameRef.current?.setLoaded(canShoot && input.tracker.status === "ready" && input.detectorState === "WINDUP");
   }, [canShoot, input.tracker.status, input.detectorState]);
 
-  // Keyboard, mouse or touch: tap Space / the court = medium shot, hold = charge.
+  // Keyboard, mouse or touch: tap Space / the court = medium shot, hold = charge (a drag on the court looks around).
+  const chargeRef = useRef<ChargeControls | null>(null);
   useEffect(() => {
     let downAt: number | null = null;
     let raf = 0;
@@ -267,40 +269,29 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       const throwInput = { power, ...KEYBOARD_THROW, aim: throwAimFor(kbAimRef.current) };
       shoot(throwToLaunch(throwInput), throwInput);
     };
+    const cancel = () => {
+      downAt = null;
+      cancelAnimationFrame(raf);
+      gameRef.current?.setCharge(null);
+    };
     const onUp = (e: KeyboardEvent) => {
       if (e.code !== "Space" || downAt === null) return;
       e.preventDefault();
       release();
     };
-    const canvas = canvasRef.current;
-    let pointer: number | null = null;
-    const onPointerDown = (e: PointerEvent) => {
-      if (!e.isPrimary || e.button !== 0) return;
-      if (startCharge()) {
-        pointer = e.pointerId;
-        canvas?.setPointerCapture(e.pointerId);
-        e.preventDefault();
-      }
-    };
-    const onPointerUp = (e: PointerEvent) => {
-      if (e.pointerId !== pointer) return;
-      pointer = null;
-      release();
-    };
+    chargeRef.current = { start: startCharge, release, cancel };
     window.addEventListener("keydown", onDown);
     window.addEventListener("keyup", onUp);
-    canvas?.addEventListener("pointerdown", onPointerDown);
-    canvas?.addEventListener("pointerup", onPointerUp);
-    canvas?.addEventListener("pointercancel", onPointerUp);
     return () => {
       window.removeEventListener("keydown", onDown);
       window.removeEventListener("keyup", onUp);
-      canvas?.removeEventListener("pointerdown", onPointerDown);
-      canvas?.removeEventListener("pointerup", onPointerUp);
-      canvas?.removeEventListener("pointercancel", onPointerUp);
+      chargeRef.current = null;
       cancelAnimationFrame(raf);
     };
   }, [court, shoot]);
+  const [looked, setLooked] = useState(false);
+  const onLooked = useCallback(() => setLooked(true), []);
+  useCourtGestures(canvasRef, gameRef, chargeRef, onLooked, prefs.renderer);
 
   // ── Authoritative shots from the server ──
   const shot = match.lastShot;
@@ -393,9 +384,23 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
             <div className="display text-5xl leading-none sm:text-6xl">{turn?.suddenDeath ? "Sudden death" : `Round ${turn?.round ?? "–"}/${start.shootoutShots}`}</div>
           )}
         </div>
-        <button type="button" onClick={onLeave} className="glass rounded-full px-4 py-2 text-xs font-semibold hover:bg-white/15">
-          Leave
-        </button>
+        <div className="flex items-center gap-2">
+          {looked && prefs.renderer === "3d" && (
+            <button
+              type="button"
+              onClick={() => {
+                gameRef.current?.resetView();
+                setLooked(false);
+              }}
+              className="glass rounded-full px-4 py-2 text-xs font-semibold hover:bg-white/15"
+            >
+              Reset view
+            </button>
+          )}
+          <button type="button" onClick={onLeave} className="glass rounded-full px-4 py-2 text-xs font-semibold hover:bg-white/15">
+            Leave
+          </button>
+        </div>
       </header>
 
       {/* Scoreboard */}
@@ -443,7 +448,8 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
         onRetryTracker={input.retryTracker}
       />
       <p className="absolute inset-x-0 bottom-3 z-10 hidden text-center text-[11px] text-cream/45 sm:block">
-        Space or click: tap = medium · hold = charge · ←→ aim · or throw on camera (lean to aim). The server referees every shot.
+        Space or click: tap = medium · hold = charge · ←→ aim · {prefs.renderer === "3d" ? "drag to look around · " : ""}or throw on camera (lean to aim).
+        The server referees every shot.
       </p>
 
       {/* Countdown */}

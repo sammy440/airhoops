@@ -307,6 +307,23 @@ export abstract class GameCore {
     return this.streak >= ON_FIRE;
   }
 
+  // ── Looking around (3D only; the 2D side view ignores these) ──
+
+  /** The view can be swung around by dragging. */
+  get canLookAround() {
+    return false;
+  }
+  /** Drag by (dx, dy) screen pixels: swing the camera around the court. */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- the 2D view has nothing to swing
+  lookAround(dx: number, dy: number) {}
+  /** The drag ended: a fast swipe keeps gliding for a moment. */
+  endLookAround() {}
+  /** Zoom by a factor (> 1 = further away). */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- the 2D view doesn't zoom
+  zoomView(factor: number) {}
+  /** Ease back to the shooting view. */
+  resetView() {}
+
   /** The aim guide on the floor (3D only): launch aim in degrees, or null to hide it. */
   setAim(deg: number | null) {
     this.aim = deg;
