@@ -157,6 +157,7 @@ export class Game extends GameCore {
     this.drawAvatar(s);
     this.drawBallShadow(s, floorY);
     this.drawTrail(s);
+    this.drawRival(s);
     this.drawBall(s);
     this.drawNet(s);
     this.drawRim("front", s);
@@ -355,6 +356,25 @@ export class Game extends GameCore {
       ctx.arc(this.X(p.x), this.Y(p.y), r * (0.4 + (i / this.trail.length) * 0.6), 0, Math.PI * 2);
       ctx.fill();
     });
+  }
+
+  /** Ghost of your best run: a see-through ball with a faint outline. */
+  private drawRival(s: number) {
+    const b = this.rivalBall;
+    if (!b) return;
+    const { ctx } = this;
+    const r = Math.max(5, this.court.ballRadius * s);
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = C.cream;
+    ctx.strokeStyle = C.cream;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(this.X(b.x), this.Y(b.y), r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.7;
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawBall(s: number) {

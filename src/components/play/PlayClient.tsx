@@ -25,6 +25,7 @@ import { courtFor, DIFFICULTIES, rollWind, type DifficultyId } from "@/lib/game/
 import { AimCenter, leanAim, MAX_LEAN_AIM } from "@/lib/game/aim";
 import { createGame, rendererId, type RendererId } from "@/lib/game/createGame";
 import type { GameCore } from "@/lib/game/engine";
+import { GhostPlayer, loadGhost, saveGhost, type GhostShot } from "@/lib/game/ghostRun";
 import { HOT_BOUNCES, HotHand } from "@/lib/game/hotHand";
 import {
   bestKey,
@@ -75,6 +76,8 @@ interface Prefs {
   replays: boolean;
   /** Seen the one-time "swipe to look around" tip (3D on phones). */
   seenLookTip: boolean;
+  /** Race a ghost of your best run in timed and daily runs. */
+  ghost: boolean;
 }
 const DEFAULT_PREFS: Prefs = {
   camera: true,
@@ -88,6 +91,7 @@ const DEFAULT_PREFS: Prefs = {
   setupPassed: false,
   replays: true,
   seenLookTip: false,
+  ghost: true,
 };
 
 /** Stand-in until the clock can be read on the client (the page is prerendered). Never shown: the menu waits for hydration. */
@@ -102,6 +106,8 @@ interface PendingShot {
   phase: number;
   /** Thrown with a hot hand */
   hot: boolean;
+  /** Run time (s) at launch, for the ghost */
+  at: number;
 }
 
 export function PlayClient() {
@@ -179,6 +185,12 @@ export function PlayClient() {
   const setupPassedRef = useRef(false);
   const calSkippedRef = useRef(false);
   const endsAtRef = useRef<number | null>(null);
+  // Ghost of your best run: when the run started (game clock at "GO!", s), this run's shots, and the ghost being
+  // raced. Timed from GO because the countdown runs on wall time: on a struggling device the game clock covers less.
+  const runStartRef = useRef(0);
+  const runShotsRef = useRef<GhostShot[]>([]);
+  const rivalRef = useRef<GhostPlayer | null>(null);
+  const [rivalPoints, setRivalPoints] = useState<number | null>(null);
   const buzzerRef = useRef(false);
   const screenRef = useRef(screen);
   useEffect(() => {
@@ -192,7 +204,12 @@ export function PlayClient() {
 
   const endGame = useCallback(() => {
     const t = tallyRef.current;
-    setNewBest(recordBest(prefs.mode, difficultyId, { points: t.points, makes: t.makes, streak: t.best }, prefs.timedSeconds, daily.key));
+    const isBest = recordBest(prefs.mode, difficultyId, { points: t.points, makes: t.makes, streak: t.best }, prefs.timedSeconds, daily.key);
+    setNewBest(isBest);
+    // A new best on the clock becomes the ghost to race next time.
+    if (isBest && (prefs.mode === "timed" || prefs.mode === "daily")) {
+      saveGhost(bestKey(prefs.mode, difficultyId, prefs.timedSeconds, daily.key), { points: t.points, shots: runShotsRef.current });
+    }
     // Free play has no clock or end condition, so it has no leaderboard.
     setRun(
       prefs.mode === "free"
@@ -287,6 +304,8 @@ export function PlayClient() {
       setTally(t);
       gameRef.current?.setStreak(t.streak);
       if (p) {
+        const l = sim.launch;
+        runShotsRef.current.push({ t: p.at, speed: l.speed, angle: l.angle, aim: l.aim ?? 0, wind: p.wind, phase: p.phase, points: score.points });
         const coach = coachShot(sim.launch, court, DEFAULT_TUNING, { wind: p.wind, phase: p.phase });
         setLast({
           power: p.power,
@@ -323,7 +342,7 @@ export function PlayClient() {
     const hot = hotHand.shoot(performance.now());
     setHotBounces(0);
     game.setHot(false);
-    pendingRef.current = { power, angle: launch.angle, aim: launch.aim ?? 0, input, wind: w, phase, hot };
+    pendingRef.current = { power, angle: launch.angle, aim: launch.aim ?? 0, input, wind: w, phase, hot, at: game.clock - runStartRef.current };
     return true;
   }, [wind, hotHand]);
 
@@ -446,15 +465,21 @@ export function PlayClient() {
     nextWind();
     const game = gameRef.current;
     game?.setCourt(court);
-    // Daily: the moving hoop starts from the same spot for everyone (its clock starts with the countdown).
+    runShotsRef.current = [];
+    // The moving hoop starts from the same spot every run (its clock starts with the countdown): the same for
+    // everyone on the daily, and the same as your ghost's run.
     if (game) {
       const start = game.clock;
-      game.setPhaseSource(isDaily ? () => game.clock - start : null);
+      game.setPhaseSource(() => game.clock - start);
+      const ghost = mode.seconds && prefs.ghost ? loadGhost(bestKey(prefs.mode, difficultyId, prefs.timedSeconds, daily.key)) : null;
+      rivalRef.current = ghost && new GhostPlayer(ghost, court);
+      game.setRival(null); // until GO
     }
+    setRivalPoints(rivalRef.current ? 0 : null);
     pause(false);
     setCountdown(3);
     setScreen("countdown");
-  }, [mode, court, pause, nextWind, isDaily, hotHand]);
+  }, [mode, court, pause, nextWind, hotHand, prefs.ghost, prefs.mode, prefs.timedSeconds, difficultyId, daily.key]);
 
   // A returning player who's already standing in a good spot goes straight to the countdown.
   const inPosition = prefs.setupPassed && tracking && stats.framing === null && stats.confidence >= 0.6;
@@ -530,6 +555,11 @@ export function PlayClient() {
     resetRaiseHand();
   }, [screen, paused, hasCalResult, resetRaiseHand]);
 
+  // The ghost only races during a run.
+  useEffect(() => {
+    if (screen !== "playing" && screen !== "countdown") gameRef.current?.setRival(null);
+  }, [screen]);
+
   // A new day's challenge shows up the next time the menu opens.
   useEffect(() => {
     if (screen !== "menu") return;
@@ -546,7 +576,11 @@ export function PlayClient() {
         beep(countdown === 1 ? 880 : 660, 120);
         setCountdown(countdown - 1);
       } else {
-        if (mode.seconds) endsAtRef.current = (gameRef.current?.clock ?? 0) + mode.seconds;
+        const game = gameRef.current;
+        const now = game?.clock ?? 0;
+        if (mode.seconds) endsAtRef.current = now + mode.seconds;
+        runStartRef.current = now;
+        game?.setRival(rivalRef.current, now);
         setScreen("playing");
       }
     }, COUNTDOWN_STEP_MS);
@@ -561,6 +595,7 @@ export function PlayClient() {
       if (!game || endsAtRef.current === null) return;
       const left = Math.max(0, endsAtRef.current - game.clock);
       setTimeLeft(left);
+      if (rivalRef.current) setRivalPoints(rivalRef.current.pointsAt(game.clock - runStartRef.current));
       if (left <= 0 && !buzzerRef.current) {
         buzzerRef.current = true;
         beep(220, 700, 0.25);
@@ -742,6 +777,14 @@ export function PlayClient() {
             {mult > 1 && <span className="ml-2 rounded-full bg-sun px-1.5 py-0.5 font-bold text-ink">×{mult}</span>}
             {!mode.suddenDeath && tally.streak >= 2 && <span className="ml-2 text-sun">🔥 {tally.streak}</span>}
           </div>
+          {rivalPoints !== null && inRun && (
+            <div className="mt-1 text-[11px] tracking-[0.12em] text-cream/50 uppercase" title="Your best run, flown beside you as the see-through ball">
+              vs best{" "}
+              <b className={`font-mono tabular-nums ${tally.points > rivalPoints ? "text-good" : tally.points < rivalPoints ? "text-hoop-soft" : "text-cream/75"}`}>
+                {tally.points > rivalPoints ? `+${tally.points - rivalPoints}` : tally.points < rivalPoints ? `−${rivalPoints - tally.points}` : "level"}
+              </b>
+            </div>
+          )}
           {/* Streak mode scores the streak itself, so there's nothing to heat up. */}
           {screen === "playing" && !mode.suddenDeath && hotBounces > 0 && (
             <div
@@ -868,6 +911,8 @@ export function PlayClient() {
           onRenderer={(r) => set("renderer", r)}
           replays={prefs.replays}
           onReplays={(on) => set("replays", on)}
+          ghost={prefs.ghost}
+          onGhost={(on) => set("ghost", on)}
           calibration={calibration}
           camera={prefs.camera}
           best={best}

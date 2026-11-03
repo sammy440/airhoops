@@ -90,7 +90,7 @@ export function ModesShowcase() {
           ))}
         </div>
         <p className="mt-6 px-5 text-center text-xs text-stone">
-          Solo free play, timed and streak runs, plus shootouts and races with friends.{" "}
+          Solo free play, timed and streak runs, plus shootouts, races and H-O-R-S-E with friends.{" "}
           <Link href="/play" className="font-semibold text-ink underline underline-offset-4 hover:text-hoop">
             Play now
           </Link>

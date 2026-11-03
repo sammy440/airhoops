@@ -182,6 +182,8 @@ export function StartMenu(p: {
   onRenderer: (r: RendererId) => void;
   replays: boolean;
   onReplays: (on: boolean) => void;
+  ghost: boolean;
+  onGhost: (on: boolean) => void;
   calibration: Calibration | null;
   camera: boolean;
   best: Best | undefined;
@@ -280,6 +282,13 @@ export function StartMenu(p: {
             {d.scoreMultiplier > 1 ? ` · ×${d.scoreMultiplier} points` : ""}
           </p>
         </div>
+      )}
+
+      {(p.mode === "timed" || isDaily) && (
+        <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 text-xs text-cream/70">
+          <span>Race the ghost of your best run (a see-through ball)</span>
+          <input type="checkbox" checked={p.ghost} onChange={(e) => p.onGhost(e.target.checked)} className="size-4 accent-hoop" />
+        </label>
       )}
 
       <CourtPicker value={p.courtTheme} onChange={p.onCourtTheme} />
@@ -712,6 +721,7 @@ export function GameOver(p: {
           </div>
         ))}
       </dl>
+      {p.newBest && p.seconds && <p className="mt-3 text-center text-xs text-cream/55">Saved as your ghost: race it next time.</p>}
       {!p.newBest && p.best && (
         <p className="mt-3 text-center text-xs text-cream/55">
           Your best: {p.mode === "streak" ? `${p.best.streak} in a row` : `${p.best.points} pts`}

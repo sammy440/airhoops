@@ -1,6 +1,7 @@
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import type { Side } from "@/lib/pose/kinematics";
 import { DEFAULT_AVATAR, type Avatar } from "./avatar";
+import type { GhostPlayer } from "./ghostRun";
 import { COURT_THEMES, DEFAULT_COURT_THEME, type CourtTheme, type CourtThemeId } from "./courts";
 import { DEFAULT_COURT, hoopOffset, simulateShot, type Court, type Launch, type PathPoint, type ShotEvent, type ShotSim } from "./physics";
 import { replayReason, replayWindow, REPLAY_SPEED } from "./replay";
@@ -163,6 +164,9 @@ export abstract class GameCore {
   private replayNext: string | null = null;
   private shotsSinceReplay = Infinity;
   private launchPhase = 0;
+  /** Your best run, flown beside you (ghostRun.ts), and where its ball is this frame. */
+  private rival: { player: GhostPlayer; start: number } | null = null;
+  protected rivalBall: Vec3 | null = null;
   /** Time (ms) spent in replays: the game clock stands still meanwhile, so timed runs don't lose it. */
   private replayMs = 0;
 
@@ -357,6 +361,14 @@ export abstract class GameCore {
     if (this.replay) this.endReplay();
   }
 
+  // ── Ghost of your best run ──
+
+  /** Race a ghost run that started at game clock `start` (s); null removes it. */
+  setRival(player: GhostPlayer | null, start = 0) {
+    this.rival = player && { player, start };
+    if (!player) this.rivalBall = null;
+  }
+
   // ── Looking around (3D only; the 2D side view ignores these) ──
 
   /** The view can be swung around by dragging. */
@@ -452,6 +464,8 @@ export abstract class GameCore {
       p.life -= dt;
     }
     this.particles = this.particles.filter((p) => p.life > 0);
+    // The ghost runs on the game clock, so it waits out pauses and replays with you (and hides during a replay).
+    this.rivalBall = this.rival && !this.replay ? this.rival.player.ballAt(this.clock - this.rival.start) : null;
     this.texts = this.texts.filter((t) => this.now - t.born < 1600);
   }
 

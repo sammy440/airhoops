@@ -21,7 +21,7 @@ import type { Launch, ShotSim } from "@/lib/game/physics";
 import { setMuted, unlockAudio } from "@/lib/game/sfx";
 import { keyboardThrow, throwAimFor, throwToLaunch } from "@/lib/game/shot";
 import type { RoomState, Series } from "@/lib/net/api";
-import type { ClientMessage, ServerShot } from "@/lib/net/socket";
+import { HORSE, SHOT_KIND_HOW, SHOT_KIND_NAMES, type ClientMessage, type MatchMode, type ServerShot } from "@/lib/net/socket";
 import type { KinematicsFrame } from "@/lib/pose/kinematics";
 import type { BounceEvent } from "@/lib/pose/dribbleDetector";
 import type { ThrowEvent } from "@/lib/pose/throwDetector";
@@ -56,6 +56,22 @@ function toSim(shot: ServerShot): ShotSim | null {
     result: { scored: shot.scored, swish: !!shot.swish, bank: !!shot.bank, miss: shot.miss ?? null, error: shot.error ?? 0, lateral: shot.lateral ?? 0 },
     duration: shot.duration,
   };
+}
+
+const modeName = (mode: MatchMode, raceSeconds: number | null) =>
+  mode === "shootout" ? "Shootout" : mode === "horse" ? "H-O-R-S-E" : `Race · ${formatDuration(raceSeconds ?? 60)}`;
+
+/** H-O-R-S-E letters: the ones you've got lit, the rest dim. */
+function Letters({ n, className = "" }: { n: number; className?: string }) {
+  return (
+    <span className={`font-mono tracking-[0.2em] ${className}`} aria-label={n ? `Letters: ${HORSE.slice(0, n)}` : "No letters"}>
+      {[...HORSE].map((c, i) => (
+        <span key={i} className={i < n ? "text-hoop" : "text-cream/20"}>
+          {c}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 function loadPlayPrefs(): { camera: boolean; sound: boolean; courtTheme: CourtThemeId; renderer: RendererId } {
@@ -148,12 +164,14 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
   const started = now !== null && now >= start.startAt;
   const forfeited = !!match.scores[you]?.forfeited;
   const turn = match.turn;
+  /** Players take turns (shootout, H-O-R-S-E) rather than all shooting at once (race) */
+  const turnBased = start.mode !== "race";
   const myTurn = start.mode === "race" || turn?.playerId === you;
   const turnOpen = start.mode === "race" || (turn !== null && now !== null && now >= turn.availableAt);
   const canShoot = started && !ended && !forfeited && myTurn && turnOpen;
 
   // ── Who's on the court: you, or (shootout) whoever's turn it is, in their own look ──
-  const shooterId = start.mode === "shootout" && turn ? turn.playerId : you;
+  const shooterId = turnBased && turn ? turn.playerId : you;
   const watching = shooterId !== you;
   const watchingRef = useRef(watching);
   // Your streak sets the ball alight (shown while it's you on court)
@@ -314,7 +332,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       toast(`${name} ran out of time`, "warn");
       return;
     }
-    if (start.mode === "shootout") {
+    if (start.mode !== "race") {
       // Everyone watches the shooter's shot on their own court.
       const sim = toSim(shot);
       if (sim) {
@@ -332,6 +350,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
     const key = (id: string) => {
       const s = match.scores[id];
       if (!s) return [0, 0];
+      if (start.mode === "horse") return [s.forfeited ? -1 : 0, -(s.letters ?? 0), s.makes];
       return start.mode === "shootout" ? [s.forfeited ? -1 : 0, s.makes, s.points] : [s.forfeited ? -1 : 0, s.points, s.makes];
     };
     return [...ids].sort((a, b) => {
@@ -350,7 +369,19 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
 
   let banner: { text: string; sub?: string; tone: string } | null = null;
   if (!match.result && started) {
-    if (start.mode === "shootout" && turn) {
+    if (start.mode === "horse" && turn) {
+      const name = names[turn.playerId] ?? "Opponent";
+      const sub = now !== null && now < turn.availableAt ? "Get set…" : `${turnLeft}s`;
+      const c = turn.challenge;
+      banner =
+        turn.playerId === you
+          ? c
+            ? { text: `Match the ${SHOT_KIND_NAMES[c]}`, sub: `${SHOT_KIND_HOW[c]} · ${sub}`, tone: "text-hoop" }
+            : { text: "Set a shot", sub: `Make it and they have to match it · ${sub}`, tone: "text-hoop" }
+          : c
+            ? { text: `${name} must match the ${SHOT_KIND_NAMES[c]}`, sub, tone: "text-cream" }
+            : { text: `${name} is setting`, sub, tone: "text-cream" };
+    } else if (start.mode === "shootout" && turn) {
       banner =
         turn.playerId === you
           ? { text: "Your shot", sub: now !== null && now < turn.availableAt ? "Get set…" : `${turnLeft}s`, tone: "text-hoop" }
@@ -359,7 +390,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       banner = { text: forfeited ? "You forfeited" : "Shoot!", tone: "text-hoop" };
     }
   }
-  const coachOverride = !match.result && start.mode === "shootout" && turn && turn.playerId !== you ? { text: `${names[turn.playerId] ?? "Opponent"} is shooting…`, tone: "bg-white/15 text-cream" } : null;
+  const coachOverride = !match.result && turnBased && turn && turn.playerId !== you ? { text: `${names[turn.playerId] ?? "Opponent"} is shooting…`, tone: "bg-white/15 text-cream" } : null;
 
   return (
     <div className="fixed inset-0 z-40 overflow-hidden bg-ink text-cream select-none">
@@ -372,7 +403,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
         <div className="flex items-center gap-3">
           <Logo className="text-cream" />
           <span className="hidden rounded-full border border-cream/15 px-3 py-1 text-[11px] tracking-[0.14em] text-cream/70 uppercase md:inline">
-            {room.code} · {start.mode === "shootout" ? "Shootout" : `Race ${start.raceSeconds}s`} · {difficulty.name}
+            {room.code} · {modeName(start.mode, start.raceSeconds)} · {difficulty.name}
           </span>
         </div>
         <div className="absolute left-1/2 -translate-x-1/2 text-center">
@@ -380,6 +411,8 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
             <div className={`display text-6xl leading-none tabular-nums sm:text-7xl ${raceLeft !== null && raceLeft <= 10 ? "text-hoop" : ""}`}>
               {raceLeft === null ? "–" : `${Math.floor(raceLeft / 60)}:${String(raceLeft % 60).padStart(2, "0")}`}
             </div>
+          ) : start.mode === "horse" ? (
+            <div className="display text-5xl leading-none sm:text-6xl">{turn?.challenge ? SHOT_KIND_NAMES[turn.challenge] : "Set"}</div>
           ) : (
             <div className="display text-5xl leading-none sm:text-6xl">{turn?.suddenDeath ? "Sudden death" : `Round ${turn?.round ?? "–"}/${start.shootoutShots}`}</div>
           )}
@@ -407,18 +440,22 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       <ol className="glass absolute top-24 right-4 z-10 w-56 rounded-2xl p-2 sm:right-6 sm:w-64" aria-label="Scoreboard">
         {standings.map((id, i) => {
           const s = match.scores[id];
-          const shooting = start.mode === "shootout" && turn?.playerId === id && !match.result;
+          const shooting = turnBased && turn?.playerId === id && !match.result;
+          const out = s?.forfeited || (start.mode === "horse" && (s?.letters ?? 0) >= HORSE.length);
           return (
-            <li key={id} className={`flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm ${shooting ? "bg-hoop/25" : ""} ${s?.forfeited ? "opacity-40 line-through" : ""}`}>
+            <li key={id} className={`flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm ${shooting ? "bg-hoop/25" : ""} ${out ? "opacity-40 line-through" : ""}`}>
               <span className="w-4 text-center font-mono text-xs text-cream/50">{i + 1}</span>
               <span className={`size-2 shrink-0 rounded-full ${connected(id) ? "bg-good" : "bg-warn"}`} />
               <span className="min-w-0 flex-1 truncate">
                 {names[id] ?? "Player"}
                 {id === you && <span className="ml-1 text-[10px] text-cream/50">(you)</span>}
+                {start.mode === "horse" && turn?.setter === id && !match.result && <span className="ml-1 text-[10px] text-sun">sets</span>}
               </span>
-              <span className="font-mono tabular-nums">
-                {start.mode === "shootout" ? `${s?.makes ?? 0}/${s?.shots ?? 0}` : (s?.points ?? 0)}
-              </span>
+              {start.mode === "horse" ? (
+                <Letters n={s?.letters ?? 0} className="text-xs" />
+              ) : (
+                <span className="font-mono tabular-nums">{start.mode === "shootout" ? `${s?.makes ?? 0}/${s?.shots ?? 0}` : (s?.points ?? 0)}</span>
+              )}
             </li>
           );
         })}
@@ -467,7 +504,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
           series={room.series}
           players={room.players}
           courtTheme={prefs.courtTheme}
-          context={`${start.mode === "race" ? `Race · ${formatDuration(start.raceSeconds ?? 60)}` : "Shootout"} · ${difficulty.name}`}
+          context={`${modeName(start.mode, start.raceSeconds)} · ${difficulty.name}`}
           you={you}
           names={names}
           mode={start.mode}
@@ -502,7 +539,7 @@ function Results({
   context: string;
   you: string;
   names: Record<string, string>;
-  mode: "shootout" | "race";
+  mode: MatchMode;
   isHost: boolean;
   onRematch: () => void;
   onLeave: () => void;
@@ -536,13 +573,15 @@ function Results({
     players: result.standings.slice(0, 4).map((r) => ({
         name: names[r.playerId] ?? "Player",
         avatar: sanitizeAvatar(players.find((p) => p.id === r.playerId)?.avatar ?? DEFAULT_AVATAR),
-        score: String(mode === "shootout" ? r.makes : r.points),
+        score: mode === "horse" ? HORSE.slice(0, r.letters ?? 0) || "–" : String(mode === "shootout" ? r.makes : r.points),
         you: r.playerId === you,
         winner: result.winners.includes(r.playerId),
       })),
     stats: myRow
       ? [
-          [mode === "shootout" ? "Points" : "Makes", mode === "shootout" ? String(myRow.points) : `${myRow.makes}/${myRow.shots}`],
+          mode === "horse"
+            ? ["Letters", HORSE.slice(0, myRow.letters ?? 0) || "None"]
+            : [mode === "shootout" ? "Points" : "Makes", mode === "shootout" ? String(myRow.points) : `${myRow.makes}/${myRow.shots}`],
           ["Accuracy", `${myRow.shots ? Math.round((myRow.makes / myRow.shots) * 100) : 0}%`],
           ["Swishes", String(myRow.swishes)],
         ]
@@ -550,7 +589,7 @@ function Results({
     theme: courtTheme,
     url: site,
   };
-  const shareText = `${youWon ? "Won" : "Played"} a ${mode} on AirHoops 🏀 Think you can beat me? ${site}/multiplayer`;
+  const shareText = `${youWon ? "Won" : "Played"} a ${mode === "horse" ? "game of H-O-R-S-E" : mode} on AirHoops 🏀 Think you can beat me? ${site}/multiplayer`;
 
   return (
     <div className="absolute inset-0 z-30 grid place-items-center bg-ink/70 p-4 backdrop-blur-sm" role="dialog" aria-label="Match results">
@@ -574,10 +613,14 @@ function Results({
                 {names[row.playerId] ?? "Player"}
                 {row.forfeited && <span className="ml-1 text-xs text-warn">forfeit</span>}
               </span>
-              <span className="font-mono text-sm tabular-nums">
-                {mode === "shootout" ? `${row.makes}/${row.shots} · ` : ""}
-                {row.points} pts
-              </span>
+              {mode === "horse" ? (
+                <Letters n={row.letters ?? 0} className="text-sm" />
+              ) : (
+                <span className="font-mono text-sm tabular-nums">
+                  {mode === "shootout" ? `${row.makes}/${row.shots} · ` : ""}
+                  {row.points} pts
+                </span>
+              )}
             </li>
           ))}
         </ol>

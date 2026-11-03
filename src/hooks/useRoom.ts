@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RoomState } from "@/lib/net/api";
-import { RoomSocket, type ClientMessage, type MatchEnd, type PlayerScore, type ServerMessage, type ServerShot, type SocketStatus } from "@/lib/net/socket";
+import { RoomSocket, SHOT_KIND_NAMES, type ClientMessage, type MatchEnd, type PlayerScore, type ServerMessage, type ServerShot, type SocketStatus } from "@/lib/net/socket";
 
 export type MatchStart = Extract<ServerMessage, { type: "match_start" }>;
 export type Turn = Extract<ServerMessage, { type: "turn" }>;
@@ -42,6 +42,7 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
     onShotRef.current = opts.onShot;
   }, [opts.onShot]);
   const namesRef = useRef<Record<string, string>>({});
+  const youRef = useRef<string | null>(null);
   // Every nickname seen in this room; players who leave or forfeit keep their name in results.
   const [names, setNames] = useState<Record<string, string>>({});
   const socketRef = useRef<RoomSocket | null>(null);
@@ -68,6 +69,7 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
           case "room_state":
             setRoom(msg.room);
             setYou(msg.you);
+            youRef.current = msg.you;
             namesRef.current = { ...namesRef.current, ...Object.fromEntries(msg.room.players.map((p) => [p.id, p.nickname])) };
             setNames(namesRef.current);
             // Back in the lobby (rematch): the old match is gone.
@@ -97,6 +99,19 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
             setMatch((m) => (m ? { ...m, forfeits: [...m.forfeits, msg.playerId] } : m));
             toast(`${namesRef.current[msg.playerId] ?? "A player"} forfeited`, "warn");
             break;
+          // H-O-R-S-E calls
+          case "challenge": {
+            const mine = msg.playerId === youRef.current;
+            const kind = SHOT_KIND_NAMES[msg.challenge];
+            toast(mine ? `You set a ${kind}. Now they have to match it.` : `${namesRef.current[msg.playerId] ?? "The setter"} set a ${kind}. Match it!`, "info");
+            break;
+          }
+          case "letter": {
+            const mine = msg.playerId === youRef.current;
+            const who = mine ? "You" : (namesRef.current[msg.playerId] ?? "A player");
+            toast(msg.out ? `${who} spelled ${msg.word}: out!` : `${who} ${mine ? "get" : "gets"} ${msg.word[msg.word.length - 1]} (${msg.word})`, mine ? "warn" : "good");
+            break;
+          }
           case "match_end":
             setMatch((m) => (m ? { ...m, result: msg, turn: null } : m));
             break;

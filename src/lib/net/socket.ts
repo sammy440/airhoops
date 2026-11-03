@@ -16,7 +16,14 @@ export type SocketStatus = "connecting" | "open" | "reconnecting" | "closed";
 
 export type PresenceEvent = "joined" | "left" | "disconnected" | "reconnected";
 
-export type MatchMode = "shootout" | "race";
+export type MatchMode = "shootout" | "race" | "horse";
+
+/** What a H-O-R-S-E make was, i.e. what the others must match ("bucket" = any make). */
+export type ShotKind = "swish" | "bank" | "bucket";
+export const HORSE = "HORSE";
+export const SHOT_KIND_NAMES: Record<ShotKind, string> = { swish: "SWISH", bank: "BANK SHOT", bucket: "BUCKET" };
+/** How to match each kind */
+export const SHOT_KIND_HOW: Record<ShotKind, string> = { swish: "nothing but net", bank: "off the glass", bucket: "any make" };
 
 export interface PlayerScore {
   points: number;
@@ -26,6 +33,8 @@ export interface PlayerScore {
   streak: number;
   wind: number;
   forfeited: boolean;
+  /** H-O-R-S-E letters (5 = out); older servers don't send it */
+  letters?: number;
 }
 
 /** Authoritative shot from the server ("shot_result"). */
@@ -85,6 +94,9 @@ export type ServerMessage =
       shotsLeft: number | null;
       round: number;
       suddenDeath: boolean;
+      /** H-O-R-S-E: who's setting, and the shot to match (null while setting) */
+      setter?: string | null;
+      challenge?: ShotKind | null;
       availableAt: number;
       deadline: number;
       serverTime: number;
@@ -92,6 +104,8 @@ export type ServerMessage =
   | ServerShot
   | { type: "scoreboard"; scores: Record<string, PlayerScore>; serverTime: number }
   | { type: "forfeit"; playerId: string; serverTime: number }
+  | { type: "challenge"; playerId: string; challenge: ShotKind; serverTime: number }
+  | { type: "letter"; playerId: string; letters: number; word: string; out: boolean; serverTime: number }
   | MatchEnd;
 
 export type ClientMessage =

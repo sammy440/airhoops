@@ -30,13 +30,14 @@ import { MatchView } from "./MatchView";
 const MATCH_MODES: { id: MatchMode; name: string; blurb: string }[] = [
   { id: "shootout", name: "Shootout", blurb: "Take turns, 5 shots each. Most makes wins; ties go to sudden death." },
   { id: "race", name: "Race", blurb: "Everyone shoots at once. Most points before the buzzer wins." },
+  { id: "horse", name: "H-O-R-S-E", blurb: "Match their swish, bank or bucket, or take a letter. Spell HORSE, you're out." },
 ];
 const RACE_LENGTHS = [30, 60, 90, 120];
 const BEST_OF: BestOf[] = [1, 3, 5];
 const bestOfLabel = (n: number) => (n === 1 ? "Single game" : `Best of ${n}`);
 
 const modeLabel = (mode: string, raceSeconds?: number) =>
-  mode === "shootout" ? "Shootout" : mode === "race" ? `Race · ${formatDuration(raceSeconds ?? 60)}` : mode;
+  mode === "shootout" ? "Shootout" : mode === "race" ? `Race · ${formatDuration(raceSeconds ?? 60)}` : mode === "horse" ? "H-O-R-S-E" : mode;
 
 const PHASE_COPY: Record<RoomPhase, { label: string; hint: string }> = {
   lobby: { label: "Lobby", hint: "Waiting for everyone to ready up (2+ players)." },
@@ -451,7 +452,7 @@ function GameSettings({ value, onChange, className = "" }: { value: GameChoice; 
   const set = (patch: Partial<GameChoice>) => onChange({ ...value, ...patch });
   return (
     <div className={className}>
-      <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Mode">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Mode">
         {MATCH_MODES.map((m) => (
           <button
             key={m.id}

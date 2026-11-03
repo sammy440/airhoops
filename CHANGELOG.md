@@ -2,6 +2,33 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## H-O-R-S-E (multiplayer)
+- **New room mode.** The setter shoots; a make becomes the challenge by its kind: **SWISH** (touched nothing),
+  **BANK** (off the glass) or **BUCKET** (any other make). Everyone else, in order after the setter, gets one try
+  to match it (a bucket is matched by any make); a failed match is a letter, and H-O-R-S-E is out. The setter keeps
+  setting until they miss, then the next player sets. Timeouts count as misses; last one standing wins.
+- Every shot is from the same spot, so the shot's *kind* is what's matched: the physics already reports swish / bank.
+- The server referees it (`app/match.py`; `turn` carries `setter` and `challenge`; new `challenge` and `letter`
+  messages; `letters` on the scoreboard). A 150-shot cap ends a marathon with the fewest letters winning. No
+  leaderboard: it's won on letters, not points.
+- Match screen: banner "Set a shot" / "Match the BANK · off the glass" (or "Bo is setting" / "Bo must match the
+  SWISH"), the challenge in big type up top, H O R S E letters lit per player on the scoreboard and results, "sets"
+  next to the setter, toasts for each challenge and letter. Lobby: a third mode card.
+
+## Ghost of your best run
+- **Timed and Daily runs race your best**: a see-through cream ball flies your best run's shots at the same moments
+  (2D and 3D), and the HUD shows "vs best +4 / −3 / level" (the ghost's points count once its ball drops through).
+- Only the launches are stored (speed, angle, aim, wind, hoop phase, points; `airhoops.ghosts` in localStorage,
+  keyed like bests). The physics is deterministic, so re-simulating them gives the exact flights (`ghostRun.ts`).
+  A new best on the clock replaces the ghost ("Saved as your ghost" on the game-over screen); old daily ghosts are
+  dropped, as only today's challenge can be raced.
+- Run time counts from "GO!", not from the countdown: the countdown runs on wall time, and a struggling device's
+  game clock (frames capped at 100 ms) covers less of it, which put the ghost seconds ahead in testing. The ghost
+  waits out pauses and replays with you, and hides during a replay.
+- The moving hoop now starts from the same spot every run (it already did on the daily), so the ghost's shots meet
+  the hoop where it is.
+- A start-menu toggle for Timed / Daily: "Race the ghost of your best run" (on by default).
+
 ## Instant replays, bank bonus, phone look tip
 - **Instant replay** (solo, 3D): the make that catches fire and every 5 in a row after it, every bank shot, and a
   swish once 4+ shots have passed since the last replay (`replay.ts`). Kept rare so it's a treat, not a toll.

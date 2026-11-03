@@ -72,6 +72,8 @@ export class Game3D extends GameCore {
 
   // Dynamic objects
   private ballMesh: THREE.Mesh;
+  /** Ghost of your best run */
+  private rivalMesh: THREE.Mesh;
   private ballShadow: THREE.Mesh;
   private glow: THREE.Sprite;
   private halo: THREE.Sprite;
@@ -119,7 +121,12 @@ export class Game3D extends GameCore {
       new THREE.SpriteMaterial({ map: radialTexture([[0.35, "rgba(255,120,30,0.6)"], [1, "rgba(255,60,0,0)"]]), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
     );
     this.chargeRing = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, depthTest: false }));
-    this.scene.add(this.ballMesh, this.ballShadow, this.glow, this.halo, this.chargeRing);
+    this.rivalMesh = new THREE.Mesh(
+      this.ballMesh.geometry,
+      new THREE.MeshBasicMaterial({ color: COLORS.cream, transparent: true, opacity: 0.42, depthWrite: false }),
+    );
+    this.rivalMesh.visible = false;
+    this.scene.add(this.ballMesh, this.ballShadow, this.glow, this.halo, this.chargeRing, this.rivalMesh);
     for (let i = 0; i < 14; i++) {
       const m = new THREE.Mesh(
         this.ballMesh.geometry,
@@ -474,6 +481,8 @@ export class Game3D extends GameCore {
     this.player.update(this.body());
     this.playerShadow.position.copy(this.player.footprint).setY(0.004);
     this.updateBall();
+    this.rivalMesh.visible = !!this.rivalBall;
+    if (this.rivalBall) toThree(this.rivalBall, this.rivalMesh.position);
     this.updateGhost();
     this.updateSparks();
     this.updateTexts();
