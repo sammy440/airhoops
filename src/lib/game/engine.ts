@@ -317,8 +317,19 @@ export abstract class GameCore {
     this.look = look;
   }
 
-  /** Ball skin and trail (pass a loadout that's unlocked: see usableLoadout). */
+  /** A loadout waiting for the ball in the air to land */
+  private pendingLoadout: Loadout | null = null;
+
+  /**
+   * Ball skin and trail (pass a loadout that's unlocked: see usableLoadout). A ball in the air keeps
+   * its thrower's look: a change then (e.g. the next player's turn in a shootout) waits until it lands.
+   */
   setLoadout(l: Loadout) {
+    if (this.phase === "flying") {
+      this.pendingLoadout = l;
+      return;
+    }
+    this.pendingLoadout = null;
     const skin = ballSkin(l.ball);
     this.trailLook = trailSkin(l.trail);
     if (skin === this.skin) return;
@@ -461,6 +472,8 @@ export abstract class GameCore {
           this.phase = "result";
           this.respawnAt = this.now + RESPAWN_MS;
         }
+        // Landed: a look change that waited for it applies now
+        if (this.pendingLoadout) this.setLoadout(this.pendingLoadout);
       }
     } else if (this.phase === "replay" && this.replay) {
       this.updateReplay(this.replay, frameMs / 1000);

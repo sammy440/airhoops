@@ -180,6 +180,9 @@ export function PlayClient() {
   const [kbAngle, setKbAngle] = useState(DEFAULT_TUNING.baseAngle);
   /** Keyboard aim, launch degrees (+ = right) */
   const [kbAim, setKbAim] = useState(0);
+  /** Camera aim from your lean, whole degrees (+ = right), for the readout */
+  const [leanShown, setLeanShown] = useState<number | null>(null);
+  const leanShownRef = useRef<number | null>(null);
   // Camera aim: lean relative to the player's straight lean (calibrated, else learned from their throws)
   const [aimCenter] = useState(() => new AimCenter());
   useEffect(() => {
@@ -456,8 +459,14 @@ export function PlayClient() {
     (smoothed: NormalizedLandmark[] | undefined, kin: KinematicsFrame | null) => {
       const game = gameRef.current;
       game?.setPose(smoothed);
-      // The guide shows where a throw right now would go.
-      game?.setAim(kin ? leanAim(kin.lean, aimCenter.value) : null);
+      // The guide shows where a throw right now would go, and so does the readout (whole degrees, only on change).
+      const aim = kin ? leanAim(kin.lean, aimCenter.value) : null;
+      game?.setAim(aim);
+      const shown = aim === null ? null : Math.round(aim);
+      if (shown !== leanShownRef.current) {
+        leanShownRef.current = shown;
+        setLeanShown(shown);
+      }
       pipRef.current?.draw(smoothed, { kin });
     },
     [aimCenter],
@@ -983,6 +992,11 @@ export function PlayClient() {
       {/* ── Shot feedback ── */}
       <div className="absolute inset-x-0 bottom-4 z-10 flex flex-col items-center gap-2 px-4 sm:bottom-6 sm:items-end sm:pr-6 xl:items-center xl:pr-4">
         {last && screen === "playing" && !replay && <ShotGauge shot={last} />}
+        {prefs.camera && screen === "playing" && !replay && leanShown !== null && (
+          <p className="glass rounded-full px-3 py-1 font-mono text-[11px] text-cream/80 tabular-nums" aria-live="off">
+            Lean aim: {leanShown === 0 ? "straight" : `${Math.abs(leanShown)}° ${leanShown > 0 ? "right →" : "← left"}`}
+          </p>
+        )}
         {screen === "playing" && !replay && (
           <p className="hidden text-[11px] text-cream/45 sm:block">
             Space or click: tap = medium · hold = charge · ↑↓ arc {kbAngle}° · ←→ aim {kbAim > 0 ? `${kbAim}° R` : kbAim < 0 ? `${-kbAim}° L` : "straight"} ·{" "}

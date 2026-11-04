@@ -1,4 +1,5 @@
 import type { Avatar } from "@/lib/game/avatar";
+import type { Loadout } from "@/lib/game/cosmetics";
 
 /**
  * REST client for the AirHoops API (airhoops-backend). Only small JSON
@@ -16,6 +17,8 @@ export interface User {
   google?: boolean;
   xp?: number;
   level?: number;
+  /** Ball skin and trail, as others see it (locked picks show as the default) */
+  loadout?: Loadout | null;
 }
 
 export type RoomPhase = "lobby" | "ready" | "in_progress" | "finished";
@@ -28,6 +31,7 @@ export interface RoomPlayer {
   connected: boolean;
   host: boolean;
   level?: number;
+  loadout?: Loadout | null;
 }
 
 export type BestOf = 1 | 3 | 5;
@@ -130,7 +134,7 @@ export const api = {
   createGuest: (nickname: string, avatar?: Avatar) =>
     request<{ user: User; token: string }>("/auth/guest", { method: "POST", body: JSON.stringify({ nickname, avatar }) }),
   me: (token: string) => request<User>("/auth/me", { token }),
-  updateProfile: (token: string, changes: { nickname?: string; avatar?: Avatar }) =>
+  updateProfile: (token: string, changes: { nickname?: string; avatar?: Avatar; loadout?: Loadout }) =>
     request<User>("/auth/me", { method: "PATCH", token, body: JSON.stringify(changes) }),
   /** Erase this guest and their scores/throws from the server. */
   deleteMe: (token: string) => request<null>("/auth/me", { method: "DELETE", token }),
@@ -200,7 +204,7 @@ export function saveGuest(g: GuestSession | null) {
  * Sends this device's name/look to the server if there is a guest session,
  * so opponents see the latest version. Never throws: offline is fine.
  */
-export async function pushProfile(changes: { nickname?: string; avatar?: Avatar }) {
+export async function pushProfile(changes: { nickname?: string; avatar?: Avatar; loadout?: Loadout }) {
   const g = loadGuest();
   if (!g) return null;
   try {

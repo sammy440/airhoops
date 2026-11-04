@@ -146,14 +146,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
   useEffect(() => {
     gameRef.current?.setTheme(prefs.courtTheme);
   }, [prefs.courtTheme]);
-  // Your unlocked ball skin and trail (on your screen)
   const progress = useProgress();
-  const loadoutKey = progress ? `${progress.loadout.ball}:${progress.loadout.trail}` : null;
-  useEffect(() => {
-    if (!loadoutKey) return;
-    const [ball, trail] = loadoutKey.split(":");
-    gameRef.current?.setLoadout({ ball, trail });
-  }, [loadoutKey, prefs.renderer]);
   useEffect(() => {
     setMuted(!prefs.sound);
     unlockAudio();
@@ -193,6 +186,15 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
     gameRef.current?.setStreak(watching ? 0 : myStreak);
   }, [myStreak, watching]);
   const shooterAvatar = room.players.find((p) => p.id === shooterId)?.avatar;
+  // Whoever's shooting shoots their own ball and trail: yours from this device, theirs as the server
+  // relays it (only what they've unlocked).
+  const shooterLoadout = watching ? room.players.find((p) => p.id === shooterId)?.loadout : progress?.loadout;
+  const loadoutKey = shooterLoadout ? `${shooterLoadout.ball}:${shooterLoadout.trail}` : watching ? "classic:flame" : null;
+  useEffect(() => {
+    if (!loadoutKey) return;
+    const [ball, trail] = loadoutKey.split(":");
+    gameRef.current?.setLoadout({ ball, trail });
+  }, [loadoutKey, prefs.renderer]);
   const shooterLook = JSON.stringify(shooterAvatar ? sanitizeAvatar(shooterAvatar) : watching ? DEFAULT_AVATAR : null);
   useEffect(() => {
     watchingRef.current = watching;
@@ -421,13 +423,13 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
         </div>
         <div className="absolute left-1/2 -translate-x-1/2 text-center">
           {start.mode === "race" ? (
-            <div className={`display text-6xl leading-none tabular-nums sm:text-7xl ${raceLeft !== null && raceLeft <= 10 ? "text-hoop" : ""}`}>
+            <div className={`display text-4xl leading-none tabular-nums sm:text-7xl ${raceLeft !== null && raceLeft <= 10 ? "text-hoop" : ""}`}>
               {raceLeft === null ? "–" : `${Math.floor(raceLeft / 60)}:${String(raceLeft % 60).padStart(2, "0")}`}
             </div>
           ) : start.mode === "horse" ? (
-            <div className="display text-5xl leading-none sm:text-6xl">{turn?.challenge ? SHOT_KIND_NAMES[turn.challenge] : "Set"}</div>
+            <div className="display text-3xl leading-none sm:text-6xl">{turn?.challenge ? SHOT_KIND_NAMES[turn.challenge] : "Set"}</div>
           ) : (
-            <div className="display text-5xl leading-none sm:text-6xl">{turn?.suddenDeath ? "Sudden death" : `Round ${turn?.round ?? "–"}/${start.shootoutShots}`}</div>
+            <div className="display text-3xl leading-none whitespace-nowrap sm:text-6xl">{turn?.suddenDeath ? "Sudden death" : `Round ${turn?.round ?? "–"}/${start.shootoutShots}`}</div>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -450,13 +452,13 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       </header>
 
       {/* Scoreboard */}
-      <ol className="glass absolute top-24 right-4 z-10 w-56 rounded-2xl p-2 sm:right-6 sm:w-64" aria-label="Scoreboard">
+      <ol className="glass absolute top-[4.25rem] right-3 z-10 w-44 rounded-2xl p-1.5 text-[13px] sm:top-24 sm:right-6 sm:w-64 sm:p-2 sm:text-sm" aria-label="Scoreboard">
         {standings.map((id, i) => {
           const s = match.scores[id];
           const shooting = turnBased && turn?.playerId === id && !match.result;
           const out = s?.forfeited || (start.mode === "horse" && (s?.letters ?? 0) >= HORSE.length);
           return (
-            <li key={id} className={`flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm ${shooting ? "bg-hoop/25" : ""} ${out ? "opacity-40 line-through" : ""}`}>
+            <li key={id} className={`flex items-center gap-1.5 rounded-xl px-1.5 py-1 sm:gap-2 sm:px-2 sm:py-1.5 ${shooting ? "bg-hoop/25" : ""} ${out ? "opacity-40 line-through" : ""}`}>
               <span className="w-4 text-center font-mono text-xs text-cream/50">{i + 1}</span>
               <span className={`size-2 shrink-0 rounded-full ${connected(id) ? "bg-good" : "bg-warn"}`} />
               <span className="min-w-0 flex-1 truncate">
@@ -481,9 +483,9 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
 
       {/* Turn banner */}
       {banner && (
-        <div className="pointer-events-none absolute inset-x-0 top-[16%] z-10 text-center">
-          <div className={`display text-4xl drop-shadow-lg sm:text-5xl ${banner.tone}`}>{banner.text}</div>
-          {banner.sub && <div className="mt-1 font-mono text-lg text-cream/80">{banner.sub}</div>}
+        <div className="pointer-events-none absolute inset-x-0 top-[34%] z-10 px-4 text-center sm:top-[16%]">
+          <div className={`display text-3xl drop-shadow-lg sm:text-5xl ${banner.tone}`}>{banner.text}</div>
+          {banner.sub && <div className="mt-1 font-mono text-base text-cream/80 sm:text-lg">{banner.sub}</div>}
         </div>
       )}
 
@@ -498,6 +500,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
         motion={input.motion}
         thresholds={input.thresholds}
         coachOverride={coachOverride}
+        position="absolute bottom-24 left-3 z-10 w-40 sm:bottom-6 sm:left-6 sm:w-72 lg:w-80 xl:w-96"
         onRetryCamera={input.retry}
         onRetryTracker={input.retryTracker}
       />

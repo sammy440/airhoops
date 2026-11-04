@@ -1,4 +1,4 @@
-import { api, loadGuest, type XpGain } from "@/lib/net/api";
+import { api, loadGuest, pushProfile, type XpGain } from "@/lib/net/api";
 import { DEFAULT_LOADOUT, type Loadout } from "./cosmetics";
 import { XP, xpFor } from "./xp";
 
@@ -39,10 +39,12 @@ export interface Progress {
   /** The daily that last earned its bonus here */
   lastDaily: string | null;
   loadout: Loadout;
+  /** The account and loadout last sent to the server ("<account>:<ball>:<trail>"), so opponents see your pick */
+  loadoutSent: string | null;
 }
 
 const NO_PLAY: PendingPlay = { shots: 0, makes: 0, swishes: 0, banks: 0, bestStreak: 0, runs: 0, daily: null };
-const FRESH: Progress = { local: 0, server: null, account: null, pending: NO_PLAY, lastDaily: null, loadout: DEFAULT_LOADOUT };
+const FRESH: Progress = { local: 0, server: null, account: null, pending: NO_PLAY, lastDaily: null, loadout: DEFAULT_LOADOUT, loadoutSent: null };
 
 export function loadProgress(): Progress {
   try {
@@ -119,6 +121,7 @@ export function awardFromServer(gained: number, total: number) {
 
 export function setLoadout(loadout: Loadout) {
   save({ ...loadProgress(), loadout });
+  void syncProgress(); // so opponents see it
 }
 
 /** The API takes at most 2,000 shots a batch: scale a bigger backlog down, keeping it consistent. */
@@ -167,6 +170,9 @@ export function syncProgress(): Promise<Progress> {
         const me = await api.me(guest.token);
         p = { ...loadProgress(), server: me.xp ?? 0 };
       }
+      // Your pick, for opponents (the server shows it only once it's unlocked for your level)
+      const sent = `${guest.user.id}:${p.loadout.ball}:${p.loadout.trail}`;
+      if (p.loadoutSent !== sent && (await pushProfile({ loadout: p.loadout }))) p = { ...p, loadoutSent: sent };
       save(p);
     } catch {
       // Offline, or the session's gone: try again next time

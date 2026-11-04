@@ -30,6 +30,8 @@ interface Props {
   slowFps?: number | null;
   /** Replaces the coaching chip (e.g. "Bola is shooting…" in a shootout) */
   coachOverride?: { text: string; tone: string } | null;
+  /** Where the box sits (default: under the header on phones, bottom-left from sm up) */
+  position?: string;
   onRetryCamera: () => void;
   onRetryTracker: () => void;
 }
@@ -47,6 +49,7 @@ export function CameraPip({
   thresholds,
   slowFps,
   coachOverride,
+  position = "absolute top-24 left-3 z-10 w-48 sm:top-auto sm:bottom-6 sm:left-6 sm:w-72 lg:w-80 xl:w-96",
   onRetryCamera,
   onRetryTracker,
 }: Props) {
@@ -56,7 +59,7 @@ export function CameraPip({
   const coach = coachOverride ?? COACH[detectorState];
 
   return (
-    <div ref={boxRef} className="absolute top-24 left-3 z-10 w-48 sm:top-auto sm:bottom-6 sm:left-6 sm:w-72 lg:w-80 xl:w-96">
+    <div ref={boxRef} className={position}>
       {camera ? (
         <div className="relative aspect-video overflow-hidden rounded-2xl border border-cream/15 bg-black/60 shadow-2xl">
           <video ref={videoRef} playsInline muted autoPlay className="absolute inset-0 h-full w-full object-cover opacity-75" style={{ transform: "scaleX(-1)" }} />

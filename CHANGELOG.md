@@ -2,6 +2,22 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Fixes: phone match layout, opponents' ball skins, aim readout, touch checked
+- **Match screen on a phone held upright:** the camera box, scoreboard and turn banner no longer overlap. Below
+  `sm`, the camera box sits bottom-left above the reactions (`CameraPip` takes a `position`), the scoreboard is
+  narrower under the header, the round / clock title is smaller, and the banner sits at 34% height. Measured on a
+  390×844 screen: no overlaps.
+- **Opponents see your ball and trail** (shootout, H-O-R-S-E: everyone watches the shooter's shot). Your pick is
+  sent to your account (`PATCH /auth/me {loadout}`) and rooms relay it, but only what you've unlocked: the server
+  checks it against your level (`app/game/cosmetics.py`), so editing local storage can't show a locked skin. A
+  level-up at match end re-checks it. A ball in the air keeps its thrower's look: a change (e.g. the turn passing
+  while the last shot is still flying) waits until it lands.
+- **Lean aim readout:** with the camera on, "Lean aim: 4° ← left / straight / 3° right →" under the shot card,
+  live, so the direction is easy to check (and to aim by).
+- **Touch on a phone** checked with real multi-touch input (Chrome DevTools touch events) at 390×844: a swipe
+  orbits and never shoots, pinching apart zooms in and together zooms out, Reset view returns to the shooting
+  view, and a tap shoots.
+
 ## Shareable clips
 - **Save the last 8 seconds** of play as an MP4 any time: the film button in the HUD, **C**, or "Save a clip" on
   the game-over screen. A preview loops in a dialog with **Share clip** (the share sheet on phones; a download
