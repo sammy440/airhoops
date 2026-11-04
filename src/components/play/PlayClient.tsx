@@ -329,20 +329,7 @@ export function PlayClient() {
   useEffect(() => {
     gameRef.current?.setGreen(greenWindow);
   }, [greenWindow, prefs.renderer, hydrated]);
-  const [greenCue, setGreenCue] = useState<number | null>(null);
-  useEffect(() => {
-    if (greenWindow === null || screen !== "playing") return;
-    const id = window.setInterval(() => {
-      const game = gameRef.current;
-      if (!game) return;
-      // Tenths of a second until green (0 = green now); null while the ball's away
-      setGreenCue(game.canThrow() ? Math.ceil(untilGreen(game.hoopPhase, greenWindow) * 10) / 10 : null);
-    }, 100);
-    return () => {
-      window.clearInterval(id);
-      setGreenCue(null);
-    };
-  }, [greenWindow, screen]);
+
   // Clips: record while a run is on (and not paused), straight after each frame is drawn
   useEffect(() => {
     const game = gameRef.current;
@@ -350,7 +337,7 @@ export function PlayClient() {
     if (!hydrated || !prefs.clips || !game || !canvas) return;
     let rec: ClipRecorder | null = null;
     let gone = false;
-    void ClipRecorder.create(canvas.width, canvas.height).then((r) => {
+    void ClipRecorder.create(canvas.width, canvas.height, prefs.camera ? "lite" : "full").then((r) => {
       if (gone) return r?.close();
       rec = r;
       recorderRef.current = r;
@@ -376,7 +363,7 @@ export function PlayClient() {
       recorderRef.current = null;
       setClipsOn(false);
     };
-  }, [hydrated, prefs.clips, prefs.renderer]);
+  }, [hydrated, prefs.clips, prefs.renderer, prefs.camera]);
 
   // Unlocked ball skin and trail (after the engine exists: this runs after the effect that creates it)
   useEffect(() => {
@@ -433,10 +420,14 @@ export function PlayClient() {
   const shoot = useCallback((launch: Launch, power: number, input: LastShot["input"]) => {
     const game = gameRef.current;
     if (screenRef.current !== "playing" || buzzerRef.current || !game) return false;
-    // A throw during a replay just cuts it short; the ball is back in hand a moment later.
+    // During a replay: a camera throw cuts it short and still shoots (it can't be thrown again);
+    // keys and taps just skip it, and the ball is back in hand a moment later.
     if (game.replaying) {
-      game.skipReplay();
-      return false;
+      if (input !== "camera") {
+        game.skipReplay();
+        return false;
+      }
+      game.skipReplay(true);
     }
     const phase = game.hoopPhase;
     const w = wind;
@@ -532,6 +523,8 @@ export function PlayClient() {
 
   useEffect(() => {
     gameRef.current?.setLoaded(tracking && detectorState === "WINDUP");
+    // Ball up to shoot during a replay: the replay gets out of the way
+    if (tracking && detectorState === "WINDUP" && gameRef.current?.replaying) gameRef.current.skipReplay(true);
   }, [tracking, detectorState]);
   useEffect(() => {
     if (!prefs.camera) gameRef.current?.setPose(undefined);
@@ -1012,14 +1005,7 @@ export function PlayClient() {
       {/* ── Shot feedback ── */}
       <div className="absolute inset-x-0 bottom-4 z-10 flex flex-col items-center gap-2 px-4 sm:bottom-6 sm:items-end sm:pr-6 xl:items-center xl:pr-4">
         {last && screen === "playing" && !replay && <ShotGauge shot={last} />}
-        {greenCue !== null && screen === "playing" && !replay && (
-          <p
-            className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${greenCue === 0 ? "bg-[#3dff7a] text-ink" : "glass text-cream/75"}`}
-            aria-live="off"
-          >
-            {greenCue === 0 ? "● Rim is green: shoot now!" : `Green rim in ${greenCue.toFixed(1)}s`}
-          </p>
-        )}
+        {greenWindow !== null && screen === "playing" && !replay && <GreenCue gameRef={gameRef} window={greenWindow} />}
         {prefs.camera && screen === "playing" && !replay && leanShown !== null && (
           <p className="glass rounded-full px-3 py-1 font-mono text-[11px] text-cream/80 tabular-nums" aria-live="off">
             Lean aim: {leanShown === 0 ? "straight" : `${Math.abs(leanShown)}° ${leanShown > 0 ? "right →" : "← left"}`}
@@ -1191,5 +1177,28 @@ function IconButton({ label, on, onClick, children }: { label: string; on: boole
         {children}
       </svg>
     </button>
+  );
+}
+
+/**
+ * "Green rim in 1.2s" / "Rim is green: shoot now!". Its own component with its own 10 Hz tick, so
+ * the rest of the screen doesn't re-render with it (the camera pipeline shares the main thread).
+ */
+function GreenCue({ gameRef, window: greenWindow }: { gameRef: React.RefObject<GameCore | null>; window: number }) {
+  const [cue, setCue] = useState<number | null>(null);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const game = gameRef.current;
+      // Tenths of a second until green (0 = green now); null while the ball's away
+      const next = game?.canThrow() ? Math.ceil(untilGreen(game.hoopPhase, greenWindow) * 10) / 10 : null;
+      setCue((c) => (c === next ? c : next));
+    }, 100);
+    return () => window.clearInterval(id);
+  }, [gameRef, greenWindow]);
+  if (cue === null) return null;
+  return (
+    <p className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${cue === 0 ? "bg-[#3dff7a] text-ink" : "glass text-cream/75"}`} aria-live="off">
+      {cue === 0 ? "● Rim is green: shoot now!" : `Green rim in ${cue.toFixed(1)}s`}
+    </p>
   );
 }

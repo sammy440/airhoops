@@ -11,8 +11,8 @@ import { ArrayBufferTarget, Muxer } from "mp4-muxer";
  */
 
 export const CLIP_SECONDS = 8;
-const FPS = 30;
-const MAX_SIDE = 1280;
+/** Full quality; `lite` while the camera is on, so recording never takes frames from pose tracking. */
+const QUALITY = { full: { fps: 30, maxSide: 1280 }, lite: { fps: 15, maxSide: 960 } };
 const BITRATE = 3_500_000;
 /** Codecs to try, most widely playable first (H.264 plays everywhere; some browsers can only encode VP9). */
 const CODECS = [
@@ -60,9 +60,9 @@ export function clipsSupported() {
   return typeof window !== "undefined" && "VideoEncoder" in window && "VideoFrame" in window;
 }
 
-/** Even dimensions that fit MAX_SIDE, keeping the aspect (encoders want even sizes). */
-export function clipSize(w: number, h: number) {
-  const k = Math.min(1, MAX_SIDE / Math.max(w, h));
+/** Even dimensions that fit `maxSide`, keeping the aspect (encoders want even sizes). */
+export function clipSize(w: number, h: number, maxSide = QUALITY.full.maxSide) {
+  const k = Math.min(1, maxSide / Math.max(w, h));
   const even = (n: number) => Math.max(2, Math.round((n * k) / 2) * 2);
   return { width: even(w), height: even(h) };
 }
@@ -83,13 +83,15 @@ export class ClipRecorder {
   private forceKey = true;
   private failed = false;
 
-  private constructor() {}
+  private constructor(private fps: number) {}
 
   /** A recorder for a `w`×`h` view, or null if this browser can't encode video. */
-  static async create(w: number, h: number): Promise<ClipRecorder | null> {
+  static async create(w: number, h: number, quality: keyof typeof QUALITY = "full"): Promise<ClipRecorder | null> {
     if (!clipsSupported()) return null;
-    const rec = new ClipRecorder();
-    const { width, height } = clipSize(w, h);
+    const q = QUALITY[quality];
+    const FPS = q.fps;
+    const rec = new ClipRecorder(FPS);
+    const { width, height } = clipSize(w, h, q.maxSide);
     rec.canvas.width = width;
     rec.canvas.height = height;
     for (const c of CODECS) {
@@ -142,7 +144,7 @@ export class ClipRecorder {
     const enc = this.encoder;
     if (!enc || this.failed || enc.state !== "configured") return;
     const now = performance.now();
-    if (now - this.lastAt < 1000 / FPS - 2) return;
+    if (now - this.lastAt < 1000 / this.fps - 2) return;
     if (enc.encodeQueueSize > 3) return;
     if (this.frames === 0) this.t0 = now;
     this.lastAt = now;
@@ -153,7 +155,7 @@ export class ClipRecorder {
     const sh = h / k;
     this.ctx.drawImage(source, (source.width - sw) / 2, (source.height - sh) / 2, sw, sh, 0, 0, w, h);
     overlay?.(this.ctx, w, h);
-    const frame = new VideoFrame(this.canvas, { timestamp: Math.round((now - this.t0) * 1000), duration: Math.round(1e6 / FPS) });
+    const frame = new VideoFrame(this.canvas, { timestamp: Math.round((now - this.t0) * 1000), duration: Math.round(1e6 / this.fps) });
     try {
       const key = this.forceKey || now - this.lastKeyAt >= 1000;
       enc.encode(frame, { keyFrame: key });
@@ -169,7 +171,7 @@ export class ClipRecorder {
     if (meta?.decoderConfig) this.decoderConfig = meta.decoderConfig;
     const data = new Uint8Array(chunk.byteLength);
     chunk.copyTo(data);
-    this.chunks.push({ data, key: chunk.type === "key", timestamp: chunk.timestamp, duration: chunk.duration ?? Math.round(1e6 / FPS) });
+    this.chunks.push({ data, key: chunk.type === "key", timestamp: chunk.timestamp, duration: chunk.duration ?? Math.round(1e6 / this.fps) });
     this.chunks = pruneChunks(this.chunks, (CLIP_SECONDS + 1) * 1e6);
   }
 
@@ -188,7 +190,7 @@ export class ClipRecorder {
     if (!chunks.length || !this.decoderConfig) return null;
     const muxer = new Muxer({
       target: new ArrayBufferTarget(),
-      video: { codec: this.mux, width: this.canvas.width, height: this.canvas.height, frameRate: FPS },
+      video: { codec: this.mux, width: this.canvas.width, height: this.canvas.height, frameRate: this.fps },
       fastStart: "in-memory",
       firstTimestampBehavior: "offset",
     });

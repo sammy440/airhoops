@@ -51,6 +51,8 @@ interface Prefs {
   durationSec: number | null;
   /** Live overrides of the detector thresholds */
   throwParams: Partial<ThrowParams>;
+  /** Use the overrides in the game too (off: the game uses the defaults) */
+  throwParamsInGame: boolean;
   throwSound: boolean;
 }
 
@@ -69,6 +71,7 @@ const DEFAULT_PREFS: Prefs = {
   countdownSec: 3,
   durationSec: 3,
   throwParams: {},
+  throwParamsInGame: false,
   throwSound: true,
 };
 
@@ -337,6 +340,8 @@ export function LabClient() {
           params={{ ...DEFAULT_THROW_PARAMS, ...prefs.throwParams }}
           onParam={(key, value) => setPrefs((p) => ({ ...p, throwParams: { ...p.throwParams, [key]: value } }))}
           onReset={() => set("throwParams", {})}
+          inGame={prefs.throwParamsInGame}
+          onInGame={(on) => set("throwParamsInGame", on)}
         />
       </div>
 

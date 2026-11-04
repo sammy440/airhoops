@@ -405,9 +405,15 @@ export abstract class GameCore {
     return this.replay !== null;
   }
 
-  /** Cut the replay short (a tap, Space or a throw); the ball comes back as usual. */
-  skipReplay() {
-    if (this.replay) this.endReplay();
+  /** Cut the replay short (a tap, Space or a throw); the ball comes back as usual, or at once with `now`. */
+  skipReplay(now = false) {
+    if (!this.replay) return;
+    this.endReplay();
+    if (now) {
+      this.phase = "ready";
+      this.trail = [];
+      this.cb.onReady?.();
+    }
   }
 
   // ── The green rim ──

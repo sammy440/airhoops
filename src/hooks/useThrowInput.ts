@@ -27,11 +27,15 @@ export interface MotionReadout {
 }
 const LAB_PREFS_KEY = "airhoops.lab.prefs";
 
-/** Reuse thresholds tuned in /lab, so the game feels the same as the lab. */
+/**
+ * The game's throw thresholds: the tuned defaults, or the lab's only if "Use in the game" is ticked
+ * there. (Every lab slider is saved as you move it; without the opt-in, an old experiment, or values
+ * from an earlier detector, silently made throwing in the game harder.)
+ */
 function labThrowParams() {
   try {
     const prefs = JSON.parse(localStorage.getItem(LAB_PREFS_KEY) ?? "{}");
-    return { ...DEFAULT_THROW_PARAMS, ...(prefs.throwParams ?? {}) };
+    return { ...DEFAULT_THROW_PARAMS, ...(prefs.throwParamsInGame ? (prefs.throwParams ?? {}) : {}) };
   } catch {
     return DEFAULT_THROW_PARAMS;
   }

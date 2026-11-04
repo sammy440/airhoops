@@ -33,6 +33,8 @@ export function DetectorPanel({
   params,
   onParam,
   onReset,
+  inGame,
+  onInGame,
 }: {
   state: DetectorState;
   last: ThrowEvent | null;
@@ -40,6 +42,9 @@ export function DetectorPanel({
   params: ThrowParams;
   onParam: (key: keyof ThrowParams, value: number) => void;
   onReset: () => void;
+  /** These thresholds also apply in Play and matches */
+  inGame: boolean;
+  onInGame: (on: boolean) => void;
 }) {
   const [showTuning, setShowTuning] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -143,6 +148,10 @@ export function DetectorPanel({
               hint={t.hint}
             />
           ))}
+          <label className="mt-3 flex cursor-pointer items-center gap-2 text-[11px] text-cream/80">
+            <input type="checkbox" checked={inGame} onChange={(e) => onInGame(e.target.checked)} className="accent-hoop" />
+            Use these thresholds in the game too {inGame ? "" : "(off: the game uses the defaults)"}
+          </label>
           <div className="mt-2 flex gap-3 text-[11px]">
             <button type="button" onClick={onReset} className="text-muted underline underline-offset-2 hover:text-cream">
               Reset to lab defaults

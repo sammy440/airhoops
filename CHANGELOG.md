@@ -2,6 +2,19 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Fix: camera throws not registering
+- **Lab thresholds no longer leak into the game.** Every lab slider is saved as you move it, and the game read
+  those saved values: an old experiment, or values from an earlier detector, silently made throwing in Play and
+  matches harder. The game now uses the tuned defaults unless "Use these thresholds in the game too" is ticked in
+  the lab's detector panel (off by default).
+- **A replay never swallows a camera throw.** A throw during an instant replay only skipped it (the ball wasn't
+  back yet). Now raising the ball to shoot ends the replay, and a camera throw during one ends it and shoots.
+  Keys and taps still just skip.
+- **Less work beside pose tracking.** Frame rate matters: on the lab recordings (~18 fps) the detector catches
+  11/12 throws, 9/12 at half the frame rate, 6/12 at a quarter. With the camera on, clips record at 15 fps and
+  960 px (30 fps / 1280 px otherwise), and the green-rim countdown ticks in its own component instead of
+  re-rendering the whole Play screen 10 times a second.
+
 ## The green rim, and the stance without a camera
 - **Green rim (camera play):** a green light loops round the rim every 3 s (`green.ts`); from the shooter's view it
   slides left to right across the front and back along the far side. As it passes the front the rim and net glow
