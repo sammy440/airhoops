@@ -2,6 +2,22 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Shareable clips
+- **Save the last 8 seconds** of play as an MP4 any time: the film button in the HUD, **C**, or "Save a clip" on
+  the game-over screen. A preview loops in a dialog with **Share clip** (the share sheet on phones; a download
+  elsewhere). The game pauses while it's open. No sound.
+- How: every frame the game draws is composited into a 1280-px canvas (the court, the score top left, the
+  AIRHOOPS wordmark and site bottom right) right after it's drawn, and encoded straight away with WebCodecs
+  (H.264, VP9 where that's all there is), 30 fps, 3.5 Mbps (`lib/clips/clipRecorder.ts`). Only the newest ~9 s
+  of encoded video is kept, so saving is just packing it into an MP4 (`mp4-muxer` 5.2.2): instant, no
+  re-encoding. Records only while a run is on and not paused.
+- Keyframes every second of **real time**, and a clip starts on the last keyframe before the 8 s mark: keyed by
+  frame count, a slow device (3 fps in testing) had one keyframe in the window and saved a one-frame clip.
+- **Your camera is only in clips if you turn it on** ("Show me (my camera) in clips", off by default), drawn
+  mirrored in a rounded inset. Settings under View in the start menu; "Record clips" (on by default) stops it
+  entirely. Hidden in browsers without WebCodecs. Nothing is uploaded unless you share it.
+- `shareImage` is now `shareFile` (it shares videos too).
+
 ## XP, levels and unlocks
 - **XP from play** (`xp.ts`, mirrored by the backend's `app/game/xp.py`; same examples tested on both sides):
   1 a shot, 10 a make, +5 a swish or bank, +5 per make in your best streak beyond the second, 25 a finished

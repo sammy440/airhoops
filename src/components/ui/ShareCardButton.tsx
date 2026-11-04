@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { renderResultCard, type ResultCardData } from "@/lib/resultCard";
-import { shareImage } from "@/lib/share";
+import { shareFile } from "@/lib/share";
 
 /**
  * "Share result" as an image. The card is drawn as soon as this mounts, so a
@@ -31,7 +31,7 @@ export function ShareCardButton({ card, filename, text }: { card: ResultCardData
 
   const share = async () => {
     if (!image) return;
-    const r = await shareImage(image.blob, { filename, title: "AirHoops", text });
+    const r = await shareFile(image.blob, { filename, title: "AirHoops", text });
     setStatus(r === "shared" ? "Shared!" : r === "saved" ? "Image saved" : null);
   };
 

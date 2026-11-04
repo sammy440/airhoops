@@ -27,11 +27,11 @@ export async function shareLink(data: { title: string; text: string; url: string
 }
 
 /**
- * Share an image through the share sheet (phones, Safari, Chrome on Mac/Windows), or save it
- * where files can't be shared (e.g. Firefox). Must run straight from a tap: share sheets
- * refuse calls that come after an await, so render the image before the button is pressed.
+ * Share a file (a score card image, a clip) through the share sheet (phones, Safari, Chrome on
+ * Mac/Windows), or save it where files can't be shared (e.g. Firefox). Must run straight from a
+ * tap: share sheets refuse calls that come after an await, so make the file before the button is pressed.
  */
-export async function shareImage(
+export async function shareFile(
   blob: Blob,
   data: { filename: string; title: string; text: string },
 ): Promise<"shared" | "saved" | "failed"> {

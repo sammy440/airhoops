@@ -121,6 +121,8 @@ export abstract class GameCore {
   protected w = 0;
   protected h = 0;
   private raf = 0;
+  /** Called right after each frame is drawn (clips read the canvas then: WebGL clears it after). */
+  private frameListener: (() => void) | null = null;
   /** Game clock (ms). Advances only while unpaused, so pausing freezes everything. */
   protected now = 0;
   private lastTs = 0;
@@ -216,6 +218,7 @@ export abstract class GameCore {
       if (!document.hidden) {
         this.update(this.paused ? 0 : dt);
         this.render();
+        this.frameListener?.();
       }
       this.raf = requestAnimationFrame(loop);
     };
@@ -229,6 +232,10 @@ export abstract class GameCore {
 
   setPaused(p: boolean) {
     this.paused = p;
+  }
+
+  setFrameListener(fn: (() => void) | null) {
+    this.frameListener = fn;
   }
 
   /** Switch difficulty: new distance / rim / motion. Clears the old ghost path. */

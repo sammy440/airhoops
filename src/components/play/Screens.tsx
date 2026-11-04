@@ -27,7 +27,8 @@ import { loadProfile } from "@/lib/game/avatar";
 import type { Tally } from "@/lib/game/scoring";
 import type { RunSubmission } from "@/lib/net/api";
 import type { ResultCardData } from "@/lib/resultCard";
-import { siteUrl } from "@/lib/share";
+import { CLIP_SECONDS, clipsSupported } from "@/lib/clips/clipRecorder";
+import { shareFile, siteUrl } from "@/lib/share";
 import { LeaderboardPost } from "./LeaderboardPost";
 import type { FramingIssue } from "@/lib/pose/landmarks";
 
@@ -71,6 +72,44 @@ function Secondary({ children, onClick }: { children: ReactNode; onClick: () => 
 
 const Eyebrow = ({ children }: { children: ReactNode }) => <p className="text-xs tracking-[0.16em] text-hoop uppercase">{children}</p>;
 
+/* ───────── Clip ───────── */
+
+export type ClipState = { status: "making" } | { status: "ready"; blob: Blob; url: string } | { status: "empty" };
+
+/** The clip just saved: a looping preview, then share or download. */
+export function ClipDialog({ clip, onClose }: { clip: ClipState; onClose: () => void }) {
+  const [result, setResult] = useState<string | null>(null);
+  const filename = `airhoops-clip-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.mp4`;
+  const share = async () => {
+    if (clip.status !== "ready") return;
+    const r = await shareFile(clip.blob, { filename, title: "AirHoops", text: `Check this shot 🏀 ${siteUrl()}/play` });
+    setResult(r === "shared" ? "Shared!" : r === "saved" ? "Saved to your downloads" : null);
+  };
+  return (
+    <Modal label="Your clip">
+      <Eyebrow>Your clip</Eyebrow>
+      <h2 className="display mt-2 text-4xl">The last {CLIP_SECONDS} seconds</h2>
+      <div className="mt-4 grid aspect-video place-items-center overflow-hidden rounded-2xl bg-black">
+        {clip.status === "ready" ? (
+          <video src={clip.url} autoPlay loop muted playsInline controls className="h-full w-full object-contain" />
+        ) : clip.status === "making" ? (
+          <p className="text-sm text-cream/60">Making your clip…</p>
+        ) : (
+          <p className="px-6 text-center text-sm text-cream/60">Nothing recorded yet. Take a few shots first.</p>
+        )}
+      </div>
+      <p className="mt-2 text-xs text-cream/50">Made on this device. Nothing is uploaded unless you share it. No sound.</p>
+      <div className="mt-5 space-y-2">
+        <Primary onClick={share} disabled={clip.status !== "ready"}>
+          Share clip
+        </Primary>
+        {result && <p className="text-center text-xs text-good">{result}</p>}
+        <Secondary onClick={onClose}>Back to the game</Secondary>
+      </div>
+    </Modal>
+  );
+}
+
 /* ───────── Court picker ───────── */
 
 function CourtPicker({ value, onChange }: { value: CourtThemeId; onChange: (t: CourtThemeId) => void }) {
@@ -112,6 +151,27 @@ function CourtPicker({ value, onChange }: { value: CourtThemeId; onChange: (t: C
 }
 
 /** 3D court or the classic side view (no choice without WebGL: 2D it is). */
+/** Clips: record the last few seconds of play (on this device), and whether you're in them. */
+function ClipSettings({ value, onChange }: { value: { record: boolean; camera: boolean }; onChange: (c: { record: boolean; camera: boolean }) => void }) {
+  // Rendered only after hydration, so probing the browser here is safe.
+  const [supported] = useState(clipsSupported);
+  if (!supported) return null;
+  return (
+    <div className="mt-3 space-y-2 text-xs text-cream/70">
+      <label className="flex cursor-pointer items-center justify-between gap-3">
+        <span>Record clips: save your last {CLIP_SECONDS} seconds any time (C)</span>
+        <input type="checkbox" checked={value.record} onChange={(e) => onChange({ ...value, record: e.target.checked })} className="size-4 accent-hoop" />
+      </label>
+      {value.record && (
+        <label className="flex cursor-pointer items-center justify-between gap-3">
+          <span>Show me (my camera) in clips</span>
+          <input type="checkbox" checked={value.camera} onChange={(e) => onChange({ ...value, camera: e.target.checked })} className="size-4 accent-hoop" />
+        </label>
+      )}
+    </div>
+  );
+}
+
 function ViewPicker({
   value,
   onChange,
@@ -185,6 +245,8 @@ export function StartMenu(p: {
   onReplays: (on: boolean) => void;
   ghost: boolean;
   onGhost: (on: boolean) => void;
+  clips: { record: boolean; camera: boolean };
+  onClips: (c: { record: boolean; camera: boolean }) => void;
   calibration: Calibration | null;
   camera: boolean;
   best: Best | undefined;
@@ -298,6 +360,7 @@ export function StartMenu(p: {
 
       <CourtPicker value={p.courtTheme} onChange={p.onCourtTheme} />
       <ViewPicker value={p.renderer} onChange={p.onRenderer} replays={p.replays} onReplays={p.onReplays} />
+      <ClipSettings value={p.clips} onChange={p.onClips} />
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/[0.04] px-4 py-3 text-sm">
         {p.camera ? (
@@ -674,6 +737,8 @@ export function GameOver(p: {
   courtTheme: CourtThemeId;
   /** XP before and after this run */
   xp: { before: number; after: number } | null;
+  /** Save the last seconds of the run as a clip (absent when clips are off or unsupported) */
+  onClip?: () => void;
   onAgain: () => void;
   onMenu: () => void;
 }) {
@@ -741,6 +806,7 @@ export function GameOver(p: {
         {t.shots > 0 && (
           <ShareCardButton card={card} filename="airhoops-score.png" text={`${headline} on AirHoops 🏀 Beat that, using only your arms. ${site}/play`} />
         )}
+        {p.onClip && <Secondary onClick={p.onClip}>🎬 Save a clip of the last {CLIP_SECONDS} seconds</Secondary>}
         <Secondary onClick={p.onMenu}>Change mode</Secondary>
       </div>
     </Modal>

@@ -9,6 +9,7 @@ const ON_DEVICE = [
   ["Personal bests", "Your best score per mode and difficulty"],
   ["Ghost runs", "The shots of your best timed and daily runs (launch numbers only), to race next time"],
   ["Progress", "Your XP, play not yet sent to your account, and your chosen ball and trail"],
+  ["Clips", "The last ~8 seconds of the game view, in memory only while you play (your camera only if you turn on \"Show me in clips\"). Saved or shared only when you choose"],
   ["Your player", "Name and look (body, skin tone, hair, kit)"],
   ["Guest pass", "A random token, only if you play multiplayer, post a score or sign in with Google"],
 ];

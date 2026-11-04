@@ -30,6 +30,9 @@ import { unlockedBetween } from "@/lib/game/cosmetics";
 import { loadProgress, recordPlay, shownXp, syncProgress } from "@/lib/game/progress";
 import { levelFor } from "@/lib/game/xp";
 import { useProgress } from "@/hooks/useProgress";
+import { ClipRecorder } from "@/lib/clips/clipRecorder";
+import { drawClipOverlay } from "@/lib/clips/overlay";
+import { siteUrl } from "@/lib/share";
 import { HOT_BOUNCES, HotHand } from "@/lib/game/hotHand";
 import {
   bestKey,
@@ -51,7 +54,7 @@ import type { ThrowEvent } from "@/lib/pose/throwDetector";
 import { CameraPip, useCourtInset } from "./CameraPip";
 import type { RunSubmission } from "@/lib/net/api";
 import { RaiseHandHint } from "./RaiseHandHint";
-import { CalibrationPanel, GameOver, PauseMenu, SetupCheck, StartMenu } from "./Screens";
+import { CalibrationPanel, ClipDialog, GameOver, PauseMenu, SetupCheck, StartMenu, type ClipState } from "./Screens";
 import { ShotGauge, type LastShot } from "./ShotGauge";
 
 const PREFS_KEY = "airhoops.play.prefs";
@@ -82,6 +85,9 @@ interface Prefs {
   seenLookTip: boolean;
   /** Race a ghost of your best run in timed and daily runs. */
   ghost: boolean;
+  /** Keep the last few seconds of play, ready to save as a clip; and whether your camera is in them (off unless you choose). */
+  clips: boolean;
+  clipCamera: boolean;
 }
 const DEFAULT_PREFS: Prefs = {
   camera: true,
@@ -96,6 +102,8 @@ const DEFAULT_PREFS: Prefs = {
   replays: true,
   seenLookTip: false,
   ghost: true,
+  clips: true,
+  clipCamera: false,
 };
 
 /** Stand-in until the clock can be read on the client (the page is prerendered). Never shown: the menu waits for hydration. */
@@ -200,6 +208,13 @@ export function PlayClient() {
   const [runXp, setRunXp] = useState<{ before: number; after: number } | null>(null);
   const [levelUp, setLevelUp] = useState<{ level: number; unlocks: string[] } | null>(null);
   const progress = useProgress();
+  // Clips: a recorder per engine (null when off or the browser can't encode video), the clip being shown,
+  // and what the clip's overlay needs each frame
+  const recorderRef = useRef<ClipRecorder | null>(null);
+  const [clipsOn, setClipsOn] = useState(false);
+  const [clip, setClip] = useState<ClipState | null>(null);
+  const clipPausedRef = useRef(false);
+  const clipHudRef = useRef({ label: "", suddenDeath: false, camera: false });
   const loadoutKey = progress ? `${progress.loadout.ball}:${progress.loadout.trail}` : null;
   const buzzerRef = useRef(false);
   const screenRef = useRef(screen);
@@ -305,6 +320,41 @@ export function PlayClient() {
   useEffect(() => {
     gameRef.current?.setReplays(prefs.replays);
   }, [prefs.replays]);
+  // Clips: record while a run is on (and not paused), straight after each frame is drawn
+  useEffect(() => {
+    const game = gameRef.current;
+    const canvas = canvasRef.current;
+    if (!hydrated || !prefs.clips || !game || !canvas) return;
+    let rec: ClipRecorder | null = null;
+    let gone = false;
+    void ClipRecorder.create(canvas.width, canvas.height).then((r) => {
+      if (gone) return r?.close();
+      rec = r;
+      recorderRef.current = r;
+      setClipsOn(!!r);
+    });
+    game.setFrameListener(() => {
+      if (!rec || screenRef.current !== "playing" || game.paused) return;
+      const hud = clipHudRef.current;
+      const t = tallyRef.current;
+      rec.capture(canvas, (ctx, w, h) =>
+        drawClipOverlay(ctx, w, h, {
+          score: String(hud.suddenDeath ? t.streak : t.points),
+          label: hud.label,
+          camera: hud.camera ? videoRef.current : null,
+          site: siteUrl().replace(/^https?:\/\//, ""),
+        }),
+      );
+    });
+    return () => {
+      gone = true;
+      game.setFrameListener(null);
+      rec?.close();
+      recorderRef.current = null;
+      setClipsOn(false);
+    };
+  }, [hydrated, prefs.clips, prefs.renderer]);
+
   // Unlocked ball skin and trail (after the engine exists: this runs after the effect that creates it)
   useEffect(() => {
     if (!loadoutKey) return;
@@ -480,6 +530,7 @@ export function PlayClient() {
   // ── Flow ──
   const startRun = useCallback(() => {
     gameRef.current?.skipReplay();
+    recorderRef.current?.reset();
     runXpRef.current = shownXp(loadProgress());
     setRunXp(null);
     tallyRef.current = EMPTY_TALLY;
@@ -647,6 +698,36 @@ export function PlayClient() {
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [pause]);
 
+  useEffect(() => {
+    clipHudRef.current = {
+      label: `${mode.suddenDeath ? "in a row" : "points"} · ${mode.name}${mode.seconds ? ` ${formatDuration(mode.seconds)}` : ""}`,
+      suddenDeath: !!mode.suddenDeath,
+      camera: prefs.camera && prefs.clipCamera,
+    };
+  }, [mode, prefs.camera, prefs.clipCamera]);
+
+  /** Freeze the game and pack the last seconds into a clip. */
+  const saveClip = useCallback(async () => {
+    const rec = recorderRef.current;
+    const game = gameRef.current;
+    if (!rec || !game) return;
+    clipPausedRef.current = !game.paused;
+    game.setPaused(true);
+    setClip({ status: "making" });
+    const blob = await rec.save().catch(() => null);
+    setClip(blob ? { status: "ready", blob, url: URL.createObjectURL(blob) } : { status: "empty" });
+  }, []);
+  const closeClip = () => {
+    if (clip?.status === "ready") URL.revokeObjectURL(clip.url);
+    setClip(null);
+    if (clipPausedRef.current) gameRef.current?.setPaused(false);
+    clipPausedRef.current = false;
+  };
+  const saveClipRef = useRef(saveClip);
+  useEffect(() => {
+    saveClipRef.current = saveClip;
+  }, [saveClip]);
+
   // ── Keyboard / mouse / touch: Space or press-and-hold on the court shoots (tap = medium, hold = charge),
   //    ↑/↓ arc, ←/→ aim, Esc/P pause ──
   const kbAngleRef = useRef(kbAngle);
@@ -676,6 +757,10 @@ export function PlayClient() {
           e.preventDefault();
           pause(!gameRef.current?.paused);
         }
+        return;
+      }
+      if (e.code === "KeyC" && !e.repeat && recorderRef.current && (playing() || screenRef.current === "over") && !gameRef.current?.paused) {
+        void saveClipRef.current();
         return;
       }
       if (!playing() || gameRef.current?.paused) return;
@@ -853,6 +938,11 @@ export function PlayClient() {
           <IconButton label={prefs.sound ? "Mute" : "Unmute"} on={prefs.sound} onClick={() => set("sound", !prefs.sound)}>
             {prefs.sound ? <path d="M4 9v6h4l5 4V5L8 9H4zm12 .5a4 4 0 0 1 0 5M18.5 7a7.5 7.5 0 0 1 0 10" /> : <path d="M4 9v6h4l5 4V5L8 9H4zm12 1 5 5m0-5-5 5" />}
           </IconButton>
+          {clipsOn && inRun && (
+            <IconButton label="Save a clip of the last 8 seconds (C)" on onClick={() => void saveClip()}>
+              <path d="M4 6h11v12H4zM15 10l5-3v10l-5-3" />
+            </IconButton>
+          )}
           {looked && prefs.renderer === "3d" && (
             <IconButton label="Reset view" on onClick={resetView}>
               <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" />
@@ -954,6 +1044,8 @@ export function PlayClient() {
           onReplays={(on) => set("replays", on)}
           ghost={prefs.ghost}
           onGhost={(on) => set("ghost", on)}
+          clips={{ record: prefs.clips, camera: prefs.clipCamera }}
+          onClips={(c) => setPrefs((p) => ({ ...p, clips: c.record, clipCamera: c.camera }))}
           calibration={calibration}
           camera={prefs.camera}
           best={best}
@@ -1022,10 +1114,13 @@ export function PlayClient() {
           run={run}
           courtTheme={prefs.courtTheme}
           xp={runXp}
+          onClip={clipsOn ? () => void saveClip() : undefined}
           onAgain={startRun}
           onMenu={() => setScreen("menu")}
         />
       )}
+
+      {clip && <ClipDialog clip={clip} onClose={closeClip} />}
 
       {raiseAction && <RaiseHandHint label={RAISE_LABELS[raiseAction]} state={raiseHand} />}
     </div>
