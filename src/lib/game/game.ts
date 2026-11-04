@@ -300,12 +300,16 @@ export class Game extends GameCore {
   private drawRim(half: "back" | "front", s: number) {
     const { ctx } = this;
     const e = this.rimEllipse(s);
-    // The green rim (camera play): from the side the light's loop can't be seen, so the rim simply lights up green.
-    const green = this.greenRim?.on;
-    if (green && half === "front") {
+    // The green rim (camera play): from the side the light's loop can't be seen, so the rim lights up green,
+    // after a faint glow that builds over the second before (so you can time it, not just react).
+    const rim = this.greenRim;
+    const green = rim?.on;
+    const coming = rim && rim.loop < 0.5; // only on the way in: no afterglow that looks like a second chance
+    const glow = green ? 0.35 : coming ? rim.soon * rim.soon * 0.22 : 0;
+    if (glow > 0.01 && half === "front") {
       ctx.save();
-      ctx.strokeStyle = "rgba(61,255,122,0.35)";
-      ctx.lineWidth = Math.max(8, s * 0.12) * (1 + Math.sin(this.now / 60) * 0.15);
+      ctx.strokeStyle = `rgba(61,255,122,${glow})`;
+      ctx.lineWidth = Math.max(8, s * 0.12) * (green ? 1 + Math.sin(this.now / 60) * 0.15 : 0.6 + (rim?.soon ?? 0) * 0.4);
       ctx.beginPath();
       ctx.ellipse(e.cx, e.cy, e.rx, e.ry, 0, 0, Math.PI * 2);
       ctx.stroke();

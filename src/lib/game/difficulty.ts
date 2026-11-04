@@ -34,7 +34,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     windMax: 0,
     sensitivity: 0.35,
     scoreMultiplier: 1,
-    greenWindow: 0.7,
+    greenWindow: 1.2,
   },
   starter: {
     id: "starter",
@@ -46,7 +46,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     windMax: 0,
     sensitivity: 0.5,
     scoreMultiplier: 1,
-    greenWindow: 0.55,
+    greenWindow: 1.0,
   },
   allstar: {
     id: "allstar",
@@ -58,7 +58,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     windMax: 0.6,
     sensitivity: 0.6,
     scoreMultiplier: 1.5,
-    greenWindow: 0.42,
+    greenWindow: 0.8,
   },
   legend: {
     id: "legend",
@@ -70,7 +70,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     windMax: 1.2,
     sensitivity: 0.75,
     scoreMultiplier: 2,
-    greenWindow: 0.3,
+    greenWindow: 0.6,
   },
 };
 

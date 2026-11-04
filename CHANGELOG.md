@@ -2,6 +2,12 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Green rim: longer, with a warning in 2D
+- Green for longer each 3 s loop: 1.2 s Rookie, 1.0 Starter, 0.8 All-Star, 0.6 Legend (was 0.7 / 0.55 / 0.42 /
+  0.3: in 2D, with no light to watch coming round, it was over before you could react). Server and parity
+  fixtures updated to match.
+- 2D: a faint green glow builds over the second before the rim turns green, so the throw can be timed.
+
 ## Fix: camera throws not registering
 - **Lab thresholds no longer leak into the game.** Every lab slider is saved as you move it, and the game read
   those saved values: an old experiment, or values from an earlier detector, silently made throwing in Play and
@@ -18,7 +24,7 @@ Every tuned threshold is recorded here with the reason, as the project README as
 ## The green rim, and the stance without a camera
 - **Green rim (camera play):** a green light loops round the rim every 3 s (`green.ts`); from the shooter's view it
   slides left to right across the front and back along the far side. As it passes the front the rim and net glow
-  green, for 0.7 s on Rookie, 0.55 Starter, 0.42 All-Star, 0.3 Legend. **A camera throw released then swishes,
+  green, for 1.2 s on Rookie, 1.0 Starter, 0.8 All-Star, 0.6 Legend. **A camera throw released then swishes,
   however it was thrown** (+1 swish bonus, "GREEN SWISH!"); any other time it flies as thrown. In 2D, where the loop
   can't be seen side-on, the rim simply lights up green. A cue under the court counts down ("Green rim in 1.2s")
   and flips to "● Rim is green: shoot now!". Keyboard and touch throws don't get it.
