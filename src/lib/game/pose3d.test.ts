@@ -1,7 +1,7 @@
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import { describe, expect, it } from "vitest";
 import type { Vec3 } from "./engine";
-import { BONES, restBody, Retargeter, SHIN_M, STAND, THIGH_M, type Skeleton } from "./pose3d";
+import { BONES, restBody, Retargeter, SET_STANCE, SHIN_M, STAND, THIGH_M, type Skeleton } from "./pose3d";
 
 const dist = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
 
@@ -47,26 +47,50 @@ function pose({ bend = 0, legs = false, wristsUp = true } = {}): NormalizedLandm
 }
 
 describe("restBody (no camera)", () => {
-  it("holds the set and keeps its legs on the floor", () => {
-    const b = restBody(null, null);
+  const armsKeepTheirLength = (pts: Skeleton) => {
+    for (const [sh, el, wr, fi] of [
+      [11, 13, 15, 19],
+      [12, 14, 16, 20],
+    ] as const) {
+      expect(dist(pts[sh], pts[el])).toBeCloseTo(BONES.upperArm, 6);
+      expect(dist(pts[el], pts[wr])).toBeCloseTo(BONES.forearm, 6);
+      expect(dist(pts[wr], pts[fi])).toBeCloseTo(BONES.hand, 6);
+    }
+  };
+
+  it("holds the ball at the chest when waiting, legs on the floor", () => {
+    const b = restBody(null, null, true);
     expect(b.live).toBe(false);
-    expect(b.pts[16].y).toBeGreaterThan(2); // ball over the head
+    expect(b.pts[16].y).toBeGreaterThan(1.15);
+    expect(b.pts[16].y).toBeLessThan(b.pts[12].y); // hands below the shoulders
+    expect(b.pts[15].x).toBeGreaterThan(b.pts[11].x + 0.15); // out in front of the body
+    armsKeepTheirLength(b.pts);
     legsKeepTheirLength(b.pts);
   });
 
-  it("sinks into the legs while charging", () => {
+  it("with no ball in hand, arms hang down", () => {
+    const b = restBody(null, null, false).pts;
+    expect(b[15].y).toBeLessThan(1.0);
+    expect(b[16].y).toBeLessThan(1.0);
+    armsKeepTheirLength(b);
+  });
+
+  it("charging raises the ball into the set and sinks into the legs", () => {
     const b = restBody(null, 1);
+    expect(b.pts[16].y).toBeGreaterThan(1.9); // ball up over the head
     expect(b.pts[11].y).toBeLessThan(restBody(null, null).pts[11].y - 0.1);
+    armsKeepTheirLength(b.pts);
     legsKeepTheirLength(b.pts);
   });
 
-  it("releases, follows through, then comes back to the set", () => {
-    const set = restBody(null, null).pts;
-    const through = restBody(0.5, null).pts;
+  it("releases, follows through, then drops the arms while the ball is away", () => {
+    const set = SET_STANCE;
+    const through = restBody(0.5, null, false).pts;
     expect(through[16].y).toBeGreaterThan(set[16].y + 0.3); // shooting arm extended up
     expect(through[20].y).toBeLessThan(through[16].y); // wrist flicked: fingers below the wrist
-    expect(restBody(1.5, null).pts[16]).toEqual(set[16]);
-    const hop = restBody(0.25, null).pts;
+    expect(restBody(1.5, null, false).pts[16]).toEqual(restBody(null, null, false).pts[16]);
+    expect(restBody(1.5, null, true).pts[16]).toEqual(restBody(null, null, true).pts[16]); // ball back: at the chest
+    const hop = restBody(0.25, null, false).pts;
     legsKeepTheirLength(hop, false);
     expect(hop[27].y).toBeGreaterThan(0.08); // feet off the floor at the top of the hop
   });
@@ -151,7 +175,7 @@ describe("Retargeter (camera)", () => {
     const held = r.body(lost, 300)!.pts;
     expect(held[16].y).toBeCloseTo(up[16].y, 6);
     const back = r.body(lost, 2000)!.pts;
-    const stance = restBody(null, null).pts;
+    const stance = SET_STANCE;
     expect(back[16].y - back[12].y).toBeCloseTo(stance[16].y - stance[12].y, 6);
     expectProportions(back);
   });

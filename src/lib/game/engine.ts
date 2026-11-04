@@ -5,6 +5,7 @@ import type { GhostPlayer } from "./ghostRun";
 import { ballSkin, DEFAULT_LOADOUT, trailSkin, type BallSkin, type Loadout, type TrailSkin } from "./cosmetics";
 import { COURT_THEMES, DEFAULT_COURT_THEME, type CourtTheme, type CourtThemeId } from "./courts";
 import { DEFAULT_COURT, hoopOffset, simulateShot, type Court, type Launch, type PathPoint, type ShotEvent, type ShotSim } from "./physics";
+import { greenLaunch, greenLoop, isGreen } from "./green";
 import { replayReason, replayWindow, REPLAY_SPEED } from "./replay";
 import { ON_FIRE } from "./scoring";
 import { sfx } from "./sfx";
@@ -88,6 +89,8 @@ export const COLORS = {
   sun: "#f6a13a",
   ink: "#0e0e0d",
 };
+/** The green rim's colour */
+export const GREEN = "#3dff7a";
 export const MISS_LABELS = { short: "SHORT", long: "LONG", left: "WIDE LEFT", right: "WIDE RIGHT", rim: "RIM OUT", airball: "AIRBALL" } as const;
 const RESPAWN_MS = 650;
 const HAND_BLEND_S = 0.12;
@@ -164,6 +167,8 @@ export abstract class GameCore {
   protected streak = 0;
   /** Game clock (ms) of the last make, for the camera punch. */
   protected madeAt = -1e9;
+  /** The green rim (camera play): seconds per loop it's green, or null when it's off */
+  private greenWindow: number | null = null;
   /** Instant replays of great makes (solo; renderers that can film them). */
   private replays = false;
   protected replay: Replay | null = null;
@@ -279,15 +284,26 @@ export abstract class GameCore {
     return this.phase === "flying" && !this.resultSent;
   }
 
+  /** The ball is in the player's hands (not in the air, and back after a shot). */
+  protected get holdingBall() {
+    return this.phase === "ready";
+  }
+
   /** Seconds since the last ball left the hands (null before the first), on the pause-aware clock. */
   protected get sinceLaunch(): number | null {
     return this.launchedAt === null ? null : (this.now - this.launchedAt) / 1000;
   }
 
-  /** Simulates and launches a shot. Returns the simulation, or null if a ball is in flight. */
-  throwBall(launch: Launch): ShotSim | null {
+  /**
+   * Simulates and launches a shot. Returns the simulation, or null if a ball is in flight.
+   * `camera`: thrown on camera, so the green rim counts (released while green, it swishes).
+   */
+  throwBall(launch: Launch, camera = false): ShotSim | null {
     if (!this.canThrow()) return null;
-    const sim = simulateShot(launch, this.court, { wind: this.wind, phase: this.hoopPhase });
+    const phase = this.hoopPhase;
+    const green = camera && this.greenWindow !== null && isGreen(phase, this.greenWindow);
+    const made = green ? greenLaunch(this.court, { wind: this.wind, phase }) : null;
+    const sim: ShotSim = { ...simulateShot(made ?? launch, this.court, { wind: this.wind, phase }), green: !!made };
     const hands = this.handsWorld();
     this.play(sim, { x: hands.x, y: hands.y - this.court.releaseHeight, z: hands.z });
     return sim;
@@ -392,6 +408,23 @@ export abstract class GameCore {
   /** Cut the replay short (a tap, Space or a throw); the ball comes back as usual. */
   skipReplay() {
     if (this.replay) this.endReplay();
+  }
+
+  // ── The green rim ──
+
+  /** Turn the green rim on (seconds it's green per loop; camera play) or off (null). */
+  setGreen(window: number | null) {
+    this.greenWindow = window;
+  }
+
+  /** For the renderers: where the light is on its loop (0..1, 0.5 = the front) and whether the rim is green. */
+  protected get greenRim(): { loop: number; on: boolean; soon: number } | null {
+    if (this.greenWindow === null || this.replay) return null;
+    const phase = this.hoopPhase;
+    const loop = greenLoop(phase);
+    // 0..1 as the light closes on the front over the last second before it turns green
+    const toFront = Math.abs(loop - 0.5) * 3 - this.greenWindow / 2;
+    return { loop, on: isGreen(phase, this.greenWindow), soon: Math.max(0, Math.min(1, 1 - toFront)) };
   }
 
   // ── Ghost of your best run ──
@@ -614,13 +647,13 @@ export abstract class GameCore {
         // After onResult, so the streak counts this make.
         if (this.replays && this.canReplay) this.replayNext = replayReason(r, this.streak, this.shotsSinceReplay);
         this.texts.push({
-          text: r.swish ? "SWISH!" : r.bank ? "BANK!" : "BUCKET!",
+          text: sim.green ? "GREEN SWISH!" : r.swish ? "SWISH!" : r.bank ? "BANK!" : "BUCKET!",
           sub: label || (r.swish || r.bank ? "+3" : "+2"),
           x: e.x,
           y: this.court.rimHeight + 0.7,
           z,
           born: this.now,
-          color: r.swish ? COLORS.sun : COLORS.cream,
+          color: sim.green ? GREEN : r.swish ? COLORS.sun : COLORS.cream,
         });
         break;
       }

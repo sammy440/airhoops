@@ -120,6 +120,8 @@ export interface ShotSim {
   events: ShotEvent[];
   result: ShotResult;
   duration: number;
+  /** Released on the green rim (green.ts): the shot was made to swish */
+  green?: boolean;
 }
 
 export type PathPoint = [t: number, x: number, y: number, z: number];

@@ -1,5 +1,5 @@
 /**
- * Exports physics/scoring fixtures for the backend's parity test
+ * Exports physics/scoring/green-rim fixtures for the backend's parity test
  * (airhoops-backend/tests/test_physics_parity.py). Run after changing physics,
  * shot mapping, difficulty or scoring:
  *
@@ -9,6 +9,7 @@ import { writeFileSync } from "node:fs";
 import { it } from "vitest";
 import { courtFor, DIFFICULTIES, DIFFICULTY_ORDER } from "./difficulty";
 import { simulateShot } from "./physics";
+import { greenLaunch, isGreen } from "./green";
 import { scoreShot } from "./scoring";
 import { throwToLaunch } from "./shot";
 
@@ -41,6 +42,24 @@ it.runIf(process.env.GEN_PARITY)("writes physics parity fixtures", () => {
       }
     }
   }
-  writeFileSync(OUT, JSON.stringify({ generatedBy: "airhoops-frontend/src/lib/game/parity.gen.test.ts", cases }));
-  console.log(`wrote ${cases.length} cases`);
+  // The green rim: when it's green, and the shot it gives (app/game/green.py must agree exactly)
+  const green = [];
+  for (const difficulty of DIFFICULTY_ORDER) {
+    const d = DIFFICULTIES[difficulty];
+    const court = courtFor(d);
+    for (const wind of [0, d.windMax, -d.windMax]) {
+      for (let k = 0; k < 12; k++) {
+        const phase = k * 0.53 + 0.11;
+        const launch = greenLaunch(court, { wind, phase });
+        green.push({
+          input: { difficulty, wind, phase },
+          green: isGreen(phase, d.greenWindow),
+          launch,
+          swish: launch ? simulateShot(launch, court, { wind, phase }).result.swish : null,
+        });
+      }
+    }
+  }
+  writeFileSync(OUT, JSON.stringify({ generatedBy: "airhoops-frontend/src/lib/game/parity.gen.test.ts", cases, green }));
+  console.log(`wrote ${cases.length} cases, ${green.length} green cases`);
 });

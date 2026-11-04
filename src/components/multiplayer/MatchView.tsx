@@ -60,6 +60,7 @@ function toSim(shot: ServerShot): ShotSim | null {
     events: shot.events ?? [],
     result: { scored: shot.scored, swish: !!shot.swish, bank: !!shot.bank, miss: shot.miss ?? null, error: shot.error ?? 0, lateral: shot.lateral ?? 0 },
     duration: shot.duration,
+    green: !!shot.green,
   };
 }
 
@@ -146,6 +147,11 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
   useEffect(() => {
     gameRef.current?.setTheme(prefs.courtTheme);
   }, [prefs.courtTheme]);
+  // The green rim, on the match clock like the server's (camera play only)
+  const greenWindow = prefs.camera ? difficulty.greenWindow : null;
+  useEffect(() => {
+    gameRef.current?.setGreen(greenWindow);
+  }, [greenWindow, prefs.renderer]);
   const progress = useProgress();
   useEffect(() => {
     setMuted(!prefs.sound);
@@ -212,14 +218,15 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
 
   /** Local prediction for instant feedback; the server's call decides the score. */
   const shoot = useCallback(
-    (launch: Launch, payload: { power: number; angle: number; arc: number; aim: number }) => {
+    (launch: Launch, payload: { power: number; angle: number; arc: number; aim: number }, camera = false) => {
       const game = gameRef.current;
       if (!game || !canShootRef.current || !game.canThrow()) return;
       const t = serverNow();
-      const sim = game.throwBall(launch);
+      // The prediction uses the same green rim as the server (both on the match clock); the server's call decides.
+      const sim = game.throwBall(launch, camera);
       if (!sim || t === null) return;
       predictedRef.current = sim;
-      send({ type: "throw", ...payload, t });
+      send({ type: "throw", ...payload, t, camera });
     },
     [send, serverNow],
   );
@@ -231,9 +238,9 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       aimCenter.observe(ev.lean);
       if (calibration) {
         const { launch, power } = calibratedLaunch({ ...ev, aim }, calibration, court, difficulty);
-        shoot(launch, { power, angle: ev.angle, arc: ev.arc, aim });
+        shoot(launch, { power, angle: ev.angle, arc: ev.arc, aim }, true);
       } else {
-        shoot(throwToLaunch({ ...ev, aim }), { power: ev.power, angle: ev.angle, arc: ev.arc, aim });
+        shoot(throwToLaunch({ ...ev, aim }), { power: ev.power, angle: ev.angle, arc: ev.arc, aim }, true);
       }
     },
     [calibration, court, difficulty, shoot, aimCenter],

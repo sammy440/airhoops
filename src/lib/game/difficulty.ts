@@ -19,6 +19,8 @@ export interface Difficulty {
   sensitivity: number;
   /** Points multiplier for harder settings */
   scoreMultiplier: number;
+  /** Camera play: seconds per 3 s loop that the rim is green (a throw then swishes; see green.ts) */
+  greenWindow: number;
 }
 
 export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
@@ -32,6 +34,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     windMax: 0,
     sensitivity: 0.35,
     scoreMultiplier: 1,
+    greenWindow: 0.7,
   },
   starter: {
     id: "starter",
@@ -43,6 +46,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     windMax: 0,
     sensitivity: 0.5,
     scoreMultiplier: 1,
+    greenWindow: 0.55,
   },
   allstar: {
     id: "allstar",
@@ -54,6 +58,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     windMax: 0.6,
     sensitivity: 0.6,
     scoreMultiplier: 1.5,
+    greenWindow: 0.42,
   },
   legend: {
     id: "legend",
@@ -65,6 +70,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     windMax: 1.2,
     sensitivity: 0.75,
     scoreMultiplier: 2,
+    greenWindow: 0.3,
   },
 };
 

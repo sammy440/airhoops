@@ -3,7 +3,7 @@ import type { Side } from "@/lib/pose/kinematics";
 import type { Avatar } from "./avatar";
 import { trailColor, type BallSkin } from "./cosmetics";
 import { COURTS_3D, type Court3D } from "./courts3d";
-import { COLORS, GameCore, type FloatText, type GameCallbacks, type Vec3 } from "./engine";
+import { COLORS, GameCore, GREEN, type FloatText, type GameCallbacks, type Vec3 } from "./engine";
 import { hoopOffset, type Court } from "./physics";
 import { Player3D } from "./player3d";
 import { restBody, Retargeter, type Body } from "./pose3d";
@@ -127,6 +127,10 @@ export class Game3D extends GameCore {
       new THREE.MeshBasicMaterial({ color: COLORS.cream, transparent: true, opacity: 0.42, depthWrite: false }),
     );
     this.rivalMesh.visible = false;
+    this.greenLight = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: radialTexture([[0, "rgba(160,255,190,1)"], [0.35, "rgba(61,255,122,0.85)"], [1, "rgba(61,255,122,0)"]]), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }),
+    );
+    this.greenLight.visible = false;
     this.scene.add(this.ballMesh, this.ballShadow, this.glow, this.halo, this.chargeRing, this.rivalMesh);
     for (let i = 0; i < 14; i++) {
       const m = new THREE.Mesh(
@@ -287,6 +291,8 @@ export class Game3D extends GameCore {
   private camTarget = new THREE.Vector3();
   private calm = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
   private rimMat: THREE.MeshStandardMaterial | null = null;
+  /** The green rim's light, looping round the rim */
+  private greenLight: THREE.Sprite;
 
   /** Behind the shooter's right shoulder, looking up the floor at the hoop; the court fits beside the left inset. */
   private frameCamera() {
@@ -378,7 +384,7 @@ export class Game3D extends GameCore {
     toThree({ x: c.hoopDistance, y: c.rimHeight, z: 0 }, rim.position);
     const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, c.boardGap + 0.02), rimMat);
     toThree({ x: c.hoopDistance + c.rimRadius + c.boardGap / 2, y: c.rimHeight - 0.02, z: 0 }, bracket.position);
-    this.hoop.add(rim, bracket);
+    this.hoop.add(rim, bracket, this.greenLight);
 
     // Net: positions rewritten every frame (sway)
     this.net = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: p.net, transparent: true, opacity: 0.85 }));
@@ -469,7 +475,7 @@ export class Game3D extends GameCore {
 
   /** The live pose as a skeleton, or the animated stance without one. */
   private body(): Body {
-    return this.retarget.body(this.pose, this.now) ?? restBody(this.sinceLaunch, this.charge);
+    return this.retarget.body(this.pose, this.now) ?? restBody(this.sinceLaunch, this.charge, this.holdingBall);
   }
 
   // ── Frame ──
@@ -485,6 +491,7 @@ export class Game3D extends GameCore {
     this.updateFlag();
     this.updateGuide();
     this.updateFire();
+    this.updateGreen();
     this.updateCamera();
     this.player.update(this.body());
     this.playerShadow.position.copy(this.player.footprint).setY(0.004);
@@ -604,6 +611,27 @@ export class Game3D extends GameCore {
     this.rimMat?.emissive.set(this.onFire ? "#ff5a10" : "#000000");
     if (this.rimMat) this.rimMat.emissiveIntensity = this.onFire ? flicker : 0;
     (this.net.material as THREE.LineBasicMaterial).color.set(this.onFire ? "#ff9a3c" : this.palette.net);
+  }
+
+  /**
+   * The green rim: a light loops round the rim (from the shooter's view it slides left to right
+   * across the front and back along the far side); as it passes the front the whole rim and net
+   * glow green, which is when a camera throw swishes. Over the fire glow while it's green.
+   */
+  private updateGreen() {
+    const g = this.greenRim;
+    this.greenLight.visible = !!g;
+    if (!g || !this.rimMat) return;
+    const c = this.court;
+    const a = 2 * Math.PI * (g.loop - 0.5); // 0 = front (nearest the shooter)
+    toThree({ x: c.hoopDistance - Math.cos(a) * (c.rimRadius + 0.008), y: c.rimHeight, z: Math.sin(a) * (c.rimRadius + 0.008) }, this.greenLight.position);
+    this.greenLight.scale.setScalar((g.on ? 0.42 : 0.2 + g.soon * 0.12) * (1 + Math.sin(this.now / 90) * 0.06));
+    if (g.on) {
+      const pulse = 0.8 + Math.sin(this.now / 60) * 0.2;
+      this.rimMat.emissive.set(GREEN);
+      this.rimMat.emissiveIntensity = pulse;
+      (this.net.material as THREE.LineBasicMaterial).color.set(GREEN);
+    }
   }
 
   // ── Looking around: orbit the court by dragging / swiping, zoom by wheel / pinch ──

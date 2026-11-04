@@ -67,8 +67,46 @@ const RELEASE: Partial<Skeleton> = {
   20: v(0.24, 2.44, 0.12),
 };
 
-/** Seconds of the shot animation: release, hold the follow-through, back to the set. */
+const len = (a: Vec3, b: Vec3) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z);
+const toward = (a: Vec3, b: Vec3, d: number) => {
+  const n = len(a, b) || 1;
+  return v(a.x + ((b.x - a.x) / n) * d, a.y + ((b.y - a.y) / n) * d, a.z + ((b.z - a.z) / n) * d);
+};
+/** The set's own bone lengths, so the other stances never stretch an arm. */
+const ARM = { upper: len(SET[11]!, SET[13]!), fore: len(SET[13]!, SET[15]!), hand: len(SET[15]!, SET[19]!) };
+
+/** One arm from its shoulder: elbow towards `elbowAt`, wrist towards `wristAt`, fingers towards `fingersAt`. */
+function arm(shoulder: Vec3, elbowAt: Vec3, wristAt: Vec3, fingersAt: Vec3) {
+  const elbow = toward(shoulder, elbowAt, ARM.upper);
+  const wrist = toward(elbow, wristAt, ARM.fore);
+  return { elbow, wrist, fingers: toward(wrist, fingersAt, ARM.hand) };
+}
+
+function stance(left: ReturnType<typeof arm>, right: ReturnType<typeof arm>): Partial<Skeleton> {
+  return { ...SET, 13: left.elbow, 15: left.wrist, 19: left.fingers, 14: right.elbow, 16: right.wrist, 20: right.fingers };
+}
+
+/**
+ * Holding the ball at chest height on the shooting (right) side, elbows in: waiting with the ball
+ * (no camera). Off to the side so the camera behind the shooter still sees it past the body.
+ */
+const CHEST = stance(
+  arm(SET[11]!, v(-0.2, 1.1, -0.25), v(0.0, 1.3, 0.16), v(0.1, 1.34, 0.26)),
+  arm(SET[12]!, v(-0.25, 1.1, 0.38), v(-0.04, 1.28, 0.42), v(0.06, 1.32, 0.34)),
+);
+/** Arms relaxed at the sides: no ball in hand (it's in the air, or not back yet). */
+const DOWN = stance(
+  arm(SET[11]!, v(-0.28, 1.0, -0.26), v(-0.24, 0.5, -0.27), v(-0.22, 0, -0.27)),
+  arm(SET[12]!, v(-0.28, 1.0, 0.26), v(-0.24, 0.5, 0.27), v(-0.22, 0, 0.27)),
+);
+
+const mix = (a: Partial<Skeleton>, b: Partial<Skeleton>, k: number) =>
+  Object.fromEntries((Object.keys(SET) as unknown as Joint[]).map((j) => [j, lerp(a[j]!, b[j]!, k)])) as Partial<Skeleton>;
+
+/** Seconds of the shot animation: release, hold the follow-through, then back to the idle stance. */
 const SHOT = { release: 0.12, hold: 0.9, back: 1.3, jump: 0.09 };
+/** Charge (0..1) by which the ball is all the way up from the chest to the set. */
+const RAISED_AT = 0.15;
 
 /**
  * Two-bone leg from hip to a foot on the floor: the knee bends forward (towards the
@@ -110,22 +148,28 @@ function shift(upper: Partial<Skeleton>, dy: number): Partial<Skeleton> {
 }
 
 /**
- * The animated stance. `sinceLaunch`: seconds since the last shot left the hands (null if
- * none yet); `charge`: keyboard charge 0..1 (null when not charging).
+ * The animated stance (no camera). `sinceLaunch`: seconds since the last shot left the hands
+ * (null if none yet); `charge`: keyboard charge 0..1 (null when not charging); `holding`: the
+ * ball is in hand. With the ball: held at the chest, raised to the set as a shot charges.
+ * Without it: arms down. A shot releases, follows through, then drops to whichever applies.
  */
-export function restBody(sinceLaunch: number | null, charge: number | null): Body {
-  let upper: Partial<Skeleton> = SET;
+export function restBody(sinceLaunch: number | null, charge: number | null, holding = true): Body {
+  const idle = holding ? CHEST : DOWN;
+  let upper = idle;
   let dy = 0;
   const s = sinceLaunch;
   if (s !== null && s >= 0 && s < SHOT.back) {
-    const k = s < SHOT.release ? smoothstep(s / SHOT.release) : s < SHOT.hold ? 1 : 1 - smoothstep((s - SHOT.hold) / (SHOT.back - SHOT.hold));
-    upper = Object.fromEntries((Object.keys(SET) as unknown as Joint[]).map((j) => [j, lerp(SET[j]!, RELEASE[j]!, k)])) as Partial<Skeleton>;
+    upper = s < SHOT.hold ? mix(SET, RELEASE, s < SHOT.release ? smoothstep(s / SHOT.release) : 1) : mix(RELEASE, idle, smoothstep((s - SHOT.hold) / (SHOT.back - SHOT.hold)));
     dy = Math.sin(Math.min(1, s / 0.5) * Math.PI) * SHOT.jump; // a little hop through the release
   } else if (charge !== null) {
+    upper = mix(CHEST, SET, smoothstep(Math.min(1, charge / RAISED_AT))); // up into the set as the shot charges
     dy = -0.12 * charge; // sink into the legs while charging
   }
   return { pts: withLegs(shift(upper, dy)), live: false };
 }
+
+/** The set (ball over the head), for comparison with what the camera sees. */
+export const SET_STANCE: Skeleton = withLegs(SET);
 
 /** Knee bend seen by the camera, as a dip in metres (0 when the legs aren't visible). */
 function dipFrom(p: NormalizedLandmark[], aspect: number) {

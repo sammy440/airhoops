@@ -30,6 +30,7 @@ import { unlockedBetween } from "@/lib/game/cosmetics";
 import { loadProgress, recordPlay, shownXp, syncProgress } from "@/lib/game/progress";
 import { levelFor } from "@/lib/game/xp";
 import { useProgress } from "@/hooks/useProgress";
+import { untilGreen } from "@/lib/game/green";
 import { ClipRecorder } from "@/lib/clips/clipRecorder";
 import { drawClipOverlay } from "@/lib/clips/overlay";
 import { siteUrl } from "@/lib/share";
@@ -323,6 +324,25 @@ export function PlayClient() {
   useEffect(() => {
     gameRef.current?.setReplays(prefs.replays);
   }, [prefs.replays]);
+  // The green rim: on camera play, a throw while the rim is green swishes (shorter windows on harder levels)
+  const greenWindow = prefs.camera ? difficulty.greenWindow : null;
+  useEffect(() => {
+    gameRef.current?.setGreen(greenWindow);
+  }, [greenWindow, prefs.renderer, hydrated]);
+  const [greenCue, setGreenCue] = useState<number | null>(null);
+  useEffect(() => {
+    if (greenWindow === null || screen !== "playing") return;
+    const id = window.setInterval(() => {
+      const game = gameRef.current;
+      if (!game) return;
+      // Tenths of a second until green (0 = green now); null while the ball's away
+      setGreenCue(game.canThrow() ? Math.ceil(untilGreen(game.hoopPhase, greenWindow) * 10) / 10 : null);
+    }, 100);
+    return () => {
+      window.clearInterval(id);
+      setGreenCue(null);
+    };
+  }, [greenWindow, screen]);
   // Clips: record while a run is on (and not paused), straight after each frame is drawn
   useEffect(() => {
     const game = gameRef.current;
@@ -420,7 +440,7 @@ export function PlayClient() {
     }
     const phase = game.hoopPhase;
     const w = wind;
-    if (!game.throwBall(launch)) return false;
+    if (!game.throwBall(launch, input === "camera")) return false;
     const hot = hotHand.shoot(performance.now());
     setHotBounces(0);
     game.setHot(false);
@@ -992,6 +1012,14 @@ export function PlayClient() {
       {/* ── Shot feedback ── */}
       <div className="absolute inset-x-0 bottom-4 z-10 flex flex-col items-center gap-2 px-4 sm:bottom-6 sm:items-end sm:pr-6 xl:items-center xl:pr-4">
         {last && screen === "playing" && !replay && <ShotGauge shot={last} />}
+        {greenCue !== null && screen === "playing" && !replay && (
+          <p
+            className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${greenCue === 0 ? "bg-[#3dff7a] text-ink" : "glass text-cream/75"}`}
+            aria-live="off"
+          >
+            {greenCue === 0 ? "● Rim is green: shoot now!" : `Green rim in ${greenCue.toFixed(1)}s`}
+          </p>
+        )}
         {prefs.camera && screen === "playing" && !replay && leanShown !== null && (
           <p className="glass rounded-full px-3 py-1 font-mono text-[11px] text-cream/80 tabular-nums" aria-live="off">
             Lean aim: {leanShown === 0 ? "straight" : `${Math.abs(leanShown)}° ${leanShown > 0 ? "right →" : "← left"}`}

@@ -2,6 +2,26 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## The green rim, and the stance without a camera
+- **Green rim (camera play):** a green light loops round the rim every 3 s (`green.ts`); from the shooter's view it
+  slides left to right across the front and back along the far side. As it passes the front the rim and net glow
+  green, for 0.7 s on Rookie, 0.55 Starter, 0.42 All-Star, 0.3 Legend. **A camera throw released then swishes,
+  however it was thrown** (+1 swish bonus, "GREEN SWISH!"); any other time it flies as thrown. In 2D, where the loop
+  can't be seen side-on, the rim simply lights up green. A cue under the court counts down ("Green rim in 1.2s")
+  and flips to "● Rim is green: shoot now!". Keyboard and touch throws don't get it.
+- The shot: `greenLaunch`, a fixed, ordered search from the ideal 52° speed with the aim that meets the hoop where
+  it will be in that wind, nudging speed and aim until it swishes. Aim may go to ±20° (a thrown shot stops at ±12°):
+  Legend with full wind and the hoop at the end of its slide needs ~14°. Tested: swishes on every level, every wind,
+  every hoop position.
+- **Everywhere, refereed:** counts on every leaderboard; in matches the server applies the same rule on the match
+  clock (`app/game/green.py`, throws carry `camera`), and the parity fixtures pin both sides to the same green
+  timing and the same launch (144 cases). Both sides use the same arithmetic (`d * PI / 180`, Python-style `%`) so
+  they agree to the last bit at a window's edge.
+- **Without a camera, the avatar only raises the ball to shoot:** with the ball it's held at chest height on the
+  shooting side (off-centre so the camera behind the shooter still sees it); charging raises it into the set; after
+  the follow-through the arms drop, and stay down until the ball is back. 3D poses are built from the avatar's own
+  bone lengths (tested), 2D eases between them. Camera play is unchanged: your body drives it.
+
 ## Fixes: phone match layout, opponents' ball skins, aim readout, touch checked
 - **Match screen on a phone held upright:** the camera box, scoreboard and turn banner no longer overlap. Below
   `sm`, the camera box sits bottom-left above the reactions (`CameraPip` takes a `position`), the scoreboard is

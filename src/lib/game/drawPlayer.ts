@@ -26,6 +26,24 @@ export const DEFAULT_POSE: Record<number, Vec> = {
   24: { x: -0.2, y: 0.95 },
 };
 
+/** Side view, holding the ball in front of the chest (no camera, waiting with the ball). */
+export const CHEST_POSE: Record<number, Vec> = {
+  ...DEFAULT_POSE,
+  13: { x: -0.4, y: 1.22 },
+  14: { x: -0.2, y: 1.24 },
+  15: { x: -0.06, y: 1.36 },
+  16: { x: 0.1, y: 1.4 },
+};
+
+/** Side view, arms down (no camera, no ball in hand). */
+export const DOWN_POSE: Record<number, Vec> = {
+  ...DEFAULT_POSE,
+  13: { x: -0.44, y: 1.22 },
+  14: { x: -0.16, y: 1.22 },
+  15: { x: -0.44, y: 0.86 },
+  16: { x: -0.14, y: 0.86 },
+};
+
 /** Relaxed stance, arms at the sides (profile preview, badges). */
 export const STANDING_POSE: Record<number, Vec> = {
   0: { x: 0, y: 1.72 },

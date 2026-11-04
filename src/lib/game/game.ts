@@ -2,8 +2,8 @@ import type { Side } from "@/lib/pose/kinematics";
 import type { Court } from "./physics";
 import { trailColor } from "./cosmetics";
 import { drawScenery } from "./courts";
-import { DEFAULT_POSE, drawPlayer, type Vec } from "./drawPlayer";
-import { COLORS as C, GameCore, type GameCallbacks, type Vec3 } from "./engine";
+import { CHEST_POSE, DEFAULT_POSE, DOWN_POSE, drawPlayer, type Vec } from "./drawPlayer";
+import { COLORS as C, GameCore, GREEN, type GameCallbacks, type Vec3 } from "./engine";
 
 export type { GameCallbacks, GamePhase } from "./engine";
 
@@ -91,8 +91,6 @@ export class Game extends GameCore {
 
   /** Where the hands are (midpoint of wrists); the ball sits there until released. */
   protected handsWorld(): Vec3 {
-    const fallback = { x: 0, y: this.court.releaseHeight, z: 0 };
-    if (!this.pose) return fallback;
     const { pts } = this.avatar();
     const x = (pts[15].x + pts[16].x) / 2;
     const y = (pts[15].y + pts[16].y) / 2;
@@ -115,12 +113,12 @@ export class Game extends GameCore {
   private avatar(): { pts: Record<number, Vec>; live: boolean } {
     const p = this.pose;
     const pts: Record<number, Vec> = { ...DEFAULT_POSE };
-    if (!p) return { pts, live: false };
+    if (!p) return { pts: this.restPose(), live: false };
     const ls = p[11];
     const rs = p[12];
     const lh = p[23];
     const rh = p[24];
-    if (!ls || !rs || (ls.visibility ?? 0) < 0.5 || (rs.visibility ?? 0) < 0.5) return { pts, live: false };
+    if (!ls || !rs || (ls.visibility ?? 0) < 0.5 || (rs.visibility ?? 0) < 0.5) return { pts: this.restPose(), live: false };
     const aspect = 16 / 9;
     const sx = (ls.x + rs.x) / 2;
     const sy = (ls.y + rs.y) / 2;
@@ -139,6 +137,25 @@ export class Game extends GameCore {
       pts[24] = { x: pts[12].x - 0.03, y: pts[12].y - 0.55 };
     }
     return { pts, live: true };
+  }
+
+  /** The no-camera stance, eased between frames: ball at the chest, up while charging and through the shot, arms down without it. */
+  private rest: Record<number, Vec> = { ...CHEST_POSE };
+  private restAt = -1;
+  private restPose(): Record<number, Vec> {
+    if (this.restAt === this.now) return this.rest; // once per frame (avatar() is asked several times)
+    this.restAt = this.now;
+    const s = this.sinceLaunch;
+    const shooting = this.charge !== null || (s !== null && s >= 0 && s < 0.9);
+    const target = shooting ? DEFAULT_POSE : this.holdingBall ? CHEST_POSE : DOWN_POSE;
+    const k = this.charge !== null ? 0.5 : 0.2;
+    this.rest = Object.fromEntries(
+      Object.entries(target).map(([j, t]) => {
+        const c = this.rest[+j] ?? t;
+        return [j, { x: c.x + (t.x - c.x) * k, y: c.y + (t.y - c.y) * k }];
+      }),
+    );
+    return this.rest;
   }
 
   // ── Draw ──
@@ -283,7 +300,18 @@ export class Game extends GameCore {
   private drawRim(half: "back" | "front", s: number) {
     const { ctx } = this;
     const e = this.rimEllipse(s);
-    ctx.strokeStyle = half === "front" ? C.hoop : "#a3260f";
+    // The green rim (camera play): from the side the light's loop can't be seen, so the rim simply lights up green.
+    const green = this.greenRim?.on;
+    if (green && half === "front") {
+      ctx.save();
+      ctx.strokeStyle = "rgba(61,255,122,0.35)";
+      ctx.lineWidth = Math.max(8, s * 0.12) * (1 + Math.sin(this.now / 60) * 0.15);
+      ctx.beginPath();
+      ctx.ellipse(e.cx, e.cy, e.rx, e.ry, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.strokeStyle = green ? GREEN : half === "front" ? C.hoop : "#a3260f";
     ctx.lineWidth = Math.max(2.5, s * 0.035);
     ctx.lineCap = "round";
     ctx.beginPath();

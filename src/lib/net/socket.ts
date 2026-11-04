@@ -71,6 +71,8 @@ export interface ServerShot {
   duration?: number;
   path?: PathPoint[];
   events?: ShotEvent[];
+  /** Released on the green rim: made to swish */
+  green?: boolean;
   serverTime: number;
 }
 
@@ -132,7 +134,8 @@ export type ClientMessage =
   | { type: "leave" }
   | { type: "react"; reaction: ReactionId }
   /** Only these numbers ever leave the device for a shot (never video). */
-  | { type: "throw"; power: number; angle: number; arc: number; aim: number; t: number };
+  /** `camera`: thrown on camera, so the green rim counts */
+  | { type: "throw"; power: number; angle: number; arc: number; aim: number; t: number; camera?: boolean };
 
 export interface RoomSocketHandlers {
   onMessage: (msg: ServerMessage) => void;
