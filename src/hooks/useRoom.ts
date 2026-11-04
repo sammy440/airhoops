@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { awardFromServer } from "@/lib/game/progress";
 import type { RoomState } from "@/lib/net/api";
-import { RoomSocket, SHOT_KIND_NAMES, type ClientMessage, type MatchEnd, type PlayerScore, type ServerMessage, type ServerShot, type SocketStatus } from "@/lib/net/socket";
+import { RoomSocket, SHOT_KIND_NAMES, type ClientMessage, type ReactionId, type MatchEnd, type PlayerScore, type ServerMessage, type ServerShot, type SocketStatus } from "@/lib/net/socket";
 
 export type MatchStart = Extract<ServerMessage, { type: "match_start" }>;
 export type Turn = Extract<ServerMessage, { type: "turn" }>;
@@ -15,6 +16,8 @@ export interface MatchState {
   lastShot: ServerShot | null;
   result: MatchEnd | null;
   forfeits: string[];
+  /** Your XP before and after this match, once the server has awarded it */
+  xp?: { before: number; after: number };
 }
 
 export interface Toast {
@@ -24,6 +27,14 @@ export interface Toast {
 }
 
 const TOAST_MS = 3500;
+/** A reaction someone sent, on screen until it has floated away. */
+export interface Reaction {
+  key: number;
+  playerId: string;
+  reaction: ReactionId;
+}
+export const REACTION_MS = 2400;
+
 /** Blips shorter than this (instant reloads, tab restores) don't toast at all. */
 const BLIP_MS = 1500;
 
@@ -37,6 +48,8 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [match, setMatch] = useState<MatchState | null>(null);
+  const [reactions, setReactions] = useState<Reaction[]>([]);
+  const reactionKey = useRef(0);
   const onShotRef = useRef(opts.onShot);
   useEffect(() => {
     onShotRef.current = opts.onShot;
@@ -99,6 +112,18 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
             setMatch((m) => (m ? { ...m, forfeits: [...m.forfeits, msg.playerId] } : m));
             toast(`${namesRef.current[msg.playerId] ?? "A player"} forfeited`, "warn");
             break;
+          case "xp": {
+            const xp = awardFromServer(msg.gained, msg.xp);
+            setMatch((m) => (m ? { ...m, xp } : m));
+            break;
+          }
+          case "reaction": {
+            const key = ++reactionKey.current;
+            // A busy room still keeps it readable: the newest dozen at most.
+            setReactions((r) => [...r.slice(-11), { key, playerId: msg.playerId, reaction: msg.reaction }]);
+            setTimeout(() => setReactions((r) => r.filter((x) => x.key !== key)), REACTION_MS);
+            break;
+          }
           // H-O-R-S-E calls
           case "challenge": {
             const mine = msg.playerId === youRef.current;
@@ -167,5 +192,5 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
   const serverNow = useCallback(() => socketRef.current?.serverNow() ?? null, []);
   const leave = useCallback(() => socketRef.current?.leave(), []);
 
-  return { room, you, status, closedReason, rtt, toasts, error, send, leave, match, serverNow, toast, names };
+  return { room, you, status, closedReason, rtt, toasts, error, send, leave, match, serverNow, toast, names, reactions };
 }

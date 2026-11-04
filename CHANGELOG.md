@@ -2,6 +2,36 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## XP, levels and unlocks
+- **XP from play** (`xp.ts`, mirrored by the backend's `app/game/xp.py`; same examples tested on both sides):
+  1 a shot, 10 a make, +5 a swish or bank, +5 per make in your best streak beyond the second, 25 a finished
+  timed/streak/daily run, 50 for the day's daily challenge (once), 20 a finished match, 50 a win. Level 2 at 100 XP,
+  each level 50 more than the last (level 6 ≈ 1,000 XP, 10 ≈ 2,700), max 50. A 30 s rookie run earns ~80.
+- **Unlocks** (`cosmetics.ts`): ball skins Retro (Lv 3), Gold (6), Ice (10), Lava (15), Galaxy (22); fire trails
+  Blue flame (4), Toxic (8), Royal (12), Rainbow (18). Picked in the new **Locker** on the profile page; shown in 3D
+  and 2D, on your screen. Every court and avatar option stays free.
+- **Device + account.** Solo play is recorded on the device as it happens (`progress.ts`) and sent to your account
+  as play stats at the end of a run, every 25 shots in free play, and when the tab hides; the server works the XP
+  out itself and caps solo XP at 6,000 a day. Without an account XP stays on the device; play from before you had
+  one is sent when you do (a backlog over 2,000 shots is scaled down to one batch). Shown XP is the larger of the
+  device's own count and the account's total plus unsent play, so it never visibly drops. Multiplayer XP is awarded
+  by the server at match end.
+- On screen: level bar on the start menu, "+N XP" with a level-up and what it unlocked on game over and match
+  results, a "Level N!" pill mid-run, level chips next to names in the lobby and on the match scoreboard.
+- Server fix found on the way: when the buzzer and a last throw ended a match at the same moment, the end-of-match
+  hook ran twice (multiplayer scores were saved twice). It now runs once per match.
+
+## Match reactions
+- **Six quick reactions** (🔥 👏 😂 😮 💪 🏀): tap the bar (bottom-right in a match, under the players in the lobby)
+  or press 1–6 in a match. They float up the screen with the sender's name for 2.4 s, for everyone in the room
+  (you see yours as "You"), over the results screen too, for a "GG".
+- On the wire they're ids (`react{reaction}` → `reaction{playerId, reaction}`), never free text: the server
+  only relays the known six. At most 4 per player per 3 s: the server drops extras quietly and the bar mirrors
+  the limit (it dims instead of sending what would be dropped). On screen: the newest 12 at most.
+- Buttons give up focus after a click, so Space goes back to shooting. With reduced motion they fade in place.
+- No gesture trigger: arm-up gestures are the shooting stance (hands high = set point), so one could fire a throw
+  or be mistaken for one mid-match.
+
 ## H-O-R-S-E (multiplayer)
 - **New room mode.** The setter shoots; a make becomes the challenge by its kind: **SWISH** (touched nothing),
   **BANK** (off the glass) or **BUCKET** (any other make). Everyone else, in order after the setter, gets one try

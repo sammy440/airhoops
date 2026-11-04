@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Side } from "@/lib/pose/kinematics";
 import type { Avatar } from "./avatar";
+import { trailColor, type BallSkin } from "./cosmetics";
 import { COURTS_3D, type Court3D } from "./courts3d";
 import { COLORS, GameCore, type FloatText, type GameCallbacks, type Vec3 } from "./engine";
 import { hoopOffset, type Court } from "./physics";
@@ -110,7 +111,7 @@ export class Game3D extends GameCore {
 
     // Ball, its shadow and glows
     const r = this.court.ballRadius;
-    this.ballMesh = new THREE.Mesh(new THREE.SphereGeometry(r, 32, 16), new THREE.MeshStandardMaterial({ map: ballTexture(), roughness: 0.65 }));
+    this.ballMesh = new THREE.Mesh(new THREE.SphereGeometry(r, 32, 16), new THREE.MeshStandardMaterial({ map: ballTexture(this.skin), roughness: 0.65 }));
     this.ballShadow = new THREE.Mesh(
       new THREE.CircleGeometry(r * 1.5, 24),
       new THREE.MeshBasicMaterial({ map: radialTexture([[0, "rgba(0,0,0,0.55)"], [1, "rgba(0,0,0,0)"]]), transparent: true, depthWrite: false }),
@@ -239,6 +240,13 @@ export class Game3D extends GameCore {
 
   protected sceneChanged() {
     this.buildScene();
+  }
+
+  protected skinChanged() {
+    const mat = this.ballMesh.material as THREE.MeshStandardMaterial;
+    mat.map?.dispose();
+    mat.map = ballTexture(this.skin);
+    mat.needsUpdate = true;
   }
 
   protected dispose() {
@@ -543,11 +551,11 @@ export class Game3D extends GameCore {
       if (this.onFire) {
         // Fire trail: bigger, brighter, yellow at the ball fading to deep orange
         m.scale.setScalar(0.5 + f * 0.9);
-        mat.color.setRGB(1, 0.35 + f * 0.5, 0.05 + f * 0.15);
+        mat.color.setRGB(...trailColor(this.trailLook, f, i));
         mat.opacity = f * 0.55;
       } else {
         m.scale.setScalar(0.25 + f * 0.5);
-        mat.color.set(COLORS.sun);
+        mat.color.set(this.trailLook.calm);
         mat.opacity = f * 0.18;
       }
     });
@@ -819,15 +827,15 @@ const VIEW = { minPhi: 0.12, maxPhi: 1.48, minZoom: 0.45, maxZoom: 1.9, glide: 0
 const QUALITY = { slowFrameMs: 25, fastFrameMs: 17.2, downAfterMs: 2000, upAfterMs: 6000, step: 0.25, minRatio: 0.6 };
 const GUIDE_DOTS = 12;
 
-function ballTexture() {
+function ballTexture(skin: BallSkin) {
   return canvasTexture(512, 256, (ctx) => {
     const g = ctx.createLinearGradient(0, 0, 0, 256);
-    g.addColorStop(0, "#f39a52");
-    g.addColorStop(0.5, COLORS.ball);
-    g.addColorStop(1, "#c4561c");
+    g.addColorStop(0, skin.light);
+    g.addColorStop(0.5, skin.base);
+    g.addColorStop(1, skin.dark);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 512, 256);
-    ctx.strokeStyle = "rgba(30,12,4,0.85)";
+    ctx.strokeStyle = skin.seam;
     ctx.lineWidth = 6;
     ctx.beginPath();
     ctx.moveTo(0, 128);

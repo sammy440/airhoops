@@ -150,6 +150,20 @@ body {
   to { transform: scaleX(1); }
 }
 
+/* Match reactions: float up and fade */
+@keyframes float-up {
+  0% { transform: translateY(20px) scale(0.6); opacity: 0; }
+  12% { transform: translateY(0) scale(1.1); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translateY(-38vh) scale(0.9); opacity: 0; }
+}
+.animate-float-up { animation: float-up 2.4s cubic-bezier(.2,.7,.3,1) forwards; }
+
+@keyframes float-fade {
+  0%, 70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 /* Instant replay: letterbox bars slide in */
 @keyframes letterbox {
   from { transform: scaleY(0); }
@@ -159,6 +173,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .animate-marquee, .animate-pulse-ring, .animate-bob, .animate-count-pop, .animate-throw-flash { animation: none; }
+  .animate-float-up { animation: float-fade 2.4s ease forwards; }
   .reveal { opacity: 1; transform: none; transition: none; }
   .animate-spin, .animate-pulse { animation-duration: 2.5s; }
   html { scroll-behavior: auto; }

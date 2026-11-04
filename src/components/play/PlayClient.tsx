@@ -26,6 +26,10 @@ import { AimCenter, leanAim, MAX_LEAN_AIM } from "@/lib/game/aim";
 import { createGame, rendererId, type RendererId } from "@/lib/game/createGame";
 import type { GameCore } from "@/lib/game/engine";
 import { GhostPlayer, loadGhost, saveGhost, type GhostShot } from "@/lib/game/ghostRun";
+import { unlockedBetween } from "@/lib/game/cosmetics";
+import { loadProgress, recordPlay, shownXp, syncProgress } from "@/lib/game/progress";
+import { levelFor } from "@/lib/game/xp";
+import { useProgress } from "@/hooks/useProgress";
 import { HOT_BOUNCES, HotHand } from "@/lib/game/hotHand";
 import {
   bestKey,
@@ -191,6 +195,12 @@ export function PlayClient() {
   const runShotsRef = useRef<GhostShot[]>([]);
   const rivalRef = useRef<GhostPlayer | null>(null);
   const [rivalPoints, setRivalPoints] = useState<number | null>(null);
+  // XP: what you had when the run started (for "+N XP" at the end), and a level-up shown mid-run
+  const runXpRef = useRef(0);
+  const [runXp, setRunXp] = useState<{ before: number; after: number } | null>(null);
+  const [levelUp, setLevelUp] = useState<{ level: number; unlocks: string[] } | null>(null);
+  const progress = useProgress();
+  const loadoutKey = progress ? `${progress.loadout.ball}:${progress.loadout.trail}` : null;
   const buzzerRef = useRef(false);
   const screenRef = useRef(screen);
   useEffect(() => {
@@ -206,6 +216,10 @@ export function PlayClient() {
     const t = tallyRef.current;
     const isBest = recordBest(prefs.mode, difficultyId, { points: t.points, makes: t.makes, streak: t.best }, prefs.timedSeconds, daily.key);
     setNewBest(isBest);
+    // Finishing a run on the clock (or a streak) earns XP; the daily earns its bonus once.
+    if (prefs.mode !== "free") recordPlay({ runs: 1, daily: prefs.mode === "daily" ? daily.key : null });
+    setRunXp({ before: runXpRef.current, after: shownXp(loadProgress()) });
+    void syncProgress();
     // A new best on the clock becomes the ghost to race next time.
     if (isBest && (prefs.mode === "timed" || prefs.mode === "daily")) {
       saveGhost(bestKey(prefs.mode, difficultyId, prefs.timedSeconds, daily.key), { points: t.points, shots: runShotsRef.current });
@@ -291,6 +305,12 @@ export function PlayClient() {
   useEffect(() => {
     gameRef.current?.setReplays(prefs.replays);
   }, [prefs.replays]);
+  // Unlocked ball skin and trail (after the engine exists: this runs after the effect that creates it)
+  useEffect(() => {
+    if (!loadoutKey) return;
+    const [ball, trail] = loadoutKey.split(":");
+    gameRef.current?.setLoadout({ ball, trail });
+  }, [loadoutKey, prefs.renderer, hydrated]);
   const changeDifficulty = (d: DifficultyId) => {
     set("difficulty", d);
     nextWind(DIFFICULTIES[d]);
@@ -305,6 +325,15 @@ export function PlayClient() {
       gameRef.current?.setStreak(t.streak);
       if (p) {
         const l = sim.launch;
+        const r = sim.result;
+        const xp = recordPlay({ shots: 1, makes: r.scored ? 1 : 0, swishes: r.swish ? 1 : 0, banks: r.bank ? 1 : 0, bestStreak: t.streak });
+        const [was, now] = [levelFor(xp.before), levelFor(xp.after)];
+        if (now > was) {
+          setLevelUp({ level: now, unlocks: unlockedBetween(was, now) });
+          window.setTimeout(() => setLevelUp(null), 4000);
+        }
+        // Free play has no end: send play every couple of dozen shots
+        if (loadProgress().pending.shots >= 25) void syncProgress();
         runShotsRef.current.push({ t: p.at, speed: l.speed, angle: l.angle, aim: l.aim ?? 0, wind: p.wind, phase: p.phase, points: score.points });
         const coach = coachShot(sim.launch, court, DEFAULT_TUNING, { wind: p.wind, phase: p.phase });
         setLast({
@@ -451,6 +480,8 @@ export function PlayClient() {
   // ── Flow ──
   const startRun = useCallback(() => {
     gameRef.current?.skipReplay();
+    runXpRef.current = shownXp(loadProgress());
+    setRunXp(null);
     tallyRef.current = EMPTY_TALLY;
     setTally(EMPTY_TALLY);
     hotHand.reset();
@@ -610,6 +641,7 @@ export function PlayClient() {
   useEffect(() => {
     const onVis = () => {
       if (document.hidden && (screenRef.current === "playing" || screenRef.current === "countdown")) pause(true);
+      if (document.hidden) void syncProgress();
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
@@ -883,6 +915,15 @@ export function PlayClient() {
         </div>
       )}
 
+      {levelUp && inRun && (
+        <div className="animate-count-pop pointer-events-none absolute inset-x-0 top-[30%] z-10 flex justify-center px-4" aria-live="polite">
+          <div className="rounded-2xl bg-sun px-5 py-2.5 text-center text-ink shadow-xl">
+            <div className="display text-3xl leading-none">Level {levelUp.level}!</div>
+            {levelUp.unlocks.length > 0 && <div className="mt-1 text-xs font-semibold">Unlocked: {levelUp.unlocks.join(", ")}</div>}
+          </div>
+        </div>
+      )}
+
       {lookTip && screen === "playing" && !replay && (
         <div className="animate-count-pop pointer-events-none absolute inset-x-0 top-[38%] z-10 flex justify-center px-4">
           <p className="glass rounded-full px-4 py-2 text-sm text-cream">👆 Swipe to look around · pinch to zoom</p>
@@ -916,6 +957,7 @@ export function PlayClient() {
           calibration={calibration}
           camera={prefs.camera}
           best={best}
+          xp={progress?.xp ?? null}
           onMode={(m) => set("mode", m)}
           onCourtTheme={(t) => set("courtTheme", t)}
           onTimedSeconds={(s) => set("timedSeconds", s)}
@@ -979,6 +1021,7 @@ export function PlayClient() {
           best={best}
           run={run}
           courtTheme={prefs.courtTheme}
+          xp={runXp}
           onAgain={startRun}
           onMenu={() => setScreen("menu")}
         />

@@ -1,5 +1,6 @@
 import type { Side } from "@/lib/pose/kinematics";
 import type { Court } from "./physics";
+import { trailColor } from "./cosmetics";
 import { drawScenery } from "./courts";
 import { DEFAULT_POSE, drawPlayer, type Vec } from "./drawPlayer";
 import { COLORS as C, GameCore, type GameCallbacks, type Vec3 } from "./engine";
@@ -350,11 +351,18 @@ export class Game extends GameCore {
     const r = this.court.ballRadius * s;
     this.trail.forEach((p, i) => {
       const f = i / this.trail.length;
-      // On fire: a brighter, yellow-to-orange flame trail
-      ctx.fillStyle = this.onFire ? `rgba(255,${Math.round(90 + f * 130)},20,${f * 0.6})` : `rgba(246,161,58,${f * 0.22})`;
+      // On fire: a brighter flame trail in your trail's colours; otherwise a faint one
+      if (this.onFire) {
+        const [cr, cg, cb] = trailColor(this.trailLook, f, i).map((v) => Math.round(v * 255));
+        ctx.fillStyle = `rgba(${cr},${cg},${cb},${f * 0.6})`;
+      } else {
+        ctx.fillStyle = this.trailLook.calm;
+        ctx.globalAlpha = f * 0.22;
+      }
       ctx.beginPath();
       ctx.arc(this.X(p.x), this.Y(p.y), r * (0.4 + (i / this.trail.length) * 0.6), 0, Math.PI * 2);
       ctx.fill();
+      ctx.globalAlpha = 1;
     });
   }
 
@@ -404,9 +412,9 @@ export class Game extends GameCore {
       ctx.stroke();
     }
     const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.1, x, y, r);
-    g.addColorStop(0, "#ffb070");
-    g.addColorStop(0.55, C.ball);
-    g.addColorStop(1, "#8f3410");
+    g.addColorStop(0, this.skin.light);
+    g.addColorStop(0.55, this.skin.base);
+    g.addColorStop(1, this.skin.dark);
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -414,7 +422,7 @@ export class Game extends GameCore {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(this.ball.rot);
-    ctx.strokeStyle = "rgba(30,12,4,0.65)";
+    ctx.strokeStyle = this.skin.seam;
     ctx.lineWidth = Math.max(1, r * 0.09);
     ctx.beginPath();
     ctx.moveTo(-r, 0);

@@ -2,6 +2,7 @@ import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import type { Side } from "@/lib/pose/kinematics";
 import { DEFAULT_AVATAR, type Avatar } from "./avatar";
 import type { GhostPlayer } from "./ghostRun";
+import { ballSkin, DEFAULT_LOADOUT, trailSkin, type BallSkin, type Loadout, type TrailSkin } from "./cosmetics";
 import { COURT_THEMES, DEFAULT_COURT_THEME, type CourtTheme, type CourtThemeId } from "./courts";
 import { DEFAULT_COURT, hoopOffset, simulateShot, type Court, type Launch, type PathPoint, type ShotEvent, type ShotSim } from "./physics";
 import { replayReason, replayWindow, REPLAY_SPEED } from "./replay";
@@ -150,6 +151,9 @@ export abstract class GameCore {
   protected dribble: Dribble | null = null;
   /** Body, skin, hair and kit (see avatar.ts). */
   protected look: Avatar = DEFAULT_AVATAR;
+  /** Unlocked ball skin and trail colours (cosmetics.ts) */
+  protected skin: BallSkin = ballSkin(DEFAULT_LOADOUT.ball);
+  protected trailLook: TrailSkin = trailSkin(DEFAULT_LOADOUT.trail);
   protected loaded = false;
   protected hot = false;
   /** Where the next shot will go sideways (launch aim, degrees, + = right); null hides the guide. */
@@ -196,6 +200,8 @@ export abstract class GameCore {
   protected dispose() {}
   /** Something the renderer caches depends on the court or theme. */
   protected sceneChanged() {}
+  /** The ball skin changed (renderers that cache a texture redraw it). */
+  protected skinChanged() {}
 
   // ── Public API ──
 
@@ -302,6 +308,15 @@ export abstract class GameCore {
 
   setAvatar(look: Avatar) {
     this.look = look;
+  }
+
+  /** Ball skin and trail (pass a loadout that's unlocked: see usableLoadout). */
+  setLoadout(l: Loadout) {
+    const skin = ballSkin(l.ball);
+    this.trailLook = trailSkin(l.trail);
+    if (skin === this.skin) return;
+    this.skin = skin;
+    this.skinChanged();
   }
 
   /**

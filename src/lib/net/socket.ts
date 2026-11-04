@@ -12,6 +12,17 @@ import { WS_URL, type RoomState } from "./api";
  *   another tab, or the player left.
  */
 
+/** Reactions are ids on the wire (the server only relays known ones); the emoji is drawn here. */
+export const REACTIONS = [
+  { id: "fire", emoji: "🔥", label: "On fire" },
+  { id: "clap", emoji: "👏", label: "Nice shot" },
+  { id: "laugh", emoji: "😂", label: "Haha" },
+  { id: "wow", emoji: "😮", label: "Wow" },
+  { id: "flex", emoji: "💪", label: "Let's go" },
+  { id: "ball", emoji: "🏀", label: "Ball!" },
+] as const;
+export type ReactionId = (typeof REACTIONS)[number]["id"];
+
 export type SocketStatus = "connecting" | "open" | "reconnecting" | "closed";
 
 export type PresenceEvent = "joined" | "left" | "disconnected" | "reconnected";
@@ -105,6 +116,9 @@ export type ServerMessage =
   | { type: "scoreboard"; scores: Record<string, PlayerScore>; serverTime: number }
   | { type: "forfeit"; playerId: string; serverTime: number }
   | { type: "challenge"; playerId: string; challenge: ShotKind; serverTime: number }
+  /** Your XP from the match just finished (only you get yours) */
+  | { type: "xp"; gained: number; xp: number; level: number; serverTime: number }
+  | { type: "reaction"; playerId: string; reaction: ReactionId; serverTime: number }
   | { type: "letter"; playerId: string; letters: number; word: string; out: boolean; serverTime: number }
   | MatchEnd;
 
@@ -116,6 +130,7 @@ export type ClientMessage =
   /** Host, between matches: change the game (un-readies everyone, resets the series). */
   | { type: "settings"; mode?: MatchMode; difficulty?: string; raceSeconds?: number; bestOf?: 1 | 3 | 5 }
   | { type: "leave" }
+  | { type: "react"; reaction: ReactionId }
   /** Only these numbers ever leave the device for a shot (never video). */
   | { type: "throw"; power: number; angle: number; arc: number; aim: number; t: number };
 

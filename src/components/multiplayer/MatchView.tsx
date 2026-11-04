@@ -6,7 +6,7 @@ import type { SkeletonOverlayHandle } from "@/components/lab/SkeletonOverlay";
 import { CameraPip, useCourtInset } from "@/components/play/CameraPip";
 import { Logo } from "@/components/ui/Logo";
 import { ShareCardButton } from "@/components/ui/ShareCardButton";
-import type { MatchState } from "@/hooks/useRoom";
+import type { MatchState, Reaction } from "@/hooks/useRoom";
 import { useCourtGestures, type ChargeControls } from "@/hooks/useCourtGestures";
 import { useThrowInput } from "@/hooks/useThrowInput";
 import { DEFAULT_AVATAR, loadProfile, sanitizeAvatar } from "@/lib/game/avatar";
@@ -27,6 +27,9 @@ import type { BounceEvent } from "@/lib/pose/dribbleDetector";
 import type { ThrowEvent } from "@/lib/pose/throwDetector";
 import type { ResultCardData } from "@/lib/resultCard";
 import { siteUrl } from "@/lib/share";
+import { LevelChip, XpSummary } from "@/components/ui/Level";
+import { useProgress } from "@/hooks/useProgress";
+import { ReactionBar, ReactionBursts } from "./Reactions";
 
 const TAP_MS = 180;
 const FULL_CHARGE_MS = 1400;
@@ -43,6 +46,8 @@ interface Props {
   serverNow: () => number | null;
   send: (m: ClientMessage) => void;
   toast: (text: string, tone?: "info" | "good" | "warn") => void;
+  /** Reactions on screen right now (everyone's, yours included) */
+  reactions: Reaction[];
   onLeave: () => void;
 }
 
@@ -83,7 +88,7 @@ function loadPlayPrefs(): { camera: boolean; sound: boolean; courtTheme: CourtTh
   }
 }
 
-export function MatchView({ room, you, match, names, isHost, serverNow, send, toast, onLeave }: Props) {
+export function MatchView({ room, you, match, names, isHost, serverNow, send, toast, reactions, onLeave }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -141,6 +146,14 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
   useEffect(() => {
     gameRef.current?.setTheme(prefs.courtTheme);
   }, [prefs.courtTheme]);
+  // Your unlocked ball skin and trail (on your screen)
+  const progress = useProgress();
+  const loadoutKey = progress ? `${progress.loadout.ball}:${progress.loadout.trail}` : null;
+  useEffect(() => {
+    if (!loadoutKey) return;
+    const [ball, trail] = loadoutKey.split(":");
+    gameRef.current?.setLoadout({ ball, trail });
+  }, [loadoutKey, prefs.renderer]);
   useEffect(() => {
     setMuted(!prefs.sound);
     unlockAudio();
@@ -449,6 +462,10 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
               <span className="min-w-0 flex-1 truncate">
                 {names[id] ?? "Player"}
                 {id === you && <span className="ml-1 text-[10px] text-cream/50">(you)</span>}
+                {(() => {
+                  const level = room.players.find((p) => p.id === id)?.level;
+                  return level !== undefined ? <LevelChip level={level} className="ml-1" /> : null;
+                })()}
                 {start.mode === "horse" && turn?.setter === id && !match.result && <span className="ml-1 text-[10px] text-sun">sets</span>}
               </span>
               {start.mode === "horse" ? (
@@ -485,9 +502,13 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
         onRetryTracker={input.retryTracker}
       />
       <p className="absolute inset-x-0 bottom-3 z-10 hidden text-center text-[11px] text-cream/45 sm:block">
-        Space or click: tap = medium · hold = charge · ←→ aim · {prefs.renderer === "3d" ? "drag to look around · " : ""}or throw on camera (lean to aim).
+        Space or click: tap = medium · hold = charge · ←→ aim · {prefs.renderer === "3d" ? "drag to look around · " : ""}1–6 react · or throw on camera (lean to aim).
         The server referees every shot.
       </p>
+
+      {/* Reactions: above the results too, for a "GG" */}
+      <ReactionBar send={send} keys className="absolute right-4 bottom-10 z-[35] sm:right-6" />
+      <ReactionBursts reactions={reactions} names={names} you={you} />
 
       {/* Countdown */}
       {countdown !== null && countdown > 0 && (
@@ -508,6 +529,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
           you={you}
           names={names}
           mode={start.mode}
+          xp={match.xp ?? null}
           isHost={isHost}
           onRematch={() => send({ type: "rematch" })}
           onLeave={onLeave}
@@ -528,6 +550,7 @@ function Results({
   you,
   names,
   mode,
+  xp,
   isHost,
   onRematch,
   onLeave,
@@ -540,6 +563,7 @@ function Results({
   you: string;
   names: Record<string, string>;
   mode: MatchMode;
+  xp: { before: number; after: number } | null;
   isHost: boolean;
   onRematch: () => void;
   onLeave: () => void;
@@ -624,6 +648,7 @@ function Results({
             </li>
           ))}
         </ol>
+        {xp && <XpSummary before={xp.before} after={xp.after} className="mt-4" />}
         <div className="mt-6 space-y-2">
           {isHost ? (
             <button type="button" onClick={onRematch} className="w-full rounded-full bg-hoop py-3 font-semibold hover:bg-hoop-soft">

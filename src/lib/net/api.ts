@@ -14,6 +14,8 @@ export interface User {
   avatar?: Avatar | null;
   /** Linked to a Google account: the same player on every device. */
   google?: boolean;
+  xp?: number;
+  level?: number;
 }
 
 export type RoomPhase = "lobby" | "ready" | "in_progress" | "finished";
@@ -25,6 +27,7 @@ export interface RoomPlayer {
   ready: boolean;
   connected: boolean;
   host: boolean;
+  level?: number;
 }
 
 export type BestOf = 1 | 3 | 5;
@@ -150,7 +153,19 @@ export const api = {
   leaderboard: (params: { mode: string; period: Period; difficulty?: string; limit?: number }) =>
     request<LeaderboardEntry[]>(`/leaderboard?${query(params)}`),
   myBests: (token: string, params: { mode: string; difficulty?: string }) => request<PersonalBests>(`/leaderboard/me?${query(params)}`, { token }),
+  /** Solo play since the last sync, as stats: the server works out the XP (and caps it per day). */
+  gainXp: (token: string, play: XpGain) => request<{ xp: number; level: number; gained: number; capped: boolean }>("/xp", { method: "POST", token, body: JSON.stringify(play) }),
 };
+
+export interface XpGain {
+  shots: number;
+  makes: number;
+  swishes: number;
+  banks: number;
+  best_streak: number;
+  runs: number;
+  daily?: string | null;
+}
 
 function query(params: Record<string, string | number | undefined>) {
   return new URLSearchParams(Object.entries(params).flatMap(([k, v]) => (v === undefined || v === "" ? [] : [[k, String(v)]]))).toString();

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
 import { CourtPreview } from "@/components/ui/CourtPreview";
+import { XpBar, XpSummary } from "@/components/ui/Level";
 import { ShareCardButton } from "@/components/ui/ShareCardButton";
 import type { LightingStatus } from "@/hooks/useLighting";
 import { COURT_THEME_ORDER, COURT_THEMES, type CourtThemeId } from "@/lib/game/courts";
@@ -187,6 +188,8 @@ export function StartMenu(p: {
   calibration: Calibration | null;
   camera: boolean;
   best: Best | undefined;
+  /** Your XP (null until it's loaded) */
+  xp: number | null;
   onMode: (m: ModeId) => void;
   onCourtTheme: (t: CourtThemeId) => void;
   onTimedSeconds: (s: number) => void;
@@ -217,6 +220,8 @@ export function StartMenu(p: {
           </span>
         </Link>
       </div>
+
+      {p.xp !== null && <XpBar xp={p.xp} className="mt-4" />}
 
       {p.firstTime && (
         <ol className="mt-5 grid gap-3 text-sm text-cream/85 sm:grid-cols-2">
@@ -667,6 +672,8 @@ export function GameOver(p: {
   /** Leaderboard entry for this run (null for free play) */
   run: (RunSubmission & { id: number }) | null;
   courtTheme: CourtThemeId;
+  /** XP before and after this run */
+  xp: { before: number; after: number } | null;
   onAgain: () => void;
   onMenu: () => void;
 }) {
@@ -722,6 +729,7 @@ export function GameOver(p: {
         ))}
       </dl>
       {p.newBest && p.seconds && <p className="mt-3 text-center text-xs text-cream/55">Saved as your ghost: race it next time.</p>}
+      {p.xp && <XpSummary before={p.xp.before} after={p.xp.after} className="mt-4" />}
       {!p.newBest && p.best && (
         <p className="mt-3 text-center text-xs text-cream/55">
           Your best: {p.mode === "streak" ? `${p.best.streak} in a row` : `${p.best.points} pts`}

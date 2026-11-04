@@ -7,6 +7,8 @@ const ON_DEVICE = [
   ["Settings", "Camera on/off, sound, your last mode and difficulty"],
   ["Calibration", "Your average throw speed, so a normal shot scores"],
   ["Personal bests", "Your best score per mode and difficulty"],
+  ["Ghost runs", "The shots of your best timed and daily runs (launch numbers only), to race next time"],
+  ["Progress", "Your XP, play not yet sent to your account, and your chosen ball and trail"],
   ["Your player", "Name and look (body, skin tone, hair, kit)"],
   ["Guest pass", "A random token, only if you play multiplayer, post a score or sign in with Google"],
 ];
@@ -15,6 +17,7 @@ const ON_SERVER = [
   ["Guest profile", "Nickname, look, and a hash of your guest token (never the token itself)"],
   ["Google sign-in (optional)", "Only Google's account ID, so the same player works on your other devices. No email, name, contacts or photo"],
   ["Scores", "Each posted run: mode, difficulty, score, shots and makes"],
+  ["Progress", "Your XP total and today's solo XP, worked out from play counts (shots, makes, swishes, banks, streaks, finished runs)"],
   ["Matches", "Room code, mode, start/end time, winner"],
   ["Throws (multiplayer)", "Power, angle, arc and the result for each shot, so the server can referee"],
 ];
