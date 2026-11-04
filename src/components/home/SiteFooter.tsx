@@ -4,7 +4,7 @@ import { SplitText } from "@/components/motion/SplitText";
 const MODES = ["Free Play", "Timed", "Streak", "Shootout"];
 const GITHUB_URL = "https://github.com/sammy440/airhoops";
 const LINKS = [
-  { href: "/lab", label: "Tracking Lab" },
+  { href: "/how-to-play", label: "How to play" },
   { href: "#how", label: "How it works" },
   { href: "/leaderboard", label: "Leaderboards" },
   { href: "/privacy", label: "Privacy" },

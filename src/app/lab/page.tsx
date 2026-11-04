@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { SiteNav } from "@/components/home/SiteNav";
 import { LabClient } from "@/components/lab/LabClient";
+import { DEV_TOOLS } from "@/lib/devTools";
 
 export const metadata: Metadata = {
   title: "Lab",
   description: "Tracking debug view: live webcam with pose skeleton overlay.",
+  robots: { index: false },
 };
 
+/** A developer tool for testing the camera and tuning throw detection: only in development (see devTools.ts). */
 export default function LabPage() {
+  if (!DEV_TOOLS) notFound();
   return (
     <div className="min-h-full flex-1">
       <SiteNav tone="dark" />

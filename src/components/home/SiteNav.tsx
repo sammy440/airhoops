@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BookOpen01Icon,
   ChampionIcon,
   PlayIcon,
   SecurityLockIcon,
@@ -14,6 +15,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { BallIcon, Logo } from "@/components/ui/Logo";
+import { DEV_TOOLS } from "@/lib/devTools";
 
 type NavLink = { href: string; label: string; icon: IconSvgElement };
 
@@ -23,9 +25,11 @@ const LEFT: NavLink[] = [
   { href: "/leaderboard", label: "Leaderboard", icon: ChampionIcon },
 ];
 const RIGHT: NavLink[] = [
-  { href: "/lab", label: "Lab", icon: TestTube01Icon },
+  { href: "/how-to-play", label: "How to play", icon: BookOpen01Icon },
   { href: "/profile", label: "Your player", icon: UserCircleIcon },
   { href: "/privacy", label: "Privacy", icon: SecurityLockIcon },
+  // The tracking lab is a developer tool: only in development
+  ...(DEV_TOOLS ? [{ href: "/lab", label: "Lab", icon: TestTube01Icon }] : []),
 ];
 const ALL = [...LEFT, ...RIGHT];
 

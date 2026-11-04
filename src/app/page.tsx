@@ -35,7 +35,7 @@ export default function Home() {
 /* ─────────────────── Black "jump to play" panel ─────────────────── */
 
 const PLAY_WORDS = [
-  { word: "Track", href: "/lab" },
+  { word: "Track", href: "/how-to-play#setup" },
   { word: "Throw", href: "#how" },
   { word: "Score", href: "#modes" },
 ];
@@ -73,7 +73,7 @@ function JumpToPlay() {
 
           <div className="flex flex-col justify-between gap-8 md:flex-row md:items-end">
             <Appear className="max-w-xs" from={{ y: 30 }}>
-              <Link href="/lab" className="text-xs font-semibold underline underline-offset-4 hover:text-hoop">
+              <Link href="/how-to-play" className="text-xs font-semibold underline underline-offset-4 hover:text-hoop">
                 Let&apos;s dive in
               </Link>
               <p className="mt-3 text-xs leading-relaxed text-cream/60">
@@ -152,8 +152,8 @@ function Featured() {
               GPU pose tracking, One Euro smoothing, torso-length normalization,{" "}
               <span className="text-hoop/60">and a forgiving throw detector tuned on real data.</span>
             </p>
-            <Link href="/lab" className="mt-6 inline-block text-xs font-semibold underline underline-offset-4 hover:text-hoop">
-              Open the lab
+            <Link href="/how-to-play#setup" className="mt-6 inline-block text-xs font-semibold underline underline-offset-4 hover:text-hoop">
+              Set up your camera
             </Link>
           </div>
 

@@ -397,8 +397,8 @@ export function StartMenu(p: {
       </div>
       <p className="mt-3 text-center text-[11px] text-cream/45">
         Video never leaves your device ·{" "}
-        <Link href="/lab" className="underline underline-offset-2 hover:text-cream">
-          Tune tracking in the Lab
+        <Link href="/how-to-play" className="underline underline-offset-2 hover:text-cream">
+          How to play: camera, light and stance
         </Link>
       </p>
     </Modal>

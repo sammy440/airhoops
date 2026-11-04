@@ -2,6 +2,20 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## How to play page; the lab is dev-only; privacy brought up to date
+- **`/how-to-play`** (nav, footer, home page and start menu link to it): quick start, camera placement with a
+  diagram (side view: laptop screen and front camera facing you 2–3 m away; and what the camera should see: you
+  centred, head to hips, room above your hands), room lighting (light in front, no window behind, bright and
+  even), posture and the set-and-push shot, power / lean aim / the green rim, hot hand and hands-free buttons,
+  keyboard and touch, and what to do if throws don't register. Its advice matches what the setup check measures.
+- **The tracking lab is a developer tool now:** `/lab` is a 404 (noindex) in production builds and gone from the
+  nav and footer; it's there under `next dev`, with a Lab link in the nav (`lib/devTools.ts`).
+  `NEXT_PUBLIC_ENABLE_LAB=1` keeps it in a production build.
+- **Privacy:** throws in multiplayer include aim and whether they were thrown on camera; reactions are relayed,
+  not stored; the profile includes your ball and trail; the lighting check runs on your device; XP is erased with
+  your data; shared clips go wherever you send them; the lab paragraph is gone; "no accounts" corrected (Google
+  sign-in is optional).
+
 ## Green rim: longer, with a warning in 2D
 - Green for longer each 3 s loop: 1.2 s Rookie, 1.0 Starter, 0.8 All-Star, 0.6 Legend (was 0.7 / 0.55 / 0.42 /
   0.3: in 2D, with no light to watch coming round, it was over before you could react). Server and parity
