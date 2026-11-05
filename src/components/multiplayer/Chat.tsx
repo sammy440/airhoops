@@ -44,10 +44,11 @@ export function ChatPanel({
   const listRef = useRef<HTMLOListElement>(null);
   const shown = lines.filter((l) => !muted.has(l.playerId));
   const hidden = lines.length - shown.length;
-  // The suggestions are a way to start talking: once you've said something they get out of the way.
-  // (Quick match is quick chat only, so there they stay.)
+  // The suggestions are a way to start talking: once you've said something they fold away behind a
+  // "Quick replies" button (in quick match too, where they're the only way to talk, so the button matters).
   const spoke = lines.some((l) => l.playerId === you);
-  const showQuick = quickOnly || !spoke;
+  const [quickOpen, setQuickOpen] = useState(false);
+  const showQuick = !spoke || quickOpen;
 
   // Keep the newest message in view
   useEffect(() => {
@@ -98,6 +99,7 @@ export function ChatPanel({
               type="button"
               onClick={(e) => {
                 send({ type: "chat", quick: q.id });
+                setQuickOpen(false);
                 e.currentTarget.blur(); // Space goes back to shooting
               }}
               className="rounded-full border border-cream/15 px-2.5 py-1 text-xs text-cream/85 transition hover:border-cream/40 hover:text-cream"
@@ -121,7 +123,8 @@ export function ChatPanel({
             placeholder="Message…"
             enterKeyHint="send"
             autoComplete="off"
-            className="min-w-0 flex-1 rounded-full border border-cream/15 bg-ink px-3 py-1.5 text-sm outline-none focus:border-hoop"
+            // 16px on phones: iOS zooms the page into any smaller text field you tap
+            className="min-w-0 flex-1 rounded-full border border-cream/15 bg-ink px-3.5 py-2 text-base outline-none focus:border-hoop sm:py-1.5 sm:text-sm"
           />
           <button type="submit" disabled={!text.trim()} className="rounded-full bg-hoop px-4 text-sm font-semibold transition hover:bg-hoop-soft disabled:opacity-40">
             Send
@@ -129,8 +132,13 @@ export function ChatPanel({
         </form>
       )}
 
-      {opponents.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 border-t border-cream/10 px-3 py-2 text-[11px] text-cream/55">
+      {(opponents.length > 0 || spoke) && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-cream/10 px-3 py-2 text-[11px] text-cream/55">
+          {spoke && (
+            <button type="button" onClick={() => setQuickOpen((o) => !o)} aria-expanded={showQuick} className="font-semibold text-cream/75 hover:text-cream">
+              Quick replies {showQuick ? "▾" : "▴"}
+            </button>
+          )}
           {opponents.map((o) => (
             <button key={o.id} type="button" onClick={() => onToggleMute(o.id)} aria-pressed={muted.has(o.id)} className="underline-offset-2 hover:text-cream hover:underline">
               {muted.has(o.id) ? `Unmute ${o.nickname}` : `Mute ${o.nickname}`}

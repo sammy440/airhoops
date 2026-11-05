@@ -2,6 +2,17 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Chat on phones: no zoom, stays above the keyboard; suggestions fold away
+- **No zoom on tap:** the message box is 16 px on phones (iOS zooms the page into any smaller text field you tap,
+  which threw the layout off). Pinch-zoom stays available everywhere (not disabled site-wide).
+- **Above the keyboard:** on iOS the keyboard covers the page without resizing it, so the bottom sheet slid under
+  it. While chat is open on a narrow screen, the sheet follows the visible area (visualViewport): it shrinks and
+  sits just above the keyboard, and returns when the keyboard closes. Clamped to the window, so an odd reading
+  can't push it off-screen. (Tested with a simulated 330 px keyboard: sheet and input fully visible.)
+- Opening chat on a touch screen no longer pops the keyboard by itself (it focuses the box only with a mouse).
+- **Suggestions:** once you've sent a message they fold away in every room, quick match included, behind a
+  "Quick replies ▴" button; sending a quick reply folds them again.
+
 ## Chat window: bigger, a phone sheet, a real icon
 - Match chat opens a taller panel (26 rem wide, up to 30 rem tall, sized to stay clear of the scoreboard) with a
   header and close button; messages fill the space and the input sits at the bottom. On a phone it's a sheet from
