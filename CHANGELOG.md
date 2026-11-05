@@ -2,6 +2,46 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## 3D venues: every court has its surroundings
+- Before, every 3D court sat on the same flat 120 m floor; only the colours changed. Each court now has a place
+  round it (`lib/game/venues3d.ts`), laid out from the hoop:
+  - **Night Arena:** tiered stands on four sides with a crowd that bobs and jumps after a make, scrolling LED
+    boards, a jumbotron over the court, light rigs with beams, banners, lit suites.
+  - **Park Day:** blacktop inside a chain-link fence, grass, trees and benches; beyond the hoop a street with
+    two-way traffic and a bus that stops at the bus stop; shops and flats across the road; drifting clouds.
+  - **Sunset Beach:** sand, the sea with moving glints and surf, the sun on the horizon, palms, umbrellas, a
+    lifeguard tower and volleyball net, a boardwalk with string lights, beachfront hotels, sailboats.
+  - **City Rooftop:** a roof deck with a parapet and fence, floodlights and festoon lights over the court; the city
+    below (low blocks round us, towers on the skyline), traffic lights moving on the streets, water tanks,
+    blinking aircraft beacons, a neon billboard, the moon and stars.
+  - **Neon Grid:** a scrolling glowing grid, a striped synthwave sun, wireframe mountains, a neon-outlined skyline,
+    neon palms, pylons and arches, floating wireframe shapes.
+- **Never in the way:** a test builds every venue and checks that nothing solid touches the court (plus margin) and
+  nothing taller than a bench stands inside the camera's orbit at any difficulty (17 m at Legend, fully zoomed out).
+- **Cheap:** static scenery is merged into one mesh per material and crowds are instanced, under 60 draws per
+  venue (tested); built once per court change and disposed on the next. With reduced motion, scenery holds still.
+
+## Redesign: light paper, clay and court green
+- **Type and colour:** Anton capitals are gone; everything is set in Inter Tight, with light, tight headlines. The page
+  is a pale paper grey with white cards, near-black ink, terracotta clay (`hoop`) and a new court green (`court`).
+  Canvas text (score pop-ups, jerseys, share cards) uses a semibold weight so it stays punchy.
+- **Shared controls** (`components/ui/Pills.tsx`): a pill with a round arrow for main actions, round icon buttons
+  (Hugeicons) for everything else, and outline tags. Text buttons were replaced by icons wherever the icon says it.
+- **Home:** rebuilt as an inset photo hero with a logo notch, a welcome row, a modes card, the five steps on a white
+  board, a "built for every throw" row, two big play cards (solo, friends), the five courts, and a footer card whose
+  room-code box drops you straight into a friend's room.
+- **Play:** the start menu is a drawer on the left, almost full height, with its own scroll and the Play button pinned
+  at the bottom; settings are icon tiles and switches. Game over uses the same drawer; Pause is a grid of round
+  actions; setup, calibration and clips are light cards. The HUD buttons are Hugeicons on dark glass.
+- **Fix: corner buttons sat behind their photo cards.** Round icon buttons always carried `relative` (for a badge);
+  placed in a card's corner with `absolute`, Tailwind's `relative` won and dropped them back into the flow, half under
+  the photo. They now skip `relative` when the caller positions them.
+- **Fix: court picker edges.** The selection ring was drawn outside the card and clipped by the scrolling row, and the
+  first card snapped flush to the drawer's edge. The ring now has an offset with room around the row, and snapping
+  keeps the side padding.
+- **Subpages** (how to play, leaderboard, multiplayer lobby, profile, privacy, 404) moved from dark ink to the paper
+  theme. In-game overlays over the court (match view, chat, camera box) stay dark glass.
+
 ## Chat: the keyboard stays up after sending
 - Tapping Send moved focus from the message box to the button, which closes a phone's keyboard, so every message
   meant tapping the box again. Send no longer takes focus (its press is kept from moving it), and the box is

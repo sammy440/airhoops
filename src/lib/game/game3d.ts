@@ -7,6 +7,7 @@ import { COLORS, GameCore, GREEN, type FloatText, type GameCallbacks, type Vec3 
 import { hoopOffset, type Court } from "./physics";
 import { Player3D } from "./player3d";
 import { restBody, Retargeter, type Body } from "./pose3d";
+import { buildVenue, type Venue } from "./venues3d";
 
 /**
  * 3D WebGL renderer (three.js): the court from behind the shooter's right shoulder.
@@ -59,7 +60,8 @@ function segment(mesh: THREE.Object3D, a: THREE.Vector3, b: THREE.Vector3) {
 export class Game3D extends GameCore {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(48, 1, 0.05, 200);
+  // Far enough for each venue's horizon (the sea, the skyline, the sun)
+  private camera = new THREE.PerspectiveCamera(48, 1, 0.05, 1200);
   private palette: Court3D = COURTS_3D.arena;
   private font = "Impact, sans-serif";
 
@@ -70,6 +72,8 @@ export class Game3D extends GameCore {
   private sun = new THREE.DirectionalLight("#ffffff", 1.4);
   private net!: THREE.LineSegments;
   private flag!: THREE.Mesh;
+  /** The surroundings: stands, a street, a beach… (venues3d.ts) */
+  private venue: Venue | null = null;
 
   // Dynamic objects
   private ballMesh: THREE.Mesh;
@@ -254,6 +258,7 @@ export class Game3D extends GameCore {
   }
 
   protected dispose() {
+    this.venue?.dispose();
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
       m.geometry?.dispose();
@@ -334,15 +339,17 @@ export class Game3D extends GameCore {
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, 4, 256);
     });
-    this.scene.fog = new THREE.Fog(p.fog, 16, 60);
+    // The venue round the court, centred on the hoop
+    this.venue?.dispose();
+    this.venue = buildVenue(this.theme.id, { tex: canvasTexture, palette: p, calm: this.calm, font: this.font });
+    toThree({ x: c.hoopDistance, y: 0, z: 0 }, this.venue.group.position);
+    this.world.add(this.venue.group);
+    this.scene.fog = new THREE.Fog(p.fog, ...this.venue.fog);
     this.hemi.color.set(p.light[0]);
     this.hemi.groundColor.set(p.light[1]);
     this.hemi.intensity = p.lightIntensity;
 
-    // Floor and markings
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ color: p.floor, roughness: 0.85 }));
-    floor.rotation.x = -Math.PI / 2;
-    this.world.add(floor);
+    // Markings (the court surface and the ground round it are part of the venue)
     const depth = AREA.back + AREA.front;
     const marks = new THREE.Mesh(
       new THREE.PlaneGeometry(AREA.half * 2, depth),
@@ -501,6 +508,7 @@ export class Game3D extends GameCore {
     this.updateGhost();
     this.updateSparks();
     this.updateTexts();
+    this.venue?.update(performance.now() / 1000, (this.now - this.madeAt) / 1000);
     this.renderer.render(this.scene, this.camera);
   }
 
