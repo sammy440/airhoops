@@ -1,29 +1,34 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-inter-tight);
   --font-mono: var(--font-geist-mono);
-  --font-display: var(--font-display);
+  --font-display: var(--font-inter-tight);
 
-  /* Paper + ink */
-  --color-cream: #f7f1d6;
-  --color-sand: #f7e8b0;
-  --color-stone: #a29a86;
-  --color-ink: #0e0e0d;
-  --color-surface: #161614;
-  --color-elevated: #1f1e1b;
-  --color-line: rgb(255 255 255 / 0.09);
-  --color-muted: #8e8a80;
+  /* Paper, cards and ink */
+  --color-paper: #ececea;
+  --color-card: #ffffff;
+  --color-cream: #f8f8f5;
+  --color-sand: #e2e2de;
+  --color-stone: #7d7d78;
+  --color-ink: #121212;
+  --color-surface: #1a1a19;
+  --color-elevated: #242423;
+  --color-line: rgb(255 255 255 / 0.1);
+  --color-rule: rgb(18 18 18 / 0.1);
+  --color-muted: #8a8a85;
 
-  /* Brand */
-  --color-hoop: #ea3a1d;
-  --color-hoop-soft: #ff6b3d;
-  --color-sun: #f6a13a;
+  /* Brand: terracotta clay and court green */
+  --color-hoop: #c8623a;
+  --color-hoop-soft: #d97a52;
+  --color-court: #2f6a3f;
+  --color-court-soft: #4a8656;
+  --color-sun: #e3a83c;
 
   /* Status */
-  --color-good: #3ddc97;
-  --color-warn: #ffc857;
-  --color-bad: #ff5a5f;
+  --color-good: #3fbf7f;
+  --color-warn: #e9b64a;
+  --color-bad: #e5574f;
 }
 
 :root {
@@ -31,7 +36,7 @@
 }
 
 body {
-  background: var(--color-cream);
+  background: var(--color-paper);
   color: var(--color-ink);
 }
 
@@ -40,12 +45,22 @@ body {
   color: var(--color-cream);
 }
 
-/* Condensed display type used for every headline */
+/* Headlines: a light, tight grotesk */
 .display {
   font-family: var(--font-display);
-  text-transform: uppercase;
-  line-height: 0.86;
-  letter-spacing: -0.01em;
+  font-weight: 450;
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+}
+
+/* Highlighted words in a sentence: a green pill behind the text */
+.mark {
+  border-radius: 999px;
+  background: var(--color-court);
+  color: var(--color-cream);
+  padding: 0 0.32em 0.04em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 /* Gritty red fill for the giant hero word */
@@ -164,6 +179,13 @@ body {
   100% { opacity: 0; }
 }
 
+/* Game menus: the drawer slides in from the left */
+@keyframes drawer-in {
+  from { transform: translateX(-24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.animate-drawer-in { animation: drawer-in 0.45s cubic-bezier(.2,.8,.2,1) both; }
+
 /* Instant replay: letterbox bars slide in */
 @keyframes letterbox {
   from { transform: scaleY(0); }
@@ -172,7 +194,7 @@ body {
 .animate-letterbox { animation: letterbox 0.35s cubic-bezier(.2,.8,.2,1) both; }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-marquee, .animate-pulse-ring, .animate-bob, .animate-count-pop, .animate-throw-flash { animation: none; }
+  .animate-marquee, .animate-pulse-ring, .animate-bob, .animate-count-pop, .animate-throw-flash, .animate-drawer-in { animation: none; }
   .animate-float-up { animation: float-fade 2.4s ease forwards; }
   .reveal { opacity: 1; transform: none; transition: none; }
   .animate-spin, .animate-pulse { animation-duration: 2.5s; }

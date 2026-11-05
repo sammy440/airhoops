@@ -304,7 +304,7 @@ function numberTexture(n: number, font: string) {
   c.width = c.height = 128;
   const ctx = c.getContext("2d")!;
   ctx.fillStyle = "rgba(255,255,255,0.94)";
-  ctx.font = `100px ${font}`;
+  ctx.font = `700 100px ${font}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(String(n), 64, 70);

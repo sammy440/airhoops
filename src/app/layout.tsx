@@ -1,22 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Anton, Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Inter_Tight } from "next/font/google";
 import { Providers } from "@/components/motion/Providers";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// One clean grotesk for everything: light, tight headlines and plain body text
+const sans = Inter_Tight({
+  variable: "--font-inter-tight",
   subsets: ["latin"],
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
-});
-
-const display = Anton({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: "400",
 });
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://airhoops.vercel.app";
@@ -45,19 +40,19 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#f7f1d6",
+  themeColor: "#ececea",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${display.variable} h-full antialiased`}
+      className={`${sans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col overflow-x-clip font-sans">
         <a
           href="#main"
-          className="sr-only z-[100] rounded-full bg-cream px-4 py-2 text-sm font-semibold text-ink focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+          className="sr-only z-[100] rounded-full bg-ink px-4 py-2 text-sm font-semibold text-cream focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
         >
           Skip to content
         </a>

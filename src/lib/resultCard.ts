@@ -103,7 +103,7 @@ function drawCard(ctx: CanvasRenderingContext2D, d: ResultCardData, f: Fonts) {
   // Brand + context
   drawBall(ctx, PAD + 22, PAD + 24, 22, 0.3);
   ctx.textBaseline = "middle";
-  ctx.font = `italic 46px ${f.display}`;
+  ctx.font = `italic 700 46px ${f.display}`;
   ctx.fillStyle = C.cream;
   ctx.fillText("AIR", PAD + 58, PAD + 26);
   ctx.fillStyle = C.hoop;
@@ -118,7 +118,7 @@ function drawCard(ctx: CanvasRenderingContext2D, d: ResultCardData, f: Fonts) {
 
   // Headline + badge
   ctx.textBaseline = "alphabetic";
-  ctx.font = `${headlineSize(ctx, d.headline, f)}px ${f.display}`;
+  ctx.font = `600 ${headlineSize(ctx, d.headline, f)}px ${f.display}`;
   ctx.fillStyle = d.players.some((p) => p.you && p.winner) || d.players.length === 1 ? C.hoop : C.cream;
   ctx.shadowColor = "rgba(0,0,0,0.45)";
   ctx.shadowBlur = 24;
@@ -157,15 +157,15 @@ function drawSolo(ctx: CanvasRenderingContext2D, d: ResultCardData, f: Fonts) {
   ctx.textAlign = "right";
   const right = CARD_W - PAD;
   let size = 300;
-  ctx.font = `${size}px ${f.display}`;
-  while (ctx.measureText(p.score).width > 470 && size > 120) ctx.font = `${(size -= 10)}px ${f.display}`;
+  ctx.font = `600 ${size}px ${f.display}`;
+  while (ctx.measureText(p.score).width > 470 && size > 120) ctx.font = `600 ${(size -= 10)}px ${f.display}`;
   ctx.fillStyle = C.cream;
   ctx.shadowColor = "rgba(0,0,0,0.5)";
   ctx.shadowBlur = 30;
   ctx.fillText(p.score, right, 780);
   ctx.shadowBlur = 0;
   if (d.unit) {
-    ctx.font = `64px ${f.display}`;
+    ctx.font = `600 64px ${f.display}`;
     ctx.fillStyle = C.sun;
     ctx.fillText(d.unit.toUpperCase(), right, 860);
   }
@@ -207,7 +207,7 @@ function drawHeadToHead(ctx: CanvasRenderingContext2D, d: ResultCardData, f: Fon
   let size = 190;
   const parts = [a.score, "–", b.score];
   const measure = () => {
-    ctx.font = `${size}px ${f.display}`;
+    ctx.font = `600 ${size}px ${f.display}`;
     return parts.reduce((w, t) => w + ctx.measureText(t).width, 0) + 2 * 24;
   };
   while (measure() > 420 && size > 90) size -= 10;
@@ -239,14 +239,14 @@ function drawRanking(ctx: CanvasRenderingContext2D, d: ResultCardData, f: Fonts)
     roundRect(ctx, x0, y, w, 104, 28);
     ctx.fill();
     ctx.textBaseline = "middle";
-    ctx.font = `56px ${f.display}`;
+    ctx.font = `600 56px ${f.display}`;
     ctx.fillStyle = p.winner ? C.sun : C.muted;
     ctx.fillText(String(i + 1), x0 + 28, y + 54);
     ctx.font = `600 36px ${f.sans}`;
     ctx.fillStyle = C.cream;
     ctx.fillText(fit(ctx, p.name + (p.you ? " (you)" : ""), w - 260), x0 + 90, y + 54);
     ctx.textAlign = "right";
-    ctx.font = `60px ${f.display}`;
+    ctx.font = `600 60px ${f.display}`;
     ctx.fillStyle = p.winner ? C.hoop : C.cream;
     ctx.fillText(p.score, x0 + w - 28, y + 56);
     ctx.textAlign = "left";
@@ -273,7 +273,7 @@ function drawStats(ctx: CanvasRenderingContext2D, stats: [string, string][], f: 
     }
     ctx.textAlign = "center";
     ctx.textBaseline = "alphabetic";
-    ctx.font = `54px ${f.display}`;
+    ctx.font = `600 54px ${f.display}`;
     ctx.fillStyle = C.cream;
     ctx.fillText(fit(ctx, value, col - 24), cx, y + 66);
     ctx.font = `600 20px ${f.sans}`;
@@ -367,8 +367,8 @@ function pill(ctx: CanvasRenderingContext2D, text: string, x: number, y: number,
 
 function headlineSize(ctx: CanvasRenderingContext2D, text: string, f: Fonts) {
   let size = 190;
-  ctx.font = `${size}px ${f.display}`;
-  while (ctx.measureText(text.toUpperCase()).width > CARD_W - PAD * 2 && size > 90) ctx.font = `${(size -= 8)}px ${f.display}`;
+  ctx.font = `600 ${size}px ${f.display}`;
+  while (ctx.measureText(text.toUpperCase()).width > CARD_W - PAD * 2 && size > 90) ctx.font = `600 ${(size -= 8)}px ${f.display}`;
   return size;
 }
 

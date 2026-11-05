@@ -210,7 +210,7 @@ export function drawPlayer(ctx: CanvasRenderingContext2D, pts: Record<number, Ve
   ctx.fillStyle = ink;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `${Math.round(0.17 * s)}px ${view.font}`;
+  ctx.font = `700 ${Math.round(0.17 * s)}px ${view.font}`;
   ctx.fillText(String(look.number), 0, 0);
   ctx.restore();
   setGlow(true);

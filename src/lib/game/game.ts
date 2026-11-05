@@ -498,10 +498,10 @@ export class Game extends GameCore {
       ctx.fillStyle = t.color;
       ctx.shadowColor = "rgba(0,0,0,0.5)";
       ctx.shadowBlur = 12;
-      ctx.font = `${Math.round(s * 0.42)}px ${this.font}`;
+      ctx.font = `600 ${Math.round(s * 0.42)}px ${this.font}`;
       ctx.fillText(t.text, 0, 0);
       if (t.sub) {
-        ctx.font = `${Math.round(s * 0.26)}px ${this.font}`;
+        ctx.font = `600 ${Math.round(s * 0.26)}px ${this.font}`;
         ctx.fillStyle = C.cream;
         ctx.fillText(t.sub, 0, s * 0.3);
       }

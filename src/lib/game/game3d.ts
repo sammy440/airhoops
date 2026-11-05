@@ -921,11 +921,11 @@ function textTexture(t: FloatText, font: string) {
     ctx.shadowColor = "rgba(0,0,0,0.55)";
     ctx.shadowBlur = 18;
     ctx.fillStyle = t.color;
-    ctx.font = `120px ${font}`;
+    ctx.font = `600 120px ${font}`;
     ctx.fillText(t.text, 256, 130);
     if (t.sub) {
       ctx.fillStyle = COLORS.cream;
-      ctx.font = `72px ${font}`;
+      ctx.font = `600 72px ${font}`;
       ctx.fillText(t.sub, 256, 215);
     }
   });
