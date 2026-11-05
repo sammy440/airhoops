@@ -42,6 +42,7 @@ export function ChatPanel({
 }) {
   const [text, setText] = useState("");
   const listRef = useRef<HTMLOListElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const shown = lines.filter((l) => !muted.has(l.playerId));
   const hidden = lines.length - shown.length;
   // The suggestions are a way to start talking: once you've said something they fold away behind a
@@ -62,6 +63,8 @@ export function ChatPanel({
     if (!t) return;
     send({ type: "chat", text: t.slice(0, CHAT_MAX_CHARS) });
     setText("");
+    // Keep typing: on a phone, losing focus would drop the keyboard after every message
+    inputRef.current?.focus({ preventScroll: true });
   };
 
   return (
@@ -115,6 +118,7 @@ export function ChatPanel({
       ) : (
         <form onSubmit={submit} className="flex gap-2 border-t border-cream/10 p-2">
           <input
+            ref={inputRef}
             aria-label="Message"
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -126,7 +130,14 @@ export function ChatPanel({
             // 16px on phones: iOS zooms the page into any smaller text field you tap
             className="min-w-0 flex-1 rounded-full border border-cream/15 bg-ink px-3.5 py-2 text-base outline-none focus:border-hoop sm:py-1.5 sm:text-sm"
           />
-          <button type="submit" disabled={!text.trim()} className="rounded-full bg-hoop px-4 text-sm font-semibold transition hover:bg-hoop-soft disabled:opacity-40">
+          <button
+            type="submit"
+            disabled={!text.trim()}
+            // Pressing Send mustn't take focus from the box: that's what closes a phone's keyboard
+            onMouseDown={(e) => e.preventDefault()}
+            onPointerDown={(e) => e.preventDefault()}
+            className="rounded-full bg-hoop px-4 text-sm font-semibold transition hover:bg-hoop-soft disabled:opacity-40"
+          >
             Send
           </button>
         </form>

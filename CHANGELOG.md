@@ -2,6 +2,11 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Chat: the keyboard stays up after sending
+- Tapping Send moved focus from the message box to the button, which closes a phone's keyboard, so every message
+  meant tapping the box again. Send no longer takes focus (its press is kept from moving it), and the box is
+  focused again after sending. Checked on a phone-sized screen: Send, then type and send again without a tap.
+
 ## Chat: fixed above the iPhone keyboard; the lobby chat is a window too
 - **iPhone keyboard:** typing pushed the chat sheet up and mostly off-screen. On iOS `innerHeight` shrinks with the
   keyboard (it reports the visible area) and Safari scrolls that area into the page; the old clamp assumed neither
