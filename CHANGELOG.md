@@ -2,6 +2,11 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Chat: text visible again
+- After the redesign the lobby page's text turned dark, and the chat window (a dark panel) inherited it: messages,
+  the heading and the text you type were dark on dark. The chat now sets its own light text, caret and placeholder,
+  so it reads the same on any page. Checked with two players: messages and typing are cream on both screens.
+
 ## 3D venues: every court has its surroundings
 - Before, every 3D court sat on the same flat 120 m floor; only the colours changed. Each court now has a place
   round it (`lib/game/venues3d.ts`), laid out from the hoop:

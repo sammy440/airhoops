@@ -68,7 +68,7 @@ export function ChatPanel({
   };
 
   return (
-    <section className={`flex flex-col rounded-2xl border border-cream/10 bg-white/[0.03] ${fill ? "h-full min-h-0" : ""} ${className}`} aria-label="Chat">
+    <section className={`flex flex-col rounded-2xl border border-cream/10 bg-white/[0.03] text-cream ${fill ? "h-full min-h-0" : ""} ${className}`} aria-label="Chat">
       {onClose && (
         <header className="flex items-center justify-between border-b border-cream/10 px-4 py-3">
           <h2 className="display text-xl">Chat</h2>
@@ -128,7 +128,7 @@ export function ChatPanel({
             enterKeyHint="send"
             autoComplete="off"
             // 16px on phones: iOS zooms the page into any smaller text field you tap
-            className="min-w-0 flex-1 rounded-full border border-cream/15 bg-ink px-3.5 py-2 text-base outline-none focus:border-hoop sm:py-1.5 sm:text-sm"
+            className="min-w-0 flex-1 rounded-full border border-cream/15 bg-ink px-3.5 py-2 text-base text-cream caret-hoop outline-none placeholder:text-cream/40 focus:border-hoop sm:py-1.5 sm:text-sm"
           />
           <button
             type="submit"
@@ -136,7 +136,7 @@ export function ChatPanel({
             // Pressing Send mustn't take focus from the box: that's what closes a phone's keyboard
             onMouseDown={(e) => e.preventDefault()}
             onPointerDown={(e) => e.preventDefault()}
-            className="rounded-full bg-hoop px-4 text-sm font-semibold transition hover:bg-hoop-soft disabled:opacity-40"
+            className="rounded-full bg-hoop px-4 text-sm font-semibold text-cream transition hover:bg-hoop-soft disabled:opacity-40"
           >
             Send
           </button>
@@ -246,7 +246,7 @@ export function ChatLauncher({
       {open && (
         // Phone: a sheet from the bottom, full width, like a messaging app. Larger screens: a window by the button.
         <div
-          className={`fixed inset-x-0 bottom-0 z-[37] h-[78dvh] overflow-hidden rounded-t-3xl bg-ink shadow-2xl sm:inset-x-auto sm:w-[26rem] sm:rounded-2xl ${where.panel}`}
+          className={`fixed inset-x-0 bottom-0 z-[37] h-[78dvh] overflow-hidden rounded-t-3xl bg-ink text-cream shadow-2xl sm:inset-x-auto sm:w-[26rem] sm:rounded-2xl ${where.panel}`}
           style={keyboard ?? undefined}
           role="dialog"
           aria-label="Chat"
