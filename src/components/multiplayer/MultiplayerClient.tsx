@@ -27,6 +27,7 @@ import type { ClientMessage, MatchMode, SocketStatus } from "@/lib/net/socket";
 import { shareLink } from "@/lib/share";
 import { LevelChip } from "@/components/ui/Level";
 import { MatchView } from "./MatchView";
+import { ChatPanel } from "./Chat";
 import { ReactionBar, ReactionBursts } from "./Reactions";
 
 const MATCH_MODES: { id: MatchMode; name: string; blurb: string }[] = [
@@ -610,7 +611,8 @@ function RoomView({
   onExit: () => void;
   onFindAnother: (d: QuickMatchDifficulty) => void;
 }) {
-  const { room, you, status, closedReason, rtt, toasts, error, send, leave, match, serverNow, toast, names, reactions } = useRoom(code, guest.token);
+  const { room, you, status, closedReason, rtt, toasts, error, send, leave, match, serverNow, toast, names, reactions, chat, muted, toggleMute } = useRoom(code, guest.token);
+  const opponents = room ? room.players.filter((p) => p.id !== you).map((p) => ({ id: p.id, nickname: p.nickname })) : [];
   const [copied, setCopied] = useState<"code" | "shared" | "link" | null>(null);
   const me = room?.players.find((p) => p.id === you);
   const isHost = room?.host_id === you;
@@ -756,10 +758,23 @@ function RoomView({
 
       {/* Banter while you wait (in a match, the match screen has its own bar) */}
       {room && me && room.players.length > 1 && !(match && (room.phase === "in_progress" || room.phase === "finished")) && (
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <ReactionBar send={send} />
-          <span className="text-xs text-cream/50">Everyone in the room sees these.</span>
-        </div>
+        <>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <ReactionBar send={send} />
+            <span className="text-xs text-cream/50">Everyone in the room sees these.</span>
+          </div>
+          <ChatPanel
+            className="mt-4 max-w-xl"
+            lines={chat}
+            names={names}
+            you={you}
+            opponents={opponents}
+            quickOnly={!!room.quick}
+            muted={muted}
+            onToggleMute={toggleMute}
+            send={send}
+          />
+        </>
       )}
       {!match && <ReactionBursts reactions={reactions} names={names} you={you} className="fixed inset-0 z-30" />}
 
@@ -775,6 +790,9 @@ function RoomView({
           send={send}
           toast={toast}
           reactions={reactions}
+          chat={chat}
+          muted={muted}
+          onToggleMute={toggleMute}
           onLeave={() => {
             leave();
             onExit();

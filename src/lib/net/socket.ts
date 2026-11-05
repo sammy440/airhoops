@@ -23,6 +23,20 @@ export const REACTIONS = [
 ] as const;
 export type ReactionId = (typeof REACTIONS)[number]["id"];
 
+/** Quick chat: ids on the wire (quick-match rooms allow only these); the words are shown here. */
+export const QUICK_CHAT = [
+  { id: "gg", text: "Good game!" },
+  { id: "nice_shot", text: "Nice shot!" },
+  { id: "rematch", text: "Rematch?" },
+  { id: "one_more", text: "One more!" },
+  { id: "good_luck", text: "Good luck!" },
+  { id: "unlucky", text: "Unlucky!" },
+  { id: "wow", text: "Wow!" },
+  { id: "thanks", text: "Thanks!" },
+] as const;
+export type QuickChatId = (typeof QUICK_CHAT)[number]["id"];
+export const CHAT_MAX_CHARS = 200;
+
 export type SocketStatus = "connecting" | "open" | "reconnecting" | "closed";
 
 export type PresenceEvent = "joined" | "left" | "disconnected" | "reconnected";
@@ -121,6 +135,8 @@ export type ServerMessage =
   /** Your XP from the match just finished (only you get yours) */
   | { type: "xp"; gained: number; xp: number; level: number; serverTime: number }
   | { type: "reaction"; playerId: string; reaction: ReactionId; serverTime: number }
+  /** A chat message (free text, cleaned by the server, or a quick-chat id). Relayed, never stored. */
+  | { type: "chat"; playerId: string; text?: string; quick?: QuickChatId; serverTime: number }
   | { type: "letter"; playerId: string; letters: number; word: string; out: boolean; serverTime: number }
   | MatchEnd;
 
@@ -133,6 +149,8 @@ export type ClientMessage =
   | { type: "settings"; mode?: MatchMode; difficulty?: string; raceSeconds?: number; bestOf?: 1 | 3 | 5 }
   | { type: "leave" }
   | { type: "react"; reaction: ReactionId }
+  | { type: "chat"; text: string }
+  | { type: "chat"; quick: QuickChatId }
   /** Only these numbers ever leave the device for a shot (never video). */
   /** `camera`: thrown on camera, so the green rim counts */
   | { type: "throw"; power: number; angle: number; arc: number; aim: number; t: number; camera?: boolean };

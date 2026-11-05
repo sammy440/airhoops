@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Reaction } from "@/hooks/useRoom";
 import { REACTIONS, type ClientMessage, type ReactionId } from "@/lib/net/socket";
+import { typingInField } from "./Chat";
 
 /** The server's limit (4 per 3 s), mirrored so the buttons dim instead of sending what it would drop. */
 const BURST = 4;
@@ -33,7 +34,7 @@ export function ReactionBar({ send, keys = false, className = "" }: { send: (m: 
   useEffect(() => {
     if (!keys) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || typingInField(e)) return;
       const i = Number(e.key) - 1;
       if (i >= 0 && i < REACTIONS.length) react(REACTIONS[i].id);
     };

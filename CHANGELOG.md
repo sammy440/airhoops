@@ -2,6 +2,21 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Room chat (never stored)
+- **Friends' rooms** (joined with a code): free text, up to 200 characters. **Quick match** (strangers): quick chat
+  only, eight preset phrases sent by id ("Good game!", "Nice shot!", "Rematch?"…), like reactions. Quick-chat
+  buttons in friends' rooms too. Lobby: a chat panel under the reactions. Match: a 💬 bubble with an unread
+  count (a new message also toasts), opening a panel over the court and the results.
+- **Never stored, anywhere:** the server checks a message and relays it to the room, nothing else. No database
+  table, no log line (only HTTP request lines are logged; WebSocket messages never are), no history in the room,
+  nothing replayed on reconnect (tested). In the browser it lives in memory only and is cleared on leaving.
+- Server checks (`app/chat.py`): control and zero-width / bidi characters removed, whitespace collapsed, links ->
+  [link], emails -> [hidden], common profanity masked as whole words (f***; "scunthorpe" is safe), 200 characters,
+  5 messages per 10 s ("Slow down a little").
+- **Mute** a player (in memory, for this room): their messages are hidden ("2 messages from muted players hidden").
+- Typing in the chat box never shoots or reacts: Space, arrows and 1–6 are left to the text field.
+- Privacy page: chat entry.
+
 ## How to play page; the lab is dev-only; privacy brought up to date
 - **`/how-to-play`** (nav, footer, home page and start menu link to it): quick start, camera placement with a
   diagram (side view: laptop screen and front camera facing you 2–3 m away; and what the camera should see: you

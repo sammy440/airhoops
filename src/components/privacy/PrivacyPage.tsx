@@ -22,6 +22,7 @@ const ON_SERVER = [
   ["Matches", "Room code, mode, start/end time, winner"],
   ["Throws (multiplayer)", "Power, angle, arc, aim, whether it was thrown on camera (for the green rim) and the result of each shot, so the server can referee"],
   ["Reactions (multiplayer)", "Passed on to the others in your room as they happen. Not stored"],
+  ["Chat (multiplayer)", "Never stored. A message is checked (links and contact details removed, swearing masked), passed on to your room, and forgotten: not saved on our server, not in our logs, not on your device. Leave the room and it's gone. Quick match with strangers is preset quick chat only"],
 ];
 
 export function PrivacyPage() {

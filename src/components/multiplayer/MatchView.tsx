@@ -6,7 +6,7 @@ import type { SkeletonOverlayHandle } from "@/components/lab/SkeletonOverlay";
 import { CameraPip, useCourtInset } from "@/components/play/CameraPip";
 import { Logo } from "@/components/ui/Logo";
 import { ShareCardButton } from "@/components/ui/ShareCardButton";
-import type { MatchState, Reaction } from "@/hooks/useRoom";
+import type { ChatLine, MatchState, Reaction } from "@/hooks/useRoom";
 import { useCourtGestures, type ChargeControls } from "@/hooks/useCourtGestures";
 import { useThrowInput } from "@/hooks/useThrowInput";
 import { DEFAULT_AVATAR, loadProfile, sanitizeAvatar } from "@/lib/game/avatar";
@@ -29,6 +29,7 @@ import type { ResultCardData } from "@/lib/resultCard";
 import { siteUrl } from "@/lib/share";
 import { LevelChip, XpSummary } from "@/components/ui/Level";
 import { useProgress } from "@/hooks/useProgress";
+import { ChatPanel, typingInField } from "./Chat";
 import { ReactionBar, ReactionBursts } from "./Reactions";
 
 const TAP_MS = 180;
@@ -48,6 +49,10 @@ interface Props {
   toast: (text: string, tone?: "info" | "good" | "warn") => void;
   /** Reactions on screen right now (everyone's, yours included) */
   reactions: Reaction[];
+  /** This room's chat (in memory only) and who you've muted */
+  chat: ChatLine[];
+  muted: ReadonlySet<string>;
+  onToggleMute: (id: string) => void;
   onLeave: () => void;
 }
 
@@ -89,7 +94,7 @@ function loadPlayPrefs(): { camera: boolean; sound: boolean; courtTheme: CourtTh
   }
 }
 
-export function MatchView({ room, you, match, names, isHost, serverNow, send, toast, reactions, onLeave }: Props) {
+export function MatchView({ room, you, match, names, isHost, serverNow, send, toast, reactions, chat, muted, onToggleMute, onLeave }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -287,6 +292,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       return true;
     };
     const onDown = (e: KeyboardEvent) => {
+      if (typingInField(e)) return; // typing a chat message: Space and arrows are text
       if (e.code === "ArrowLeft" || e.code === "ArrowRight") {
         e.preventDefault();
         const next = Math.min(MAX_LEAN_AIM, Math.max(-MAX_LEAN_AIM, kbAimRef.current + (e.code === "ArrowRight" ? 1 : -1)));
@@ -516,6 +522,19 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
         The server referees every shot.
       </p>
 
+      {/* Chat: a bubble with an unread count; opens over the court (and the results) */}
+      <MatchChat
+        chat={chat}
+        names={names}
+        you={you}
+        opponents={room.players.filter((p) => p.id !== you).map((p) => ({ id: p.id, nickname: p.nickname }))}
+        quickOnly={!!room.quick}
+        muted={muted}
+        onToggleMute={onToggleMute}
+        send={send}
+        toast={toast}
+      />
+
       {/* Reactions: above the results too, for a "GG" */}
       <ReactionBar send={send} keys className="absolute right-4 bottom-10 z-[35] sm:right-6" />
       <ReactionBursts reactions={reactions} names={names} you={you} />
@@ -676,5 +695,79 @@ function Results({
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Chat during a match. Players stand back from the screen to throw, so it stays a small bubble with an
+ * unread count; a new message also shows as a toast. Opens over the court and the results screen.
+ */
+function MatchChat({
+  chat,
+  names,
+  you,
+  opponents,
+  quickOnly,
+  muted,
+  onToggleMute,
+  send,
+  toast,
+}: {
+  chat: ChatLine[];
+  names: Record<string, string>;
+  you: string;
+  opponents: { id: string; nickname: string }[];
+  quickOnly: boolean;
+  muted: ReadonlySet<string>;
+  onToggleMute: (id: string) => void;
+  send: (m: ClientMessage) => void;
+  toast: (text: string, tone?: "info" | "good" | "warn") => void;
+}) {
+  const lastKey = chat.length ? chat[chat.length - 1].key : 0;
+  const [open, setOpen] = useState(false);
+  // What was said in the lobby counts as read: only new messages toast or show as unread
+  const [seen, setSeen] = useState(lastKey);
+  const unread = open ? 0 : chat.filter((l) => l.key > seen && l.playerId !== you && !muted.has(l.playerId)).length;
+  const toasted = useRef(lastKey);
+  useEffect(() => {
+    if (open) {
+      setSeen(lastKey); // eslint-disable-line react-hooks/set-state-in-effect -- reading the panel marks it all read
+      return;
+    }
+    for (const l of chat) {
+      if (l.key <= toasted.current) continue;
+      toasted.current = l.key;
+      if (l.playerId !== you && !muted.has(l.playerId)) toast(`${names[l.playerId] ?? "Player"}: ${l.text}`, "info");
+    }
+  }, [open, lastKey, chat, you, muted, names, toast]);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={unread ? `Chat, ${unread} unread` : "Chat"}
+        className="glass absolute right-4 bottom-24 z-[35] grid size-11 place-items-center rounded-full text-lg transition hover:bg-white/15 sm:right-6"
+      >
+        💬
+        {unread > 0 && <span className="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-hoop px-1 text-[10px] font-bold">{unread}</span>}
+      </button>
+      {open && (
+        <div className="absolute right-4 bottom-40 z-[37] w-[min(22rem,calc(100vw-2rem))] sm:right-6">
+          <ChatPanel
+            className="bg-ink/95 shadow-2xl backdrop-blur"
+            lines={chat}
+            names={names}
+            you={you}
+            opponents={opponents}
+            quickOnly={quickOnly}
+            muted={muted}
+            onToggleMute={onToggleMute}
+            send={send}
+            autoFocus={!quickOnly}
+          />
+        </div>
+      )}
+    </>
   );
 }

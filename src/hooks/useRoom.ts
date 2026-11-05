@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { awardFromServer } from "@/lib/game/progress";
 import type { RoomState } from "@/lib/net/api";
-import { RoomSocket, SHOT_KIND_NAMES, type ClientMessage, type ReactionId, type MatchEnd, type PlayerScore, type ServerMessage, type ServerShot, type SocketStatus } from "@/lib/net/socket";
+import { QUICK_CHAT, RoomSocket, SHOT_KIND_NAMES, type ClientMessage, type ReactionId, type MatchEnd, type PlayerScore, type ServerMessage, type ServerShot, type SocketStatus } from "@/lib/net/socket";
 
 export type MatchStart = Extract<ServerMessage, { type: "match_start" }>;
 export type Turn = Extract<ServerMessage, { type: "turn" }>;
@@ -35,6 +35,16 @@ export interface Reaction {
 }
 export const REACTION_MS = 2400;
 
+/** A chat message, as shown. Kept in this page's memory only (never saved), the newest CHAT_KEEP at most. */
+export interface ChatLine {
+  key: number;
+  playerId: string;
+  text: string;
+  /** A quick-chat phrase rather than typed text */
+  quick: boolean;
+}
+const CHAT_KEEP = 60;
+
 /** Blips shorter than this (instant reloads, tab restores) don't toast at all. */
 const BLIP_MS = 1500;
 
@@ -49,6 +59,16 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
   const [error, setError] = useState<string | null>(null);
   const [match, setMatch] = useState<MatchState | null>(null);
   const [reactions, setReactions] = useState<Reaction[]>([]);
+  const [chat, setChat] = useState<ChatLine[]>([]);
+  // Players you've muted in this room (in memory: gone when you leave)
+  const [muted, setMuted] = useState<ReadonlySet<string>>(new Set());
+  const toggleMute = useCallback((id: string) => {
+    setMuted((m) => {
+      const next = new Set(m);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  }, []);
   const reactionKey = useRef(0);
   const onShotRef = useRef(opts.onShot);
   useEffect(() => {
@@ -115,6 +135,13 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
           case "xp": {
             const xp = awardFromServer(msg.gained, msg.xp);
             setMatch((m) => (m ? { ...m, xp } : m));
+            break;
+          }
+          case "chat": {
+            const text = msg.quick ? QUICK_CHAT.find((q) => q.id === msg.quick)?.text : msg.text;
+            if (!text) break;
+            const key = ++reactionKey.current;
+            setChat((c) => [...c.slice(-(CHAT_KEEP - 1)), { key, playerId: msg.playerId, text, quick: !!msg.quick }]);
             break;
           }
           case "reaction": {
@@ -185,6 +212,9 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
       socketRef.current = null;
       drops.forEach(clearTimeout);
       drops.clear();
+      // Leaving the room: its chat and mutes go with it (nothing about chat is kept anywhere)
+      setChat([]);
+      setMuted(new Set());
     };
   }, [code, token, toast]);
 
@@ -192,5 +222,5 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
   const serverNow = useCallback(() => socketRef.current?.serverNow() ?? null, []);
   const leave = useCallback(() => socketRef.current?.leave(), []);
 
-  return { room, you, status, closedReason, rtt, toasts, error, send, leave, match, serverNow, toast, names, reactions };
+  return { room, you, status, closedReason, rtt, toasts, error, send, leave, match, serverNow, toast, names, reactions, chat, muted, toggleMute };
 }
