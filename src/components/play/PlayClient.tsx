@@ -3,7 +3,7 @@
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SkeletonOverlayHandle } from "@/components/lab/SkeletonOverlay";
-import { Camera01Icon, CameraOff01Icon, Film01Icon, PauseIcon, RepeatIcon, VolumeHighIcon, VolumeOffIcon } from "@hugeicons/core-free-icons";
+import { Camera01Icon, CameraOff01Icon, Cancel01Icon, Film01Icon, MoreHorizontalIcon, PauseIcon, RepeatIcon, VolumeHighIcon, VolumeOffIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Logo } from "@/components/ui/Logo";
 import { useLighting } from "@/hooks/useLighting";
@@ -848,6 +848,8 @@ export function PlayClient() {
 
   // Drag / swipe to look around the 3D court, wheel / pinch to zoom
   const [looked, setLooked] = useState(false);
+  /** Phones: the HUD controls other than Pause fold behind a "more" button, off the score */
+  const [hudOpen, setHudOpen] = useState(false);
   const onLooked = useCallback(() => setLooked(true), []);
   // Phones hide the hint line, so the first 3D run there shows a one-time tip instead.
   const [lookTip, setLookTip] = useState(false);
@@ -946,7 +948,7 @@ export function PlayClient() {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="relative flex items-center gap-2">
           <div className="glass hidden rounded-2xl px-3 py-1.5 text-right font-mono text-xs tabular-nums sm:block">
             <div>
               {tally.makes}/{tally.shots} · {accuracy}%
@@ -959,18 +961,33 @@ export function PlayClient() {
               <div className="text-cream/50">best streak {tally.best}</div>
             )}
           </div>
-          <HudButton label={prefs.sound ? "Mute" : "Unmute"} on={prefs.sound} onClick={() => set("sound", !prefs.sound)} icon={prefs.sound ? VolumeHighIcon : VolumeOffIcon} />
-          {clipsOn && inRun && (
-            <HudButton label="Save a clip of the last 8 seconds (C)" on onClick={() => void saveClip()} icon={Film01Icon} />
-          )}
-          {looked && prefs.renderer === "3d" && (
-            <HudButton label="Reset view" on onClick={resetView} icon={RepeatIcon} />
-          )}
+          {/* On phones these drop down in a column under the "more" button; from sm up they sit in the row */}
+          <div
+            id="hud-more"
+            className={`${hudOpen ? "flex" : "hidden"} absolute top-full ${inRun ? "right-12" : "right-0"} mt-2 flex-col gap-2 sm:static sm:mt-0 sm:flex sm:flex-row`}
+          >
+            <HudButton label={prefs.sound ? "Mute" : "Unmute"} on={prefs.sound} onClick={() => set("sound", !prefs.sound)} icon={prefs.sound ? VolumeHighIcon : VolumeOffIcon} />
+            {clipsOn && inRun && (
+              <HudButton label="Save a clip of the last 8 seconds (C)" on onClick={() => void saveClip()} icon={Film01Icon} />
+            )}
+            {looked && prefs.renderer === "3d" && (
+              <HudButton label="Reset view" on onClick={resetView} icon={RepeatIcon} />
+            )}
+            <HudButton
+              label={prefs.camera ? "Camera off (keyboard only)" : "Camera on"}
+              on={prefs.camera}
+              onClick={() => set("camera", !prefs.camera)}
+              icon={prefs.camera ? Camera01Icon : CameraOff01Icon}
+            />
+          </div>
           <HudButton
-            label={prefs.camera ? "Camera off (keyboard only)" : "Camera on"}
-            on={prefs.camera}
-            onClick={() => set("camera", !prefs.camera)}
-            icon={prefs.camera ? Camera01Icon : CameraOff01Icon}
+            label={hudOpen ? "Hide controls" : "More controls"}
+            on
+            onClick={() => setHudOpen((o) => !o)}
+            icon={hudOpen ? Cancel01Icon : MoreHorizontalIcon}
+            className="sm:hidden"
+            expanded={hudOpen}
+            controls="hud-more"
           />
           {inRun && (
             <HudButton label="Pause (Esc)" on onClick={() => pause(true)} icon={PauseIcon} />
@@ -1160,14 +1177,32 @@ const RAISE_LABELS: Record<RaiseAction, string> = {
   again: "Play again",
 };
 
-function HudButton({ label, on, onClick, icon }: { label: string; on: boolean; onClick: () => void; icon: IconSvgElement }) {
+function HudButton({
+  label,
+  on,
+  onClick,
+  icon,
+  className = "",
+  expanded,
+  controls,
+}: {
+  label: string;
+  on: boolean;
+  onClick: () => void;
+  icon: IconSvgElement;
+  className?: string;
+  expanded?: boolean;
+  controls?: string;
+}) {
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
+      aria-expanded={expanded}
+      aria-controls={controls}
       onClick={onClick}
-      className={`grid size-10 place-items-center rounded-full border border-white/15 bg-black/35 text-cream backdrop-blur-md transition hover:bg-black/55 ${on ? "" : "opacity-55"}`}
+      className={`grid size-10 place-items-center rounded-full border border-white/15 bg-black/35 text-cream backdrop-blur-md transition hover:bg-black/55 ${on ? "" : "opacity-55"} ${className}`}
     >
       <HugeiconsIcon icon={icon} size={18} strokeWidth={1.8} />
     </button>

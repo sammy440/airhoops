@@ -2,6 +2,12 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Phones: game controls fold away from the score
+- On a phone the five round buttons (sound, clip, reset view, camera, pause) ran across the top and covered the
+  score. Below the `sm` breakpoint only Pause and a "more" button (⋯) show; ⋯ drops the others down in a column
+  under it, and turns into ✕ to fold them away. From `sm` up the row is unchanged. Checked at iPhone size: nothing
+  overlaps the score folded or open, and the folded-out buttons still work.
+
 ## Chat: text visible again
 - After the redesign the lobby page's text turned dark, and the chat window (a dark panel) inherited it: messages,
   the heading and the text you type were dark on dark. The chat now sets its own light text, caret and placeholder,
