@@ -29,6 +29,8 @@ import type { ResultCardData } from "@/lib/resultCard";
 import { siteUrl } from "@/lib/share";
 import { LevelChip, XpSummary } from "@/components/ui/Level";
 import { useProgress } from "@/hooks/useProgress";
+import { Mail01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { ChatPanel, typingInField } from "./Chat";
 import { ReactionBar, ReactionBursts } from "./Reactions";
 
@@ -391,8 +393,10 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
 
   const secsLeft = (until: number | null | undefined) => (now === null || until == null ? null : Math.max(0, Math.ceil(until - now)));
   const countdown = now !== null && now < start.startAt ? Math.ceil(start.startAt - now) : null;
-  const raceLeft = start.mode === "race" ? secsLeft(start.endsAt) : null;
-  const turnLeft = turn ? secsLeft(turn.deadline) : null;
+  // Clocks start when play does: through the countdown the race clock holds at its full length (the server's
+  // end time includes the countdown), and a turn clock holds at its full length until the turn opens.
+  const raceLeft = start.mode === "race" ? (countdown !== null ? (start.raceSeconds ?? null) : secsLeft(start.endsAt)) : null;
+  const turnLeft = turn ? (now === null ? null : Math.max(0, Math.ceil(turn.deadline - Math.max(now, turn.availableAt)))) : null;
   const connected = (id: string) => room.players.find((p) => p.id === id)?.connected ?? false;
 
   let banner: { text: string; sub?: string; tone: string } | null = null;
@@ -747,15 +751,24 @@ function MatchChat({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-label={unread ? `Chat, ${unread} unread` : "Chat"}
-        className="glass absolute right-4 bottom-24 z-[35] grid size-11 place-items-center rounded-full text-lg transition hover:bg-white/15 sm:right-6"
+        className={`absolute right-4 bottom-24 z-[35] grid size-12 place-items-center rounded-full shadow-lg transition sm:right-6 ${open ? "bg-cream text-ink" : "glass text-cream hover:bg-white/15"}`}
       >
-        💬
-        {unread > 0 && <span className="absolute -top-1 -right-1 grid min-w-5 place-items-center rounded-full bg-hoop px-1 text-[10px] font-bold">{unread}</span>}
+        <HugeiconsIcon icon={Mail01Icon} size={22} strokeWidth={1.8} />
+        {unread > 0 && (
+          <span className="absolute -top-1 -right-1 grid h-5 min-w-5 place-items-center rounded-full bg-hoop px-1 text-[11px] font-bold text-cream">{unread}</span>
+        )}
       </button>
       {open && (
-        <div className="absolute right-4 bottom-40 z-[37] w-[min(22rem,calc(100vw-2rem))] sm:right-6">
+        // Phone: a sheet from the bottom, full width, like a messaging app. Larger screens: a tall panel by the bubble.
+        <div
+          className="fixed inset-x-0 bottom-0 z-[37] h-[78dvh] overflow-hidden rounded-t-3xl bg-ink shadow-2xl sm:absolute sm:inset-x-auto sm:right-6 sm:bottom-40 sm:h-[min(30rem,calc(100dvh-21.5rem))] sm:w-[26rem] sm:rounded-2xl"
+          role="dialog"
+          aria-label="Chat"
+        >
           <ChatPanel
-            className="bg-ink/95 shadow-2xl backdrop-blur"
+            fill
+            onClose={() => setOpen(false)}
+            className="rounded-[inherit] border-cream/15"
             lines={chat}
             names={names}
             you={you}

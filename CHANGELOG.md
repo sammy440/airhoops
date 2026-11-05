@@ -2,6 +2,22 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Chat window: bigger, a phone sheet, a real icon
+- Match chat opens a taller panel (26 rem wide, up to 30 rem tall, sized to stay clear of the scoreboard) with a
+  header and close button; messages fill the space and the input sits at the bottom. On a phone it's a sheet from
+  the bottom, full width (78 % of the screen), like a messaging app; nothing overflows.
+- The quick-chat suggestions are for starting a conversation: once you've sent a message (typed or quick) they're
+  hidden. Quick match keeps them, as it's quick chat only there.
+- The 💬 bubble is a mail icon; it turns light while the chat is open; the unread badge stays.
+- The panel is opaque (the court no longer shows through behind the messages).
+
+## Fix: match clocks counted down during the countdown
+- A race's end time from the server includes the 3 s countdown, and the match screen showed the time to it, so a
+  60 s race read 1:03, 1:02, 1:01 while the countdown ran. The race clock now holds at the full length through the
+  countdown and starts at "GO" (checked: 0:30 through 3-2-1, then 0:29, 0:28…). A turn clock (shootout,
+  H-O-R-S-E) likewise holds at its full length until the turn opens. Solo timed and daily runs already started
+  their clock at "GO" (checked).
+
 ## Room chat (never stored)
 - **Friends' rooms** (joined with a code): free text, up to 200 characters. **Quick match** (strangers): quick chat
   only, eight preset phrases sent by id ("Good game!", "Nice shot!", "Rematch?"…), like reactions. Quick-chat

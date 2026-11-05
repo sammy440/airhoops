@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ChatLine } from "@/hooks/useRoom";
+import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { CHAT_MAX_CHARS, QUICK_CHAT, type ClientMessage } from "@/lib/net/socket";
 
 /**
@@ -18,6 +20,8 @@ export function ChatPanel({
   onToggleMute,
   send,
   autoFocus = false,
+  fill = false,
+  onClose,
   className = "",
 }: {
   lines: ChatLine[];
@@ -30,12 +34,20 @@ export function ChatPanel({
   onToggleMute: (id: string) => void;
   send: (m: ClientMessage) => void;
   autoFocus?: boolean;
+  /** Fill the height it's given (a sheet or popover), messages scrolling between header and input */
+  fill?: boolean;
+  /** Shows a header with a close button */
+  onClose?: () => void;
   className?: string;
 }) {
   const [text, setText] = useState("");
   const listRef = useRef<HTMLOListElement>(null);
   const shown = lines.filter((l) => !muted.has(l.playerId));
   const hidden = lines.length - shown.length;
+  // The suggestions are a way to start talking: once you've said something they get out of the way.
+  // (Quick match is quick chat only, so there they stay.)
+  const spoke = lines.some((l) => l.playerId === you);
+  const showQuick = quickOnly || !spoke;
 
   // Keep the newest message in view
   useEffect(() => {
@@ -52,8 +64,20 @@ export function ChatPanel({
   };
 
   return (
-    <section className={`flex flex-col rounded-2xl border border-cream/10 bg-white/[0.03] ${className}`} aria-label="Chat">
-      <ol ref={listRef} className="max-h-56 min-h-24 flex-1 space-y-1.5 overflow-y-auto overscroll-contain p-3 text-sm" aria-live="polite">
+    <section className={`flex flex-col rounded-2xl border border-cream/10 bg-white/[0.03] ${fill ? "h-full min-h-0" : ""} ${className}`} aria-label="Chat">
+      {onClose && (
+        <header className="flex items-center justify-between border-b border-cream/10 px-4 py-3">
+          <h2 className="display text-xl">Chat</h2>
+          <button type="button" onClick={onClose} aria-label="Close chat" className="grid size-8 place-items-center rounded-full text-cream/70 transition hover:bg-white/10 hover:text-cream">
+            <HugeiconsIcon icon={Cancel01Icon} size={18} strokeWidth={2} />
+          </button>
+        </header>
+      )}
+      <ol
+        ref={listRef}
+        className={`space-y-2 overflow-y-auto overscroll-contain p-3 text-sm ${fill ? "min-h-0 flex-1" : "max-h-80 min-h-32"}`}
+        aria-live="polite"
+      >
         {shown.length === 0 && <li className="py-6 text-center text-xs text-cream/45">{quickOnly ? "Say hi with a quick message." : "Say hi. Messages aren't saved."}</li>}
         {shown.map((l) => (
           <li key={l.key} className={l.playerId === you ? "text-right" : ""}>
@@ -66,21 +90,23 @@ export function ChatPanel({
         {hidden > 0 && <li className="text-center text-[11px] text-cream/40">{hidden} message{hidden > 1 ? "s" : ""} from muted players hidden</li>}
       </ol>
 
-      <div className="flex flex-wrap gap-1.5 border-t border-cream/10 p-2" role="group" aria-label="Quick chat">
-        {QUICK_CHAT.map((q) => (
-          <button
-            key={q.id}
-            type="button"
-            onClick={(e) => {
-              send({ type: "chat", quick: q.id });
-              e.currentTarget.blur(); // Space goes back to shooting
-            }}
-            className="rounded-full border border-cream/15 px-2.5 py-1 text-xs text-cream/85 transition hover:border-cream/40 hover:text-cream"
-          >
-            {q.text}
-          </button>
-        ))}
-      </div>
+      {showQuick && (
+        <div className="flex flex-wrap gap-1.5 border-t border-cream/10 p-2" role="group" aria-label="Quick chat">
+          {QUICK_CHAT.map((q) => (
+            <button
+              key={q.id}
+              type="button"
+              onClick={(e) => {
+                send({ type: "chat", quick: q.id });
+                e.currentTarget.blur(); // Space goes back to shooting
+              }}
+              className="rounded-full border border-cream/15 px-2.5 py-1 text-xs text-cream/85 transition hover:border-cream/40 hover:text-cream"
+            >
+              {q.text}
+            </button>
+          ))}
+        </div>
+      )}
 
       {quickOnly ? (
         <p className="border-t border-cream/10 px-3 py-2 text-[11px] text-cream/50">Quick match is quick chat only. Play with friends by room code to type.</p>
