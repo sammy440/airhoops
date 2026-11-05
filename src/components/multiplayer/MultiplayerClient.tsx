@@ -27,7 +27,7 @@ import type { ClientMessage, MatchMode, SocketStatus } from "@/lib/net/socket";
 import { shareLink } from "@/lib/share";
 import { LevelChip } from "@/components/ui/Level";
 import { MatchView } from "./MatchView";
-import { ChatPanel } from "./Chat";
+import { ChatLauncher } from "./Chat";
 import { ReactionBar, ReactionBursts } from "./Reactions";
 
 const MATCH_MODES: { id: MatchMode; name: string; blurb: string }[] = [
@@ -763,17 +763,20 @@ function RoomView({
             <ReactionBar send={send} />
             <span className="text-xs text-cream/50">Everyone in the room sees these.</span>
           </div>
-          <ChatPanel
-            className="mt-4 max-w-xl"
-            lines={chat}
-            names={names}
-            you={you}
-            opponents={opponents}
-            quickOnly={!!room.quick}
-            muted={muted}
-            onToggleMute={toggleMute}
-            send={send}
-          />
+          {you && (
+            <ChatLauncher
+              placement="lobby"
+              chat={chat}
+              names={names}
+              you={you}
+              opponents={opponents}
+              quickOnly={!!room.quick}
+              muted={muted}
+              onToggleMute={toggleMute}
+              send={send}
+              toast={toast}
+            />
+          )}
         </>
       )}
       {!match && <ReactionBursts reactions={reactions} names={names} you={you} className="fixed inset-0 z-30" />}
@@ -925,7 +928,8 @@ function ConnectionPill({ status, rtt }: { status: SocketStatus; rtt: number | n
 
 function Toasts({ toasts }: { toasts: Toast[] }) {
   return (
-    <div className="pointer-events-none fixed right-4 bottom-4 z-[60] flex flex-col gap-2" aria-live="polite">
+    // Bottom centre: the right corner has the chat button (and, in a match, the reactions)
+    <div className="pointer-events-none fixed inset-x-4 bottom-4 z-[60] flex flex-col items-center gap-2" aria-live="polite">
       {toasts.map((t) => (
         <div
           key={t.id}

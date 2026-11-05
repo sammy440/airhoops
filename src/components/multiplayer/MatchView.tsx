@@ -29,9 +29,7 @@ import type { ResultCardData } from "@/lib/resultCard";
 import { siteUrl } from "@/lib/share";
 import { LevelChip, XpSummary } from "@/components/ui/Level";
 import { useProgress } from "@/hooks/useProgress";
-import { Mail01Icon } from "@hugeicons/core-free-icons";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { ChatPanel, typingInField } from "./Chat";
+import { ChatLauncher, typingInField } from "./Chat";
 import { ReactionBar, ReactionBursts } from "./Reactions";
 
 const TAP_MS = 180;
@@ -527,7 +525,8 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       </p>
 
       {/* Chat: a bubble with an unread count; opens over the court (and the results) */}
-      <MatchChat
+      <ChatLauncher
+        placement="match"
         chat={chat}
         names={names}
         you={you}
@@ -700,123 +699,4 @@ function Results({
       </div>
     </div>
   );
-}
-
-/**
- * Chat during a match. Players stand back from the screen to throw, so it stays a small bubble with an
- * unread count; a new message also shows as a toast. Opens over the court and the results screen.
- */
-function MatchChat({
-  chat,
-  names,
-  you,
-  opponents,
-  quickOnly,
-  muted,
-  onToggleMute,
-  send,
-  toast,
-}: {
-  chat: ChatLine[];
-  names: Record<string, string>;
-  you: string;
-  opponents: { id: string; nickname: string }[];
-  quickOnly: boolean;
-  muted: ReadonlySet<string>;
-  onToggleMute: (id: string) => void;
-  send: (m: ClientMessage) => void;
-  toast: (text: string, tone?: "info" | "good" | "warn") => void;
-}) {
-  const lastKey = chat.length ? chat[chat.length - 1].key : 0;
-  const [open, setOpen] = useState(false);
-  // Type straight away with a keyboard; on a phone, don't pop the on-screen keyboard just for opening chat
-  const [finePointer] = useState(() => typeof matchMedia === "function" && matchMedia("(pointer: fine)").matches);
-  const sheet = usePhoneSheet(open);
-  // What was said in the lobby counts as read: only new messages toast or show as unread
-  const [seen, setSeen] = useState(lastKey);
-  const unread = open ? 0 : chat.filter((l) => l.key > seen && l.playerId !== you && !muted.has(l.playerId)).length;
-  const toasted = useRef(lastKey);
-  useEffect(() => {
-    if (open) {
-      setSeen(lastKey); // eslint-disable-line react-hooks/set-state-in-effect -- reading the panel marks it all read
-      return;
-    }
-    for (const l of chat) {
-      if (l.key <= toasted.current) continue;
-      toasted.current = l.key;
-      if (l.playerId !== you && !muted.has(l.playerId)) toast(`${names[l.playerId] ?? "Player"}: ${l.text}`, "info");
-    }
-  }, [open, lastKey, chat, you, muted, names, toast]);
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        aria-label={unread ? `Chat, ${unread} unread` : "Chat"}
-        className={`absolute right-4 bottom-24 z-[35] grid size-12 place-items-center rounded-full shadow-lg transition sm:right-6 ${open ? "bg-cream text-ink" : "glass text-cream hover:bg-white/15"}`}
-      >
-        <HugeiconsIcon icon={Mail01Icon} size={22} strokeWidth={1.8} />
-        {unread > 0 && (
-          <span className="absolute -top-1 -right-1 grid h-5 min-w-5 place-items-center rounded-full bg-hoop px-1 text-[11px] font-bold text-cream">{unread}</span>
-        )}
-      </button>
-      {open && (
-        // Phone: a sheet from the bottom, full width, like a messaging app. Larger screens: a tall panel by the bubble.
-        <div
-          className="fixed inset-x-0 bottom-0 z-[37] h-[78dvh] overflow-hidden rounded-t-3xl bg-ink shadow-2xl sm:absolute sm:inset-x-auto sm:right-6 sm:bottom-40 sm:h-[min(30rem,calc(100dvh-21.5rem))] sm:w-[26rem] sm:rounded-2xl"
-          style={sheet ?? undefined}
-          role="dialog"
-          aria-label="Chat"
-        >
-          <ChatPanel
-            fill
-            onClose={() => setOpen(false)}
-            className="rounded-[inherit] border-cream/15"
-            lines={chat}
-            names={names}
-            you={you}
-            opponents={opponents}
-            quickOnly={quickOnly}
-            muted={muted}
-            onToggleMute={onToggleMute}
-            send={send}
-            autoFocus={!quickOnly && finePointer}
-          />
-        </div>
-      )}
-    </>
-  );
-}
-
-/**
- * On a phone the on-screen keyboard covers the bottom of the page without resizing it (iOS), so a sheet
- * pinned to the bottom would slide under it. While the chat is open on a narrow screen, this follows the
- * visible area (the visual viewport) and returns a position that keeps the sheet just above the keyboard,
- * shrinking it if it must. Null on wider screens or with no keyboard in play (the CSS sizes it then).
- */
-function usePhoneSheet(open: boolean): React.CSSProperties | null {
-  const [box, setBox] = useState<{ top: number; height: number } | null>(null);
-  useEffect(() => {
-    const vv = typeof window !== "undefined" ? window.visualViewport : null;
-    if (!open || !vv) return;
-    const update = () => {
-      if (window.innerWidth >= 640) return setBox(null);
-      // The visible area, clamped to the window (a browser mid-change can report oddities)
-      const visible = Math.min(vv.height, window.innerHeight);
-      const bottom = Math.min(vv.offsetTop + visible, window.innerHeight);
-      // The sheet's normal height (78% of the screen), but never taller than what's visible above the keyboard
-      const height = Math.max(160, Math.min(Math.round(window.innerHeight * 0.78), Math.round(visible - 8)));
-      setBox({ top: Math.max(0, Math.round(bottom - height)), height });
-    };
-    update();
-    vv.addEventListener("resize", update);
-    vv.addEventListener("scroll", update);
-    return () => {
-      vv.removeEventListener("resize", update);
-      vv.removeEventListener("scroll", update);
-      setBox(null);
-    };
-  }, [open]);
-  return box && { top: box.top, height: box.height, bottom: "auto" };
 }

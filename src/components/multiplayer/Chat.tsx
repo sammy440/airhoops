@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ChatLine } from "@/hooks/useRoom";
-import { Cancel01Icon } from "@hugeicons/core-free-icons";
+import { Cancel01Icon, Mail01Icon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { CHAT_MAX_CHARS, QUICK_CHAT, type ClientMessage } from "@/lib/net/socket";
 
@@ -155,4 +155,136 @@ export function ChatPanel({
 export function typingInField(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
   return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+}
+
+/** Where the launcher sits: over the match (above the reactions), or in the lobby page's corner. */
+const PLACEMENT = {
+  match: {
+    button: "right-4 bottom-24 sm:right-6",
+    panel: "sm:right-6 sm:bottom-40 sm:h-[min(30rem,calc(100dvh-21.5rem))]",
+  },
+  lobby: {
+    button: "right-4 bottom-5 sm:right-8 sm:bottom-8",
+    panel: "sm:right-8 sm:bottom-24 sm:h-[min(32rem,calc(100dvh-9rem))]",
+  },
+};
+
+/**
+ * The chat button and its window. A mail button (with an unread count; a new message also toasts while
+ * it's closed) opens a right-aligned chat window on larger screens, or a sheet from the bottom on a phone,
+ * which fills the visible area above the keyboard while you type.
+ */
+export function ChatLauncher({
+  placement,
+  chat,
+  names,
+  you,
+  opponents,
+  quickOnly,
+  muted,
+  onToggleMute,
+  send,
+  toast,
+}: {
+  placement: keyof typeof PLACEMENT;
+  chat: ChatLine[];
+  names: Record<string, string>;
+  you: string;
+  opponents: { id: string; nickname: string }[];
+  quickOnly: boolean;
+  muted: ReadonlySet<string>;
+  onToggleMute: (id: string) => void;
+  send: (m: ClientMessage) => void;
+  toast: (text: string, tone?: "info" | "good" | "warn") => void;
+}) {
+  const where = PLACEMENT[placement];
+  const lastKey = chat.length ? chat[chat.length - 1].key : 0;
+  const [open, setOpen] = useState(false);
+  // Type straight away with a keyboard; on a phone, don't pop the on-screen keyboard just for opening chat
+  const [finePointer] = useState(() => typeof matchMedia === "function" && matchMedia("(pointer: fine)").matches);
+  const keyboard = useKeyboardFit(open);
+  // What was already said counts as read when this mounts: only new messages toast or show as unread
+  const [seen, setSeen] = useState(lastKey);
+  const unread = open ? 0 : chat.filter((l) => l.key > seen && l.playerId !== you && !muted.has(l.playerId)).length;
+  const toasted = useRef(lastKey);
+  useEffect(() => {
+    if (open) {
+      setSeen(lastKey); // eslint-disable-line react-hooks/set-state-in-effect -- reading the panel marks it all read
+      return;
+    }
+    for (const l of chat) {
+      if (l.key <= toasted.current) continue;
+      toasted.current = l.key;
+      if (l.playerId !== you && !muted.has(l.playerId)) toast(`${names[l.playerId] ?? "Player"}: ${l.text}`, "info");
+    }
+  }, [open, lastKey, chat, you, muted, names, toast]);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={unread ? `Chat, ${unread} unread` : "Chat"}
+        className={`fixed z-[35] grid size-12 place-items-center rounded-full shadow-lg transition ${where.button} ${open ? "bg-cream text-ink" : "glass text-cream hover:bg-white/15"}`}
+      >
+        <HugeiconsIcon icon={Mail01Icon} size={22} strokeWidth={1.8} />
+        {unread > 0 && (
+          <span className="absolute -top-1 -right-1 grid h-5 min-w-5 place-items-center rounded-full bg-hoop px-1 text-[11px] font-bold text-cream">{unread}</span>
+        )}
+      </button>
+      {open && (
+        // Phone: a sheet from the bottom, full width, like a messaging app. Larger screens: a window by the button.
+        <div
+          className={`fixed inset-x-0 bottom-0 z-[37] h-[78dvh] overflow-hidden rounded-t-3xl bg-ink shadow-2xl sm:inset-x-auto sm:w-[26rem] sm:rounded-2xl ${where.panel}`}
+          style={keyboard ?? undefined}
+          role="dialog"
+          aria-label="Chat"
+        >
+          <ChatPanel
+            fill
+            onClose={() => setOpen(false)}
+            className="rounded-[inherit] border-cream/15"
+            lines={chat}
+            names={names}
+            you={you}
+            opponents={opponents}
+            quickOnly={quickOnly}
+            muted={muted}
+            onToggleMute={onToggleMute}
+            send={send}
+            autoFocus={!quickOnly && finePointer}
+          />
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * Phones: while the on-screen keyboard is up, the chat fills exactly what's visible above it, like a
+ * messaging app. The keyboard doesn't resize the page (it overlays it, and iOS scrolls the visible area
+ * instead), so this follows the visual viewport: its height, and its offset into the page, which fixed
+ * elements need added back. Keyboard up = the visible area is well short of the page's own height
+ * (documentElement.clientHeight, which the keyboard doesn't change; window.innerHeight does on iOS).
+ * Null otherwise: the CSS sizes the sheet.
+ */
+function useKeyboardFit(open: boolean): React.CSSProperties | null {
+  const [fit, setFit] = useState<{ offset: number; height: number } | null>(null);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!open || !vv) return;
+    const update = () => {
+      const keyboardUp = window.innerWidth < 640 && document.documentElement.clientHeight - vv.height > 120;
+      setFit(keyboardUp ? { offset: Math.round(vv.offsetTop), height: Math.round(vv.height) } : null);
+    };
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+      setFit(null);
+    };
+  }, [open]);
+  return fit && { top: 0, bottom: "auto", height: fit.height, transform: `translateY(${fit.offset}px)`, borderRadius: 0 };
 }

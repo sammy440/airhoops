@@ -2,6 +2,17 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Chat: fixed above the iPhone keyboard; the lobby chat is a window too
+- **iPhone keyboard:** typing pushed the chat sheet up and mostly off-screen. On iOS `innerHeight` shrinks with the
+  keyboard (it reports the visible area) and Safari scrolls that area into the page; the old clamp assumed neither
+  and dropped the scroll offset. Now, while the keyboard is up, the chat fills exactly the visible area above it
+  (the visual viewport's height, moved down by its offset into the page), like a messaging app; the keyboard is
+  detected against `documentElement.clientHeight`, which it doesn't change. (Tested with an iOS-style keyboard:
+  330 px plus a 200 px scroll; the sheet covered exactly the visible area, input included.)
+- **Lobby chat is a launcher like the match's:** a mail button bottom-right opens a right-aligned window
+  (26 rem wide, up to 32 rem tall) or, on a phone, the bottom sheet. One `ChatLauncher` serves both screens.
+- Toasts moved to the bottom centre, so they never cover the chat button (or a match's reactions).
+
 ## Chat on phones: no zoom, stays above the keyboard; suggestions fold away
 - **No zoom on tap:** the message box is 16 px on phones (iOS zooms the page into any smaller text field you tap,
   which threw the layout off). Pinch-zoom stays available everywhere (not disabled site-wide).
