@@ -14,7 +14,7 @@ interface Props {
 export function Photo({ photo, className = "", imgClassName = "", sizes = "33vw", decorative }: Props) {
   const p = PHOTOS[photo];
   return (
-    <div className={`relative overflow-hidden ${className}`}>
+    <div className={`${/\b(absolute|fixed)\b/.test(className) ? "" : "relative "}overflow-hidden ${className}`}>
       <Image
         src={p.src}
         alt={decorative ? "" : p.alt}

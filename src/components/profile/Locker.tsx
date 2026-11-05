@@ -13,12 +13,12 @@ export function Locker() {
   if (!progress) return null;
   const { level, chosen } = progress;
   return (
-    <section id="locker" className="scroll-mt-6 rounded-3xl border border-cream/10 bg-white/[0.03] p-5 sm:p-6">
+    <section id="locker" className="scroll-mt-6 rounded-3xl border border-ink/10 bg-card p-5 sm:p-6">
       <h2 className="display mb-1 text-2xl">Locker</h2>
-      <p className="mb-4 text-xs text-cream/55">Level up by playing: every shot, make, streak, finished run and match earns XP.</p>
+      <p className="mb-4 text-xs text-ink/55">Level up by playing: every shot, make, streak, finished run and match earns XP.</p>
       <XpBar xp={progress.xp} />
 
-      <div className="mt-5 mb-2 text-xs font-semibold tracking-[0.14em] text-cream/55 uppercase">Ball</div>
+      <div className="mt-5 mb-2 text-xs font-semibold text-ink/55">Ball</div>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-6" role="radiogroup" aria-label="Ball">
         {BALL_SKINS.map((s) => (
           <Item key={s.id} name={s.name} unlockAt={s.level} level={level} on={chosen.ball === s.id} onPick={() => setLoadout({ ...chosen, ball: s.id })}>
@@ -27,7 +27,7 @@ export function Locker() {
         ))}
       </div>
 
-      <div className="mt-5 mb-2 text-xs font-semibold tracking-[0.14em] text-cream/55 uppercase">Fire trail</div>
+      <div className="mt-5 mb-2 text-xs font-semibold text-ink/55">Fire trail</div>
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-5" role="radiogroup" aria-label="Fire trail">
         {TRAILS.map((t) => (
           <Item key={t.id} name={t.name} unlockAt={t.level} level={level} on={chosen.trail === t.id} onPick={() => setLoadout({ ...chosen, trail: t.id })}>
@@ -50,11 +50,11 @@ function Item({ name, unlockAt, level, on, onPick, children }: { name: string; u
       disabled={locked}
       onClick={onPick}
       title={locked ? `${name}: unlocks at level ${unlockAt}` : name}
-      className={`flex flex-col items-center gap-1.5 rounded-xl border p-2.5 text-xs transition ${on && !locked ? "border-hoop bg-hoop/15" : "border-cream/10 hover:border-cream/30"} disabled:cursor-not-allowed disabled:hover:border-cream/10`}
+      className={`flex flex-col items-center gap-1.5 rounded-xl border p-2.5 text-xs transition ${on && !locked ? "border-ink bg-card ring-1 ring-ink" : "border-ink/10 hover:border-ink/30"} disabled:cursor-not-allowed disabled:hover:border-ink/10`}
     >
       <span className={locked ? "opacity-30 grayscale" : ""}>{children}</span>
-      <span className={`font-semibold ${locked ? "text-cream/45" : ""}`}>{name}</span>
-      {locked && <span className="font-mono text-[10px] text-sun">🔒 Lv {unlockAt}</span>}
+      <span className={`font-semibold ${locked ? "text-ink/45" : ""}`}>{name}</span>
+      {locked && <span className="font-mono text-[10px] text-hoop">🔒 Lv {unlockAt}</span>}
     </button>
   );
 }

@@ -214,20 +214,19 @@ export function MultiplayerClient() {
   };
 
   return (
-    <div className="min-h-screen flex-1 bg-ink text-cream">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(60%_50%_at_70%_0%,rgba(234,58,29,.18),transparent_70%)]" />
-      <SiteNav tone="light" />
+    <div className="min-h-screen flex-1 bg-paper text-ink">
+      <SiteNav />
       <main id="main" className="relative mx-auto max-w-5xl px-5 pb-16 sm:px-8">
-        <p className="mt-4 flex items-center gap-2 text-xs font-medium text-cream/70">
-          <span className="size-1.5 rounded-full bg-hoop" /> Multiplayer
+        <p className="mt-4 flex items-center gap-2 text-xs font-medium text-ink/70">
+          <span className="size-1.5 rounded-full bg-ink text-cream" /> Multiplayer
         </p>
-        <h1 className="display mt-3 text-6xl text-hoop sm:text-7xl">Play with friends/</h1>
+        <h1 className="display mt-3 text-5xl sm:text-7xl">Play with friends</h1>
 
         {error && <p className="mt-6 rounded-xl bg-bad/15 px-4 py-3 text-sm text-bad">{error}</p>}
 
         <div className="mt-8">
           {!hydrated ? (
-            <p className="text-sm text-cream/60">Loading…</p>
+            <p className="text-sm text-ink/60">Loading…</p>
           ) : !guest ? (
             <NicknameForm busy={busy} invite={invite} onSubmit={signIn} onGoogle={setGuest} />
           ) : code ? (
@@ -278,7 +277,7 @@ function NicknameForm({
   const host = invite?.players.find((p) => p.host);
   return (
     <form
-      className="max-w-md rounded-3xl border border-cream/10 bg-white/[0.03] p-6"
+      className="max-w-md rounded-3xl border border-ink/10 bg-card p-6"
       onSubmit={(e) => {
         e.preventDefault();
         onSubmit(name);
@@ -286,26 +285,26 @@ function NicknameForm({
     >
       {invite && (
         <div className="mb-5 rounded-2xl border border-hoop/40 bg-hoop/10 p-4">
-          <p className="text-xs tracking-[0.16em] text-hoop uppercase">You&apos;re invited</p>
+          <p className="text-xs text-hoop">You&apos;re invited</p>
           <p className="mt-1 font-semibold">
             {host ? `${host.nickname}'s room` : "Room"} <span className="font-mono">{invite.code}</span>
           </p>
-          <p className="text-sm text-cream/65">
+          <p className="text-sm text-ink/65">
             {modeLabel(invite.mode, invite.race_seconds)} · {DIFFICULTIES[invite.difficulty as DifficultyId]?.name ?? invite.difficulty}
             {invite.series.best_of > 1 ? ` · ${bestOfLabel(invite.series.best_of)}` : ""} · {invite.players.length}/{invite.max_players} players
           </p>
         </div>
       )}
       <div className="mb-4 flex items-center gap-3">
-        <AvatarCanvas avatar={profile.avatar} crop="bust" className="size-14 rounded-2xl bg-white/5" />
-        <p className="text-sm text-cream/65">
+        <AvatarCanvas avatar={profile.avatar} crop="bust" className="size-14 rounded-2xl bg-card" />
+        <p className="text-sm text-ink/65">
           Friends will see this player.{" "}
           <Link href="/profile" className="font-semibold text-hoop hover:underline">
             Customize
           </Link>
         </p>
       </div>
-      <label htmlFor="nick" className="text-sm text-cream/80">
+      <label htmlFor="nick" className="text-sm text-ink/80">
         Pick a nickname
       </label>
       <input
@@ -315,16 +314,16 @@ function NicknameForm({
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="e.g. Dayo"
-        className="mt-2 w-full rounded-xl border border-cream/15 bg-ink px-4 py-3 text-lg outline-none focus:border-hoop"
+        className="mt-2 w-full rounded-xl border border-ink/15 bg-card px-4 py-3 text-lg outline-none focus:border-hoop"
       />
-      <p className="mt-2 text-xs text-cream/50">No account needed. Your guest pass stays on this device.</p>
-      <button type="submit" disabled={busy || name.trim().length < 2} className="mt-5 w-full rounded-full bg-hoop py-3 font-semibold transition hover:bg-hoop-soft disabled:opacity-40">
+      <p className="mt-2 text-xs text-ink/50">No account needed. Your guest pass stays on this device.</p>
+      <button type="submit" disabled={busy || name.trim().length < 2} className="mt-5 w-full rounded-full bg-ink text-cream py-3 font-semibold transition hover:bg-hoop disabled:opacity-40">
         {busy ? "Creating…" : invite ? "Join the game" : "Continue"}
       </button>
       {GOOGLE_CLIENT_ID && (
         <>
-          <div className="my-5 flex items-center gap-3 text-xs text-cream/40">
-            <span className="h-px flex-1 bg-cream/10" /> or keep your player on every device <span className="h-px flex-1 bg-cream/10" />
+          <div className="my-5 flex items-center gap-3 text-xs text-ink/40">
+            <span className="h-px flex-1 bg-ink/10" /> or keep your player on every device <span className="h-px flex-1 bg-ink/10" />
           </div>
           <GoogleButton onSignedIn={onGoogle} />
         </>
@@ -361,18 +360,18 @@ function Hub({
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="display text-3xl">Quick match</h2>
-            <p className="mt-1 text-sm text-cream/65">No friends online? Play anyone: a 60-second race that starts as soon as you&apos;re paired.</p>
+            <p className="mt-1 text-sm text-ink/65">No friends online? Play anyone: a 60-second race that starts as soon as you&apos;re paired.</p>
           </div>
           <button
             type="button"
             disabled={busy}
             onClick={() => onQuick(quickDifficulty)}
-            className="w-full rounded-full bg-hoop px-8 py-3 font-semibold transition hover:bg-hoop-soft disabled:opacity-40 sm:w-auto"
+            className="w-full rounded-full bg-ink text-cream px-8 py-3 font-semibold transition hover:bg-hoop disabled:opacity-40 sm:w-auto"
           >
             Find a game
           </button>
         </div>
-        <div className="mt-4 flex flex-wrap gap-1 rounded-xl bg-white/5 p-1" role="radiogroup" aria-label="Quick match difficulty">
+        <div className="mt-4 flex flex-wrap gap-1 rounded-xl bg-card p-1" role="radiogroup" aria-label="Quick match difficulty">
           {(["any", ...DIFFICULTY_ORDER] as const).map((d) => (
             <button
               key={d}
@@ -380,7 +379,7 @@ function Hub({
               role="radio"
               aria-checked={quickDifficulty === d}
               onClick={() => setQuickDifficulty(d)}
-              className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition sm:text-sm ${quickDifficulty === d ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
+              className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition sm:text-sm ${quickDifficulty === d ? "bg-ink text-cream" : "text-ink/70 hover:text-ink"}`}
             >
               {d === "any" ? "Any (fastest)" : DIFFICULTIES[d].name}
             </button>
@@ -388,12 +387,12 @@ function Hub({
         </div>
       </section>
 
-      <section className="rounded-3xl border border-cream/10 bg-white/[0.03] p-6">
+      <section className="rounded-3xl border border-ink/10 bg-card p-6">
         <h2 className="display text-3xl">Create a room</h2>
         <div className="mt-2 flex items-center gap-3">
-          <AvatarCanvas avatar={guest.user.avatar} crop="bust" className="size-10 rounded-xl bg-white/5" />
-          <p className="text-sm text-cream/60">
-            Playing as <b className="text-cream">{guest.user.nickname}</b>.{" "}
+          <AvatarCanvas avatar={guest.user.avatar} crop="bust" className="size-10 rounded-xl bg-card" />
+          <p className="text-sm text-ink/60">
+            Playing as <b className="text-ink">{guest.user.nickname}</b>.{" "}
             <Link href="/profile" className="text-hoop hover:underline">
               Edit player
             </Link>
@@ -411,20 +410,20 @@ function Hub({
             setBestOf(v.bestOf);
           }}
         />
-        <button type="button" disabled={busy} onClick={() => onCreate(mode, difficulty, raceSeconds, bestOf)} className="mt-5 w-full rounded-full bg-hoop py-3 font-semibold transition hover:bg-hoop-soft disabled:opacity-40">
+        <button type="button" disabled={busy} onClick={() => onCreate(mode, difficulty, raceSeconds, bestOf)} className="mt-5 w-full rounded-full bg-ink text-cream py-3 font-semibold transition hover:bg-hoop disabled:opacity-40">
           Create room
         </button>
       </section>
 
       <form
-        className="rounded-3xl border border-cream/10 bg-white/[0.03] p-6"
+        className="rounded-3xl border border-ink/10 bg-card p-6"
         onSubmit={(e) => {
           e.preventDefault();
           onJoin(joinCode);
         }}
       >
         <h2 className="display text-3xl">Join with a code</h2>
-        <p className="mt-1 text-sm text-cream/60">Type the host&apos;s 5-letter code, or paste their invite link.</p>
+        <p className="mt-1 text-sm text-ink/60">Type the host&apos;s 5-letter code, or paste their invite link.</p>
         <input
           aria-label="Room code"
           value={joinCode}
@@ -433,9 +432,9 @@ function Hub({
           // No maxLength: it would cut a pasted invite link to "http:" before we can read the code.
           onChange={(e) => setJoinCode(extractRoomCode(e.target.value))}
           placeholder="ABCDE"
-          className="mt-5 w-full rounded-xl border border-cream/15 bg-ink px-4 py-3 text-center font-mono text-3xl tracking-[0.4em] uppercase outline-none focus:border-hoop"
+          className="mt-5 w-full rounded-xl border border-ink/15 bg-card px-4 py-3 text-center font-mono text-3xl tracking-[0.4em] outline-none focus:border-hoop"
         />
-        <button type="submit" disabled={busy || joinCode.length !== ROOM_CODE_LENGTH} className="mt-5 w-full rounded-full border border-cream/20 py-3 font-semibold transition hover:border-cream/50 disabled:opacity-40">
+        <button type="submit" disabled={busy || joinCode.length !== ROOM_CODE_LENGTH} className="mt-5 w-full rounded-full border border-ink/20 py-3 font-semibold transition hover:border-ink/50 disabled:opacity-40">
           Join room
         </button>
       </form>
@@ -463,15 +462,15 @@ function GameSettings({ value, onChange, className = "" }: { value: GameChoice; 
             role="radio"
             aria-checked={value.mode === m.id}
             onClick={() => set({ mode: m.id })}
-            className={`rounded-xl border p-3 text-left transition ${value.mode === m.id ? "border-hoop bg-hoop/15" : "border-cream/10 hover:border-cream/30"}`}
+            className={`rounded-xl border p-3 text-left transition ${value.mode === m.id ? "border-ink bg-card ring-1 ring-ink" : "border-ink/10 hover:border-ink/30"}`}
           >
             <div className="display text-lg">{m.name}</div>
-            <div className="mt-0.5 text-[11px] leading-snug text-cream/60">{m.blurb}</div>
+            <div className="mt-0.5 text-[11px] leading-snug text-ink/60">{m.blurb}</div>
           </button>
         ))}
       </div>
       {value.mode === "race" && (
-        <div className="mt-2 grid grid-cols-4 gap-1 rounded-xl bg-white/5 p-1" role="radiogroup" aria-label="Race length">
+        <div className="mt-2 grid grid-cols-4 gap-1 rounded-xl bg-card p-1" role="radiogroup" aria-label="Race length">
           {RACE_LENGTHS.map((s) => (
             <button
               key={s}
@@ -479,14 +478,14 @@ function GameSettings({ value, onChange, className = "" }: { value: GameChoice; 
               role="radio"
               aria-checked={value.raceSeconds === s}
               onClick={() => set({ raceSeconds: s })}
-              className={`rounded-lg py-1.5 font-mono text-xs font-semibold ${value.raceSeconds === s ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
+              className={`rounded-lg py-1.5 font-mono text-xs font-semibold ${value.raceSeconds === s ? "bg-ink text-cream" : "text-ink/70 hover:text-ink"}`}
             >
               {formatDuration(s)}
             </button>
           ))}
         </div>
       )}
-      <div className="mt-2 grid grid-cols-4 gap-1 rounded-xl bg-white/5 p-1" role="radiogroup" aria-label="Difficulty">
+      <div className="mt-2 grid grid-cols-4 gap-1 rounded-xl bg-card p-1" role="radiogroup" aria-label="Difficulty">
         {DIFFICULTY_ORDER.map((d) => (
           <button
             key={d}
@@ -494,13 +493,13 @@ function GameSettings({ value, onChange, className = "" }: { value: GameChoice; 
             role="radio"
             aria-checked={value.difficulty === d}
             onClick={() => set({ difficulty: d })}
-            className={`rounded-lg py-2 text-xs font-semibold ${value.difficulty === d ? "bg-hoop text-cream" : "text-cream/70 hover:text-cream"}`}
+            className={`rounded-lg py-2 text-xs font-semibold ${value.difficulty === d ? "bg-hoop text-cream" : "text-ink/70 hover:text-ink"}`}
           >
             {DIFFICULTIES[d].name}
           </button>
         ))}
       </div>
-      <div className="mt-2 grid grid-cols-3 gap-1 rounded-xl bg-white/5 p-1" role="radiogroup" aria-label="Series">
+      <div className="mt-2 grid grid-cols-3 gap-1 rounded-xl bg-card p-1" role="radiogroup" aria-label="Series">
         {BEST_OF.map((n) => (
           <button
             key={n}
@@ -508,7 +507,7 @@ function GameSettings({ value, onChange, className = "" }: { value: GameChoice; 
             role="radio"
             aria-checked={value.bestOf === n}
             onClick={() => set({ bestOf: n })}
-            className={`rounded-lg py-2 text-xs font-semibold ${value.bestOf === n ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
+            className={`rounded-lg py-2 text-xs font-semibold ${value.bestOf === n ? "bg-ink text-cream" : "text-ink/70 hover:text-ink"}`}
           >
             {bestOfLabel(n)}
           </button>
@@ -574,26 +573,26 @@ function QuickSearch({
   }, [guest.token, difficulty]);
 
   return (
-    <div className="max-w-md rounded-3xl border border-cream/10 bg-white/[0.03] p-6" aria-live="polite">
+    <div className="max-w-md rounded-3xl border border-ink/10 bg-card p-6" aria-live="polite">
       <div className="flex items-center gap-3">
         <span className="relative flex size-3">
-          <span className="absolute inline-flex size-full animate-ping rounded-full bg-hoop opacity-75 motion-reduce:hidden" />
-          <span className="relative inline-flex size-3 rounded-full bg-hoop" />
+          <span className="absolute inline-flex size-full animate-ping rounded-full bg-ink text-cream opacity-75 motion-reduce:hidden" />
+          <span className="relative inline-flex size-3 rounded-full bg-ink text-cream" />
         </span>
         <h2 className="display text-3xl">Finding a player…</h2>
       </div>
-      <p className="mt-2 text-sm text-cream/70">
+      <p className="mt-2 text-sm text-ink/70">
         {difficulty === "any" ? "Any difficulty" : DIFFICULTIES[difficulty].name} · 60-second race ·{" "}
         <span className="font-mono tabular-nums">
           {Math.floor(waited / 60)}:{String(waited % 60).padStart(2, "0")}
         </span>
       </p>
-      <p className="mt-1 text-xs text-cream/55">
+      <p className="mt-1 text-xs text-ink/55">
         {waiting > 1 ? `${waiting - 1} other ${waiting === 2 ? "player" : "players"} searching` : "You're first in the queue."} Keep this page open.
       </p>
-      {difficulty !== "any" && waited >= 30 && <p className="mt-3 text-xs text-sun">Quiet right now. &ldquo;Any&rdquo; difficulty finds a game faster.</p>}
+      {difficulty !== "any" && waited >= 30 && <p className="mt-3 text-xs text-hoop">Quiet right now. &ldquo;Any&rdquo; difficulty finds a game faster.</p>}
       {error && <p className="mt-3 text-sm text-bad">{error}</p>}
-      <button type="button" onClick={onCancel} className="mt-5 w-full rounded-full border border-cream/20 py-3 font-semibold transition hover:border-cream/50">
+      <button type="button" onClick={onCancel} className="mt-5 w-full rounded-full border border-ink/20 py-3 font-semibold transition hover:border-ink/50">
         Cancel
       </button>
     </div>
@@ -638,10 +637,10 @@ function RoomView({
 
   if (status === "closed" && closedReason) {
     return (
-      <div className="max-w-md rounded-3xl border border-cream/10 bg-white/[0.03] p-6">
+      <div className="max-w-md rounded-3xl border border-ink/10 bg-card p-6">
         <h2 className="display text-3xl">Disconnected</h2>
-        <p className="mt-2 text-sm text-cream/70">{closedReason}.</p>
-        <button type="button" onClick={onExit} className="mt-5 w-full rounded-full bg-hoop py-3 font-semibold hover:bg-hoop-soft">
+        <p className="mt-2 text-sm text-ink/70">{closedReason}.</p>
+        <button type="button" onClick={onExit} className="mt-5 w-full rounded-full bg-ink text-cream py-3 font-semibold hover:bg-hoop">
           Back to multiplayer
         </button>
       </div>
@@ -652,7 +651,7 @@ function RoomView({
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs tracking-[0.16em] text-cream/50 uppercase">Room code</p>
+          <p className="text-xs text-ink/50">Room code</p>
           <div className="mt-1 flex items-center gap-3">
             <button
               type="button"
@@ -663,16 +662,16 @@ function RoomView({
               {code}
             </button>
             <div className="flex flex-col gap-1.5">
-              <button type="button" onClick={invite} className="rounded-full bg-hoop px-3 py-1 text-xs font-semibold hover:bg-hoop-soft">
+              <button type="button" onClick={invite} className="rounded-full bg-ink text-cream px-3 py-1 text-xs font-semibold hover:bg-hoop">
                 {copied === "link" ? "Link copied!" : copied === "shared" ? "Invite sent!" : "Invite friends"}
               </button>
-              <button type="button" onClick={copyCode} className="rounded-full border border-cream/20 px-3 py-1 text-xs hover:border-cream/50">
+              <button type="button" onClick={copyCode} className="rounded-full border border-ink/20 px-3 py-1 text-xs hover:border-ink/50">
                 {copied === "code" ? "Code copied!" : "Copy code"}
               </button>
             </div>
           </div>
           {room && (
-            <p className="mt-2 text-sm text-cream/60">
+            <p className="mt-2 text-sm text-ink/60">
               {modeLabel(room.mode, room.race_seconds)} · {DIFFICULTIES[room.difficulty as DifficultyId]?.name ?? room.difficulty}
               {room.series.best_of > 1 ? ` · ${bestOfLabel(room.series.best_of)}` : ""}
             </p>
@@ -684,14 +683,14 @@ function RoomView({
       {/* Quick match, and the stranger has gone (never connected, or left): offer another instead of a lonely lobby. */}
       {room?.quick && room.players.length < 2 && (room.phase === "lobby" || room.phase === "ready") && (
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sun/30 bg-sun/[0.07] px-4 py-3">
-          <span className="text-sm text-cream/80">Your opponent left. Want another game?</span>
+          <span className="text-sm text-ink/80">Your opponent left. Want another game?</span>
           <button
             type="button"
             onClick={() => {
               leave();
               onFindAnother(room.difficulty as QuickMatchDifficulty);
             }}
-            className="rounded-full bg-hoop px-5 py-2 text-sm font-semibold hover:bg-hoop-soft"
+            className="rounded-full bg-ink text-cream px-5 py-2 text-sm font-semibold hover:bg-hoop"
           >
             Find another player
           </button>
@@ -699,11 +698,11 @@ function RoomView({
       )}
 
       {room && (
-        <div className="mt-6 flex items-center gap-3 rounded-2xl bg-white/[0.04] px-4 py-3">
-          <span className={`rounded-full px-3 py-1 text-xs font-bold tracking-wide uppercase ${room.phase === "ready" ? "bg-good text-ink" : room.phase === "in_progress" ? "bg-hoop" : "bg-white/10"}`}>
+        <div className="mt-6 flex items-center gap-3 rounded-2xl bg-card px-4 py-3">
+          <span className={`rounded-full px-3 py-1 text-xs font-bold tracking-wide ${room.phase === "ready" ? "bg-good text-ink" : room.phase === "in_progress" ? "bg-hoop" : "bg-card"}`}>
             {PHASE_COPY[room.phase].label}
           </span>
-          <span className="text-sm text-cream/70">{PHASE_COPY[room.phase].hint}</span>
+          <span className="text-sm text-ink/70">{PHASE_COPY[room.phase].hint}</span>
         </div>
       )}
 
@@ -723,23 +722,23 @@ function RoomView({
             <button
               type="button"
               onClick={() => send({ type: "ready", ready: !me.ready })}
-              className={`rounded-full px-6 py-3 font-semibold transition ${me.ready ? "bg-good text-ink hover:bg-good/80" : "bg-cream text-ink hover:bg-white"}`}
+              className={`rounded-full px-6 py-3 font-semibold transition ${me.ready ? "bg-good text-ink hover:bg-good/80" : "bg-ink text-cream hover:bg-hoop"}`}
             >
               {me.ready ? "✓ Ready (tap to undo)" : "I'm ready"}
             </button>
           )}
           {isHost && room.phase === "ready" && (
-            <button type="button" onClick={() => send({ type: "start" })} className="rounded-full bg-hoop px-6 py-3 font-semibold hover:bg-hoop-soft">
+            <button type="button" onClick={() => send({ type: "start" })} className="rounded-full bg-ink text-cream px-6 py-3 font-semibold hover:bg-hoop">
               Start match
             </button>
           )}
           {isHost && room.phase === "in_progress" && (
-            <button type="button" onClick={() => send({ type: "end" })} className="rounded-full border border-cream/20 px-6 py-3 font-semibold hover:border-cream/50">
+            <button type="button" onClick={() => send({ type: "end" })} className="rounded-full border border-ink/20 px-6 py-3 font-semibold hover:border-ink/50">
               End match
             </button>
           )}
           {isHost && room.phase === "finished" && (
-            <button type="button" onClick={() => send({ type: "rematch" })} className="rounded-full bg-hoop px-6 py-3 font-semibold hover:bg-hoop-soft">
+            <button type="button" onClick={() => send({ type: "rematch" })} className="rounded-full bg-ink text-cream px-6 py-3 font-semibold hover:bg-hoop">
               Rematch
             </button>
           )}
@@ -749,7 +748,7 @@ function RoomView({
               leave();
               onExit();
             }}
-            className="ml-auto rounded-full px-5 py-3 text-sm text-cream/60 hover:text-bad"
+            className="ml-auto rounded-full px-5 py-3 text-sm text-ink/60 hover:text-bad"
           >
             Leave room
           </button>
@@ -761,7 +760,7 @@ function RoomView({
         <>
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <ReactionBar send={send} />
-            <span className="text-xs text-cream/50">Everyone in the room sees these.</span>
+            <span className="text-xs text-ink/50">Everyone in the room sees these.</span>
           </div>
           {you && (
             <ChatLauncher
@@ -815,21 +814,21 @@ function SeriesBar({ room, you, names }: { room: RoomState; you: string | null; 
   const name = (id: string) => (id === you ? "You" : (room.players.find((p) => p.id === id)?.nickname ?? names[id] ?? "Player"));
   const champ = series.winner;
   return (
-    <div className={`mt-4 rounded-2xl px-4 py-3 ${champ ? "bg-sun/15" : "bg-white/[0.04]"}`} aria-label="Series score">
+    <div className={`mt-4 rounded-2xl px-4 py-3 ${champ ? "bg-sun/15" : "bg-card"}`} aria-label="Series score">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="text-xs font-semibold tracking-[0.14em] text-cream/55 uppercase">
+        <span className="text-xs font-semibold text-ink/55">
           {bestOfLabel(series.best_of)} · first to {need}
           {series.games > 0 && !champ ? ` · game ${series.games + 1}` : ""}
         </span>
-        {champ && <span className="text-sm font-semibold text-sun">🏆 {champ === you ? "You win the series!" : `${name(champ)} wins the series`}</span>}
+        {champ && <span className="text-sm font-semibold text-hoop">🏆 {champ === you ? "You win the series!" : `${name(champ)} wins the series`}</span>}
       </div>
       <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
         {ids.map((id) => (
           <li key={id} className="flex items-center gap-2 text-sm">
-            <span className={id === you ? "font-semibold" : "text-cream/80"}>{name(id)}</span>
+            <span className={id === you ? "font-semibold" : "text-ink/80"}>{name(id)}</span>
             <span className="flex gap-1" aria-label={`${series.wins[id] ?? 0} wins`}>
               {Array.from({ length: need }, (_, i) => (
-                <span key={i} className={`size-2.5 rounded-full ${i < (series.wins[id] ?? 0) ? "bg-hoop" : "bg-cream/15"}`} />
+                <span key={i} className={`size-2.5 rounded-full ${i < (series.wins[id] ?? 0) ? "bg-hoop" : "bg-ink/15"}`} />
               ))}
             </span>
           </li>
@@ -849,7 +848,7 @@ function LobbySettings({ room, send }: { room: RoomState; send: (m: ClientMessag
     bestOf: room.series.best_of,
   };
   return (
-    <div className="mt-4 rounded-2xl border border-cream/10 bg-white/[0.02]">
+    <div className="mt-4 rounded-2xl border border-ink/10 bg-card">
       <button
         type="button"
         aria-expanded={open}
@@ -857,12 +856,12 @@ function LobbySettings({ room, send }: { room: RoomState; send: (m: ClientMessag
         className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold"
       >
         Change game
-        <span className="text-xs font-normal text-cream/55">{open ? "Done" : "Mode, difficulty, series"}</span>
+        <span className="text-xs font-normal text-ink/55">{open ? "Done" : "Mode, difficulty, series"}</span>
       </button>
       {open && (
         <div className="px-4 pb-4">
           <GameSettings value={value} onChange={(v) => send({ type: "settings", ...v })} />
-          <p className="mt-2 text-xs text-cream/50">Changes un-ready everyone and start a fresh series.</p>
+          <p className="mt-2 text-xs text-ink/50">Changes un-ready everyone and start a fresh series.</p>
         </div>
       )}
     </div>
@@ -871,10 +870,10 @@ function LobbySettings({ room, send }: { room: RoomState; send: (m: ClientMessag
 
 function PlayerCard({ player, isYou }: { player: RoomPlayer; isYou: boolean }) {
   return (
-    <div className={`relative rounded-2xl border p-4 transition ${player.connected ? "border-cream/15 bg-white/[0.04]" : "border-dashed border-cream/15 opacity-60"}`}>
+    <div className={`relative rounded-2xl border p-4 transition ${player.connected ? "border-ink/15 bg-card" : "border-dashed border-ink/15 opacity-60"}`}>
       <div className="flex items-center gap-3">
         <span className="relative size-12 shrink-0">
-          <AvatarCanvas avatar={player.avatar} crop="bust" label={`${player.nickname}'s avatar`} className="size-12 rounded-xl bg-white/5" />
+          <AvatarCanvas avatar={player.avatar} crop="bust" label={`${player.nickname}'s avatar`} className="size-12 rounded-xl bg-card" />
           <span
             className={`absolute -right-0.5 -bottom-0.5 size-3.5 rounded-full border-2 border-ink ${player.connected ? "bg-good" : "bg-warn"}`}
             title={player.connected ? "Online" : "Reconnecting"}
@@ -883,9 +882,9 @@ function PlayerCard({ player, isYou }: { player: RoomPlayer; isYou: boolean }) {
         <div className="min-w-0">
           <div className="truncate font-semibold">
             {player.nickname}
-            {isYou && <span className="ml-1 text-xs font-normal text-cream/50">(you)</span>}
+            {isYou && <span className="ml-1 text-xs font-normal text-ink/50">(you)</span>}
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-cream/55">
+          <div className="flex items-center gap-1.5 text-xs text-ink/55">
             {player.level !== undefined && <LevelChip level={player.level} />}
             {player.host ? "👑 Host" : "Player"}
           </div>
@@ -893,7 +892,7 @@ function PlayerCard({ player, isYou }: { player: RoomPlayer; isYou: boolean }) {
       </div>
       <div className="mt-3 flex items-center justify-between text-xs">
         <span className={player.connected ? "text-good" : "text-warn"}>{player.connected ? "Online" : "Reconnecting…"}</span>
-        <span className={`rounded-full px-2 py-0.5 font-semibold ${player.ready ? "bg-good/20 text-good" : "bg-white/10 text-cream/60"}`}>
+        <span className={`rounded-full px-2 py-0.5 font-semibold ${player.ready ? "bg-good/20 text-good" : "bg-card text-ink/60"}`}>
           {player.ready ? "Ready" : "Not ready"}
         </span>
       </div>
@@ -903,7 +902,7 @@ function PlayerCard({ player, isYou }: { player: RoomPlayer; isYou: boolean }) {
 
 function EmptySeat() {
   return (
-    <div className="grid h-full min-h-[116px] place-items-center rounded-2xl border border-dashed border-cream/10 text-sm text-cream/35">
+    <div className="grid h-full min-h-[116px] place-items-center rounded-2xl border border-dashed border-ink/10 text-sm text-ink/35">
       Open seat
     </div>
   );
@@ -933,7 +932,7 @@ function Toasts({ toasts }: { toasts: Toast[] }) {
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`animate-count-pop rounded-xl px-4 py-2 text-sm font-medium shadow-xl ${t.tone === "good" ? "bg-good text-ink" : t.tone === "warn" ? "bg-warn text-ink" : "bg-cream text-ink"}`}
+          className={`animate-count-pop rounded-xl px-4 py-2 text-sm font-medium shadow-xl ${t.tone === "good" ? "bg-good text-ink" : t.tone === "warn" ? "bg-warn text-ink" : "bg-ink text-cream"}`}
         >
           {t.text}
         </div>

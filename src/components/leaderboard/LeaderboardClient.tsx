@@ -101,20 +101,19 @@ export function LeaderboardClient() {
   const customMode = !boards.some((b) => b.modes.includes(mode)) ? mode : null;
 
   return (
-    <div className="min-h-screen flex-1 bg-ink text-cream">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,rgba(246,161,58,.14),transparent_70%)]" />
-      <SiteNav tone="light" />
+    <div className="min-h-screen flex-1 bg-paper text-ink">
+      <SiteNav />
       <main id="main" className="relative mx-auto max-w-5xl px-5 pb-16 sm:px-8">
-        <p className="mt-4 flex items-center gap-2 text-xs font-medium text-cream/70">
-          <span className="size-1.5 rounded-full bg-hoop" /> Leaderboards
+        <p className="mt-4 flex items-center gap-2 text-xs font-medium text-ink/70">
+          <span className="size-1.5 rounded-full bg-ink text-cream" /> Leaderboards
         </p>
-        <h1 className="display mt-3 text-6xl text-hoop sm:text-7xl">Who&apos;s hot/</h1>
+        <h1 className="display mt-3 text-5xl sm:text-7xl">Who&apos;s hot</h1>
 
         {/* Board picker */}
         <div className="mt-8 grid gap-3">
           {boards.map((b) => (
             <div key={b.group} className="flex flex-wrap items-center gap-2" role="group" aria-label={`${b.group} boards`}>
-              <span className="w-24 text-[11px] font-semibold tracking-[0.14em] text-cream/50 uppercase">{b.group}</span>
+              <span className="w-24 text-[11px] font-semibold text-ink/50">{b.group}</span>
               {[
                 ...b.modes,
                 ...(b.group === "Solo" && customMode?.startsWith("timed") ? [customMode] : []),
@@ -125,7 +124,7 @@ export function LeaderboardClient() {
                   type="button"
                   aria-pressed={mode === m}
                   onClick={() => setMode(m)}
-                  className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition ${mode === m ? "border-hoop bg-hoop text-cream" : "border-cream/15 text-cream/75 hover:border-cream/40"}`}
+                  className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition ${mode === m ? "border-hoop bg-hoop text-cream" : "border-ink/15 text-ink/75 hover:border-ink/40"}`}
                 >
                   {m === days[0] ? "Today" : boardName(m)}
                 </button>
@@ -135,7 +134,7 @@ export function LeaderboardClient() {
         </div>
 
         {daily ? (
-          <p className="mt-4 text-sm text-cream/70">
+          <p className="mt-4 text-sm text-ink/70">
             Daily Challenge · {dailyLabel(mode)} · {DIFFICULTIES[rulesForKey(mode)?.difficulty ?? "starter"].name}.
             Same shots for everyone; a new one every midnight (UTC).{" "}
             {mode === days[0] && (
@@ -146,25 +145,25 @@ export function LeaderboardClient() {
           </p>
         ) : (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex rounded-xl bg-white/5 p-1" role="group" aria-label="Period">
+            <div className="flex rounded-xl bg-card p-1" role="group" aria-label="Period">
               {PERIODS.map((p) => (
                 <button
                   key={p.id}
                   type="button"
                   aria-pressed={period === p.id}
                   onClick={() => setPeriod(p.id)}
-                  className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold transition ${period === p.id ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
+                  className={`rounded-lg px-3.5 py-1.5 text-sm font-semibold transition ${period === p.id ? "bg-ink text-cream" : "text-ink/70 hover:text-ink"}`}
                 >
                   {p.label}
                 </button>
               ))}
             </div>
-            <label className="flex items-center gap-2 text-sm text-cream/70">
+            <label className="flex items-center gap-2 text-sm text-ink/70">
               Difficulty
               <select
                 value={difficulty}
                 onChange={(e) => setDifficulty(e.target.value as DifficultyId | "")}
-                className="rounded-lg border border-cream/15 bg-ink px-3 py-1.5 text-cream outline-none focus:border-hoop"
+                className="rounded-lg border border-ink/15 bg-card px-3 py-1.5 text-ink outline-none focus:border-hoop"
               >
                 <option value="">All</option>
                 {DIFFICULTY_ORDER.map((d) => (
@@ -179,19 +178,19 @@ export function LeaderboardClient() {
 
         {/* Personal bests */}
         {me && (
-          <section aria-label="Your personal bests" className="mt-6 grid grid-cols-3 gap-2 rounded-3xl border border-cream/10 bg-white/[0.03] p-4">
+          <section aria-label="Your personal bests" className="mt-6 grid grid-cols-3 gap-2 rounded-3xl border border-ink/10 bg-card p-4">
             {(daily ? PERIODS.filter((p) => p.id === "all") : PERIODS).map((p) => {
               const pb = mine?.[p.id];
               return (
-                <div key={p.id} className={`rounded-2xl px-3 py-2 ${period === p.id && !daily ? "bg-white/[0.06]" : ""}`}>
-                  <div className="text-[10px] font-semibold tracking-[0.14em] text-cream/50 uppercase">Your best · {daily ? dailyLabel(mode) : p.label}</div>
+                <div key={p.id} className={`rounded-2xl px-3 py-2 ${period === p.id && !daily ? "bg-card" : ""}`}>
+                  <div className="text-[10px] font-semibold text-ink/50">Your best · {daily ? dailyLabel(mode) : p.label}</div>
                   {pb ? (
                     <div className="mt-1 flex items-baseline gap-2">
-                      <span className="display text-3xl text-sun">{pb.best}</span>
-                      <span className="text-xs text-cream/60">#{pb.rank}</span>
+                      <span className="display text-3xl text-hoop">{pb.best}</span>
+                      <span className="text-xs text-ink/60">#{pb.rank}</span>
                     </div>
                   ) : (
-                    <div className="mt-1 text-sm text-cream/55">No runs</div>
+                    <div className="mt-1 text-sm text-ink/55">No runs</div>
                   )}
                 </div>
               );
@@ -200,8 +199,8 @@ export function LeaderboardClient() {
         )}
 
         {/* Board */}
-        <section className="mt-6 overflow-hidden rounded-3xl border border-cream/10 bg-white/[0.03]" aria-live="polite" aria-busy={board.kind === "loading"}>
-          <div className="flex items-center justify-between border-b border-cream/10 px-5 py-3 text-xs text-cream/55">
+        <section className="mt-6 overflow-hidden rounded-3xl border border-ink/10 bg-card" aria-live="polite" aria-busy={board.kind === "loading"}>
+          <div className="flex items-center justify-between border-b border-ink/10 px-5 py-3 text-xs text-ink/55">
             <span>
               {daily
                 ? `Daily Challenge · ${dailyLabel(mode)}`
@@ -212,10 +211,10 @@ export function LeaderboardClient() {
           {board.kind === "loading" ? (
             <ol>
               {Array.from({ length: 6 }, (_, i) => (
-                <li key={i} className="flex items-center gap-4 border-b border-cream/5 px-5 py-3 last:border-0">
-                  <span className="h-4 w-6 animate-pulse rounded bg-white/10" />
-                  <span className="size-10 animate-pulse rounded-xl bg-white/10" />
-                  <span className="h-4 w-32 animate-pulse rounded bg-white/10" />
+                <li key={i} className="flex items-center gap-4 border-b border-ink/5 px-5 py-3 last:border-0">
+                  <span className="h-4 w-6 animate-pulse rounded bg-card" />
+                  <span className="size-10 animate-pulse rounded-xl bg-card" />
+                  <span className="h-4 w-32 animate-pulse rounded bg-card" />
                 </li>
               ))}
             </ol>
@@ -224,8 +223,8 @@ export function LeaderboardClient() {
           ) : board.data.length === 0 ? (
             <div className="px-5 py-12 text-center">
               <p className="display text-3xl">No scores yet</p>
-              <p className="mt-1 text-sm text-cream/60">Be the first on this board.</p>
-              <Link href={mode.startsWith("timed") || mode === "streak" || daily ? "/play" : "/multiplayer"} className="mt-4 inline-block rounded-full bg-hoop px-6 py-2.5 text-sm font-semibold hover:bg-hoop-soft">
+              <p className="mt-1 text-sm text-ink/60">Be the first on this board.</p>
+              <Link href={mode.startsWith("timed") || mode === "streak" || daily ? "/play" : "/multiplayer"} className="mt-4 inline-block rounded-full bg-ink text-cream px-6 py-2.5 text-sm font-semibold hover:bg-hoop">
                 {mode.startsWith("timed") || mode === "streak" || daily ? "Play" : "Start a match"}
               </Link>
             </div>
@@ -236,23 +235,23 @@ export function LeaderboardClient() {
                 return (
                   <li
                     key={e.user_id}
-                    className={`flex items-center gap-4 border-b border-cream/5 px-5 py-2.5 last:border-0 ${you ? "bg-hoop/10" : ""}`}
+                    className={`flex items-center gap-4 border-b border-ink/5 px-5 py-2.5 last:border-0 ${you ? "bg-hoop/10" : ""}`}
                     aria-current={you ? "true" : undefined}
                   >
-                    <span className={`w-8 text-center font-mono text-lg font-bold tabular-nums ${e.rank <= 3 ? "text-sun" : "text-cream/50"}`}>
+                    <span className={`w-8 text-center font-mono text-lg font-bold tabular-nums ${e.rank <= 3 ? "text-hoop" : "text-ink/50"}`}>
                       {e.rank <= 3 ? ["🥇", "🥈", "🥉"][e.rank - 1] : e.rank}
                       <span className="sr-only">{e.rank <= 3 ? `Rank ${e.rank}` : ""}</span>
                     </span>
-                    <AvatarCanvas avatar={e.avatar} crop="bust" label={`${e.nickname}'s avatar`} className="size-10 shrink-0 rounded-xl bg-white/5" />
+                    <AvatarCanvas avatar={e.avatar} crop="bust" label={`${e.nickname}'s avatar`} className="size-10 shrink-0 rounded-xl bg-card" />
                     <span className="min-w-0 flex-1 truncate font-semibold">
                       {e.nickname}
-                      {you && <span className="ml-1 text-xs font-normal text-cream/50">(you)</span>}
+                      {you && <span className="ml-1 text-xs font-normal text-ink/50">(you)</span>}
                     </span>
-                    <span className="hidden text-xs text-cream/60 sm:inline">
+                    <span className="hidden text-xs text-ink/60 sm:inline">
                       {e.games} {e.games === 1 ? "run" : "runs"}
                     </span>
                     <span className="w-24 text-right">
-                      <b className="display text-2xl">{e.best}</b> <span className="text-xs text-cream/50">{unit(mode)}</span>
+                      <b className="display text-2xl">{e.best}</b> <span className="text-xs text-ink/50">{unit(mode)}</span>
                     </span>
                   </li>
                 );
@@ -260,7 +259,7 @@ export function LeaderboardClient() {
             </ol>
           )}
         </section>
-        <p className="mt-4 text-xs text-cream/60">
+        <p className="mt-4 text-xs text-ink/60">
           Solo scores are posted from Game Over. Multiplayer boards are refereed by the server. Today = last 24 hours, this week = last 7 days. Daily boards run midnight to midnight (UTC).
         </p>
       </main>

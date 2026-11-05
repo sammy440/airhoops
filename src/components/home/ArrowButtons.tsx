@@ -1,23 +1,13 @@
 "use client";
 
-export function ArrowButtons({ onPrev, onNext }: { onPrev: () => void; onNext: () => void }) {
-  const base = "grid size-9 place-items-center rounded-full transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-hoop";
-  return (
-    <div className="flex items-center gap-2">
-      <button type="button" aria-label="Previous" onClick={onPrev} className={`${base} text-stone hover:text-ink`}>
-        <Chevron dir="left" />
-      </button>
-      <button type="button" aria-label="Next" onClick={onNext} className={`${base} bg-ink text-cream hover:bg-hoop`}>
-        <Chevron dir="right" />
-      </button>
-    </div>
-  );
-}
+import { ArrowLeft02Icon, ArrowRight02Icon } from "@hugeicons/core-free-icons";
+import { IconButton } from "@/components/ui/Pills";
 
-function Chevron({ dir }: { dir: "left" | "right" }) {
+export function ArrowButtons({ onPrev, onNext, className = "" }: { onPrev: () => void; onNext: () => void; className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d={dir === "left" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"} />
-    </svg>
+    <div className={`flex items-center gap-2 ${className}`}>
+      <IconButton icon={ArrowLeft02Icon} label="Previous" onClick={onPrev} size={38} />
+      <IconButton icon={ArrowRight02Icon} label="Next" tone="dark" onClick={onNext} size={38} />
+    </div>
   );
 }

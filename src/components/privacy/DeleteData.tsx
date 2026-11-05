@@ -53,7 +53,7 @@ export function DeleteData() {
       return (
         <div className={`${box} flex flex-wrap items-center justify-between gap-3`}>
           <span>
-            Online as <b className="text-cream">{state.name}</b>
+            Online as <b className="text-ink">{state.name}</b>
           </span>
           <button type="button" onClick={() => setState({ kind: "confirm", name: state.name })} className="rounded-full border border-bad/60 px-4 py-2 font-semibold text-bad hover:bg-bad/10">
             Delete my online data
@@ -65,7 +65,7 @@ export function DeleteData() {
         <div className={`${box} flex flex-wrap items-center justify-between gap-3 border-bad/40`} role="alertdialog" aria-label="Confirm delete">
           <span>Delete {state.name} and all their scores for good?</span>
           <span className="flex gap-2">
-            <button type="button" onClick={() => setState({ kind: "ready", name: state.name })} className="rounded-full border border-cream/20 px-4 py-2 font-semibold">
+            <button type="button" onClick={() => setState({ kind: "ready", name: state.name })} className="rounded-full border border-ink/20 px-4 py-2 font-semibold">
               Cancel
             </button>
             <button type="button" onClick={erase} autoFocus className="rounded-full bg-bad px-4 py-2 font-semibold text-ink">

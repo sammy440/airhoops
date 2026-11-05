@@ -1,10 +1,45 @@
 "use client";
 
+import {
+  Alert02Icon,
+  Basketball01Icon,
+  BookOpen01Icon,
+  Calendar03Icon,
+  Camera01Icon,
+  CameraOff01Icon,
+  Cancel01Icon,
+  ChampionIcon,
+  CubeIcon,
+  DashboardSpeed01Icon,
+  Delete02Icon,
+  Film01Icon,
+  FireIcon,
+  GhostIcon,
+  Home01Icon,
+  KeyboardIcon,
+  Loading03Icon,
+  MinusSignIcon,
+  Add01Icon,
+  PencilEdit02Icon,
+  PlayIcon,
+  RepeatIcon,
+  Settings02Icon,
+  Share08Icon,
+  Layout01Icon,
+  Target02Icon,
+  Tick02Icon,
+  Timer02Icon,
+  VideoReplayIcon,
+  VolumeHighIcon,
+  VolumeOffIcon,
+} from "@hugeicons/core-free-icons";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
 import { CourtPreview } from "@/components/ui/CourtPreview";
 import { XpBar, XpSummary } from "@/components/ui/Level";
+import { ArrowButton, IconButton, IconLink, Tag } from "@/components/ui/Pills";
 import { ShareCardButton } from "@/components/ui/ShareCardButton";
 import type { LightingStatus } from "@/hooks/useLighting";
 import { COURT_THEME_ORDER, COURT_THEMES, type CourtThemeId } from "@/lib/game/courts";
@@ -32,45 +67,113 @@ import { shareFile, siteUrl } from "@/lib/share";
 import { LeaderboardPost } from "./LeaderboardPost";
 import type { FramingIssue } from "@/lib/pose/landmarks";
 
-/* ───────── Shared shell ───────── */
+/* ───────── Shared shells ───────── */
 
-export function Modal({ children, wide, label }: { children: ReactNode; wide?: boolean; label: string }) {
+/** A light card in the middle of the screen, over a dimmed court. */
+export function Modal({ children, label }: { children: ReactNode; label: string }) {
   return (
     <div
-      className="absolute inset-0 z-30 flex flex-col items-center overflow-y-auto overscroll-contain bg-ink/70 p-4 backdrop-blur-sm"
+      className="absolute inset-0 z-30 flex flex-col items-center overflow-y-auto overscroll-contain bg-ink/45 p-3 backdrop-blur-sm"
       role="dialog"
       aria-modal
       aria-label={label}
     >
-      <div className={`my-auto w-full min-w-0 ${wide ? "max-w-2xl" : "max-w-md"} rounded-3xl border border-cream/10 bg-ink/92 p-5 shadow-2xl sm:p-8`}>
-        {children}
+      <div className="my-auto w-full max-w-md min-w-0 rounded-[1.75rem] bg-paper p-5 text-ink shadow-2xl sm:p-7">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * The left drawer: almost the full height of the screen, with its own scroll and a footer that
+ * stays put (the main action is always in reach). The court stays visible on the right.
+ */
+function Drawer({ children, footer, label }: { children: ReactNode; footer: ReactNode; label: string }) {
+  return (
+    <div className="absolute inset-0 z-30 bg-gradient-to-r from-ink/55 via-ink/25 to-transparent" role="dialog" aria-modal aria-label={label}>
+      <div className="animate-drawer-in absolute inset-y-2 left-2 flex w-[calc(100%-1rem)] flex-col overflow-hidden rounded-[1.75rem] bg-paper text-ink shadow-[0_30px_80px_-20px_rgba(0,0,0,.6)] sm:inset-y-3 sm:left-3 sm:w-[30rem]">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-6 sm:px-6 sm:pt-5">{children}</div>
+        <div className="border-t border-rule bg-paper px-4 py-3 sm:px-6 sm:py-4">{footer}</div>
       </div>
     </div>
   );
 }
 
-function Primary({ children, onClick, disabled }: { children: ReactNode; onClick: () => void; disabled?: boolean }) {
+/** A section heading inside a menu: an icon and a word. */
+function Label({ icon, children, aside }: { icon: IconSvgElement; children: ReactNode; aside?: ReactNode }) {
+  return (
+    <div className="mb-2 flex items-center justify-between gap-3">
+      <span className="flex items-center gap-1.5 text-xs font-medium text-ink/60">
+        <HugeiconsIcon icon={icon} size={14} />
+        {children}
+      </span>
+      {aside && <span className="truncate text-[11px] text-stone">{aside}</span>}
+    </div>
+  );
+}
+
+/** An on/off setting shown as an icon tile; the label sits under the icon. */
+function ToggleTile({ icon, offIcon, label, on, onChange }: { icon: IconSvgElement; offIcon?: IconSvgElement; label: string; on: boolean; onChange: (on: boolean) => void }) {
   return (
     <button
       type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="w-full rounded-full bg-hoop py-3 font-semibold text-cream transition hover:bg-hoop-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cream disabled:opacity-40"
+      role="switch"
+      aria-checked={on}
+      onClick={() => onChange(!on)}
+      title={label}
+      className={`relative flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center text-[11px] leading-tight transition ${
+        on ? "bg-ink text-cream" : "bg-card text-ink/60 hover:text-ink"
+      }`}
     >
-      {children}
+      <HugeiconsIcon icon={on ? icon : (offIcon ?? icon)} size={20} strokeWidth={1.8} />
+      <span className="line-clamp-2">{label}</span>
+      <span className={`absolute top-2 right-2 size-1.5 rounded-full ${on ? "bg-good" : "bg-ink/15"}`} aria-hidden />
     </button>
   );
 }
 
-function Secondary({ children, onClick }: { children: ReactNode; onClick: () => void }) {
+/** Segmented control: one choice from a few, the chosen one in black. */
+function Segmented<T extends string>({ value, options, onChange, label }: { value: T; options: { id: T; label: string; icon?: IconSvgElement }[]; onChange: (v: T) => void; label: string }) {
   return (
-    <button type="button" onClick={onClick} className="w-full rounded-full border border-cream/15 py-2.5 text-sm text-cream/85 transition hover:border-cream/40">
-      {children}
-    </button>
+    <div className="grid gap-1 rounded-full bg-card p-1" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }} role="radiogroup" aria-label={label}>
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          role="radio"
+          aria-checked={value === o.id}
+          onClick={() => onChange(o.id)}
+          className={`flex items-center justify-center gap-1.5 rounded-full py-2 text-xs font-medium transition ${value === o.id ? "bg-ink text-cream" : "text-ink/65 hover:text-ink"}`}
+        >
+          {o.icon && <HugeiconsIcon icon={o.icon} size={14} />}
+          {o.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
-const Eyebrow = ({ children }: { children: ReactNode }) => <p className="text-xs tracking-[0.16em] text-hoop uppercase">{children}</p>;
+/** A big round action with a short caption under it (menus with several actions). */
+function RoundAction({ icon, label, onClick, href, tone = "light" }: { icon: IconSvgElement; label: string; onClick?: () => void; href?: string; tone?: "light" | "dark" | "clay" }) {
+  const circle = { light: "bg-card text-ink group-hover:bg-ink group-hover:text-cream", dark: "bg-ink text-cream group-hover:bg-hoop", clay: "bg-hoop text-cream group-hover:bg-hoop-soft" }[tone];
+  const inner = (
+    <>
+      <span className={`grid size-14 place-items-center rounded-full transition ${circle}`}>
+        <HugeiconsIcon icon={icon} size={22} strokeWidth={1.8} />
+      </span>
+      <span className="text-[11px] leading-tight text-ink/65">{label}</span>
+    </>
+  );
+  const cls = "group flex flex-col items-center gap-1.5 text-center";
+  return href ? (
+    <Link href={href} className={cls}>
+      {inner}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} className={cls}>
+      {inner}
+    </button>
+  );
+}
 
 /* ───────── Clip ───────── */
 
@@ -87,24 +190,32 @@ export function ClipDialog({ clip, onClose }: { clip: ClipState; onClose: () => 
   };
   return (
     <Modal label="Your clip">
-      <Eyebrow>Your clip</Eyebrow>
-      <h2 className="display mt-2 text-4xl">The last {CLIP_SECONDS} seconds</h2>
-      <div className="mt-4 grid aspect-video place-items-center overflow-hidden rounded-2xl bg-black">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <Tag>
+            <HugeiconsIcon icon={Film01Icon} size={12} /> Your clip
+          </Tag>
+          <h2 className="display mt-3 text-3xl">The last {CLIP_SECONDS} seconds</h2>
+        </div>
+        <IconButton icon={Cancel01Icon} label="Back to the game" onClick={onClose} />
+      </div>
+      <div className="mt-4 grid aspect-video place-items-center overflow-hidden rounded-2xl bg-ink text-cream">
         {clip.status === "ready" ? (
           <video src={clip.url} autoPlay loop muted playsInline controls className="h-full w-full object-contain" />
         ) : clip.status === "making" ? (
-          <p className="text-sm text-cream/60">Making your clip…</p>
+          <HugeiconsIcon icon={Loading03Icon} size={28} className="animate-spin opacity-60" aria-label="Making your clip" />
         ) : (
           <p className="px-6 text-center text-sm text-cream/60">Nothing recorded yet. Take a few shots first.</p>
         )}
       </div>
-      <p className="mt-2 text-xs text-cream/50">Made on this device. Nothing is uploaded unless you share it. No sound.</p>
-      <div className="mt-5 space-y-2">
-        <Primary onClick={share} disabled={clip.status !== "ready"}>
+      <p className="mt-2 text-xs text-stone">Made on this device. Nothing is uploaded unless you share it. No sound.</p>
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <span className="text-xs text-good" aria-live="polite">
+          {result}
+        </span>
+        <ArrowButton icon={Share08Icon} onClick={share} disabled={clip.status !== "ready"}>
           Share clip
-        </Primary>
-        {result && <p className="text-center text-xs text-good">{result}</p>}
-        <Secondary onClick={onClose}>Back to the game</Secondary>
+        </ArrowButton>
       </div>
     </Modal>
   );
@@ -114,7 +225,7 @@ export function ClipDialog({ clip, onClose }: { clip: ClipState; onClose: () => 
 
 function CourtPicker({ value, onChange }: { value: CourtThemeId; onChange: (t: CourtThemeId) => void }) {
   const rowRef = useRef<HTMLDivElement>(null);
-  // On phones the row scrolls: start with the chosen court in view (without scrolling the page).
+  // The row scrolls: start with the chosen court in view (without scrolling the page).
   useEffect(() => {
     const row = rowRef.current;
     const on = row?.querySelector<HTMLElement>('[aria-checked="true"]');
@@ -123,12 +234,11 @@ function CourtPicker({ value, onChange }: { value: CourtThemeId; onChange: (t: C
     // Only on open: scrolling while someone taps through the row would fight them.
   }, []);
   return (
-    <div className="mt-4">
-      <div className="mb-2 flex items-baseline justify-between gap-3">
-        <span className="text-xs font-semibold tracking-[0.14em] text-cream/55 uppercase">Court</span>
-        <span className="truncate text-xs text-cream/60">{COURT_THEMES[value].blurb}</span>
-      </div>
-      <div ref={rowRef} className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-1" role="radiogroup" aria-label="Court">
+    <div>
+      <Label icon={Basketball01Icon} aside={COURT_THEMES[value].blurb}>
+        Court
+      </Label>
+      <div ref={rowRef} className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 py-1.5 sm:-mx-6 sm:scroll-px-6 sm:px-6" role="radiogroup" aria-label="Court">
         {COURT_THEME_ORDER.map((id) => {
           const on = id === value;
           return (
@@ -137,11 +247,17 @@ function CourtPicker({ value, onChange }: { value: CourtThemeId; onChange: (t: C
               type="button"
               role="radio"
               aria-checked={on}
+              aria-label={COURT_THEMES[id].name}
               onClick={() => onChange(id)}
-              className={`w-28 shrink-0 snap-start overflow-hidden rounded-xl border-2 text-left transition sm:w-auto sm:flex-1 ${on ? "border-hoop" : "border-cream/10 hover:border-cream/30"}`}
+              className={`relative w-28 shrink-0 snap-start overflow-hidden rounded-2xl ring-2 ring-offset-2 ring-offset-paper transition ${on ? "ring-ink" : "ring-transparent hover:ring-ink/25"}`}
             >
-              <CourtPreview theme={id} className="block aspect-[16/10] w-full" />
-              <span className={`block truncate px-2 py-1.5 text-[11px] font-semibold ${on ? "bg-hoop/15 text-cream" : "text-cream/75"}`}>{COURT_THEMES[id].name}</span>
+              <CourtPreview theme={id} className="block aspect-[4/3] w-full" />
+              <span className="absolute inset-x-1 bottom-1 truncate rounded-lg bg-ink/60 px-1.5 py-0.5 text-[10px] text-cream backdrop-blur">{COURT_THEMES[id].name}</span>
+              {on && (
+                <span className="absolute top-1.5 right-1.5 grid size-5 place-items-center rounded-full bg-cream text-ink">
+                  <HugeiconsIcon icon={Tick02Icon} size={12} strokeWidth={2.4} />
+                </span>
+              )}
             </button>
           );
         })}
@@ -150,87 +266,17 @@ function CourtPicker({ value, onChange }: { value: CourtThemeId; onChange: (t: C
   );
 }
 
-/** 3D court or the classic side view (no choice without WebGL: 2D it is). */
-/** Clips: record the last few seconds of play (on this device), and whether you're in them. */
-function ClipSettings({ value, onChange }: { value: { record: boolean; camera: boolean }; onChange: (c: { record: boolean; camera: boolean }) => void }) {
-  // Rendered only after hydration, so probing the browser here is safe.
-  const [supported] = useState(clipsSupported);
-  if (!supported) return null;
-  return (
-    <div className="mt-3 space-y-2 text-xs text-cream/70">
-      <label className="flex cursor-pointer items-center justify-between gap-3">
-        <span>Record clips: save your last {CLIP_SECONDS} seconds any time (C)</span>
-        <input type="checkbox" checked={value.record} onChange={(e) => onChange({ ...value, record: e.target.checked })} className="size-4 accent-hoop" />
-      </label>
-      {value.record && (
-        <label className="flex cursor-pointer items-center justify-between gap-3">
-          <span>Show me (my camera) in clips</span>
-          <input type="checkbox" checked={value.camera} onChange={(e) => onChange({ ...value, camera: e.target.checked })} className="size-4 accent-hoop" />
-        </label>
-      )}
-    </div>
-  );
-}
-
-function ViewPicker({
-  value,
-  onChange,
-  replays,
-  onReplays,
-}: {
-  value: RendererId;
-  onChange: (r: RendererId) => void;
-  replays: boolean;
-  onReplays: (on: boolean) => void;
-}) {
-  // Rendered only after hydration, so probing WebGL here is safe.
-  const [has3d] = useState(webglAvailable);
-  const current = has3d ? value : "2d";
-  return (
-    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-      <span className="text-xs font-semibold tracking-[0.14em] text-cream/55 uppercase">View</span>
-      {has3d ? (
-        <div className="flex rounded-xl bg-white/5 p-1" role="radiogroup" aria-label="View">
-          {(
-            [
-              ["3d", "3D court"],
-              ["2d", "Classic 2D"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              role="radio"
-              aria-checked={current === id}
-              onClick={() => onChange(id)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${current === id ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <span className="text-xs text-cream/60">Classic 2D (this browser has no 3D graphics)</span>
-      )}
-      {current === "3d" && (
-        <label className="flex w-full cursor-pointer items-center justify-between gap-3 text-xs text-cream/70">
-          <span>Instant replays of great makes</span>
-          <input type="checkbox" checked={replays} onChange={(e) => onReplays(e.target.checked)} className="size-4 accent-hoop" />
-        </label>
-      )}
-    </div>
-  );
-}
-
 /* ───────── Start menu ───────── */
 
-const HOW_TO = [
-  ["Step back", "Head, shoulders and hips in the camera."],
-  ["Hold it high", "Both hands up, like the ball is above your head."],
-  ["Pause", "A beat of stillness is your set point. The ball glows yellow."],
-  ["Push up and out", "Your normal push scores once calibrated. Harder = longer."],
-  ["Heat up (optional)", "Dribble at your waist in a steady rhythm, then shoot: a hot hand scores one multiplier tier higher."],
+const HOW_TO: [IconSvgElement, string, string][] = [
+  [Camera01Icon, "Step back", "Head, shoulders and hips in the camera."],
+  [Basketball01Icon, "Hold it high", "Both hands up, like the ball is above your head."],
+  [Target02Icon, "Pause", "A beat of stillness is your set point. The ball glows yellow."],
+  [PlayIcon, "Push up and out", "Your normal push scores once calibrated. Harder = longer."],
+  [FireIcon, "Heat up (optional)", "Dribble at your waist in a steady rhythm, then shoot: a hot hand scores one tier higher."],
 ];
+
+const MODE_ICON: Record<ModeId, IconSvgElement> = { daily: Calendar03Icon, free: Basketball01Icon, timed: Timer02Icon, streak: FireIcon };
 
 export function StartMenu(p: {
   firstTime: boolean;
@@ -261,44 +307,66 @@ export function StartMenu(p: {
 }) {
   const isDaily = p.mode === "daily";
   const d = DIFFICULTIES[isDaily ? p.daily.difficulty : p.difficulty];
-  // Only rendered on the client (after hydration), so localStorage is safe here.
+  // Only rendered on the client (after hydration), so localStorage and browser probes are safe here.
   const [profile] = useState(loadProfile);
+  const [has3d] = useState(webglAvailable);
+  const [clipsOk] = useState(clipsSupported);
+  const view = has3d ? p.renderer : "2d";
+
+  const footer = (
+    <div className="flex items-center gap-3">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">
+          {MODES[p.mode].name}
+          {p.mode === "timed" ? ` · ${formatDuration(p.timedSeconds)}` : ""}
+          {isDaily ? ` · ${formatDuration(p.daily.seconds)}` : ""}
+        </p>
+        <p className="flex items-center gap-1 truncate text-[11px] text-stone">
+          <HugeiconsIcon icon={ChampionIcon} size={12} />
+          {p.best ? (p.mode === "streak" ? `Best ${p.best.streak} in a row` : `Best ${p.best.points} pts`) : `${d.name} · ${d.distance} m`}
+        </p>
+      </div>
+      <ArrowButton icon={PlayIcon} onClick={p.onStart}>
+        Play
+      </ArrowButton>
+    </div>
+  );
+
   return (
-    <Modal wide label="Start menu">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Eyebrow>{p.firstTime ? "How to play" : "Ready when you are"}</Eyebrow>
-          <h1 className="display mt-2 text-4xl sm:text-5xl">Shoot your shot</h1>
-        </div>
-        <Link
-          href="/profile"
-          aria-label={`Edit ${profile.name || "your player"}'s look`}
-          className="group flex shrink-0 items-center gap-2 rounded-2xl border border-cream/10 p-1.5 transition hover:border-cream/30 sm:pr-3"
-        >
-          <AvatarCanvas avatar={profile.avatar} crop="bust" className="size-11 rounded-xl bg-white/5" />
-          <span className="hidden text-left leading-tight sm:block">
-            <span className="block max-w-[9rem] truncate text-sm font-semibold">{profile.name || "Your player"}</span>
-            <span className="text-[11px] text-cream/55 group-hover:text-hoop">Edit look →</span>
+    <Drawer label="Start menu" footer={footer}>
+      <div className="flex items-center gap-3">
+        <Link href="/profile" aria-label={`Edit ${profile.name || "your player"}'s look`} className="group relative shrink-0">
+          <AvatarCanvas avatar={profile.avatar} crop="bust" className="size-12 rounded-full bg-card" />
+          <span className="absolute -right-1 -bottom-1 grid size-5 place-items-center rounded-full bg-ink text-cream transition group-hover:bg-hoop">
+            <HugeiconsIcon icon={PencilEdit02Icon} size={11} />
           </span>
         </Link>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{profile.name || "Your player"}</p>
+          {p.xp !== null ? <XpBar xp={p.xp} className="mt-0.5 text-ink" /> : <p className="text-[11px] text-stone">{p.firstTime ? "How to play" : "Ready when you are"}</p>}
+        </div>
+        <IconLink href="/how-to-play" icon={BookOpen01Icon} label="How to play: camera, light and stance" size={38} />
+        <IconLink href="/" icon={Home01Icon} label="Home" size={38} />
       </div>
 
-      {p.xp !== null && <XpBar xp={p.xp} className="mt-4" />}
+      <h1 className="display mt-6 text-[2.6rem] sm:text-5xl">Shoot your shot</h1>
 
       {p.firstTime && (
-        <ol className="mt-5 grid gap-3 text-sm text-cream/85 sm:grid-cols-2">
-          {HOW_TO.map(([t, desc], i) => (
-            <li key={t} className="flex gap-3">
-              <span className="grid size-6 shrink-0 place-items-center rounded-full bg-hoop text-xs font-bold">{i + 1}</span>
+        <ol className="mt-4 space-y-2">
+          {HOW_TO.map(([icon, t, desc]) => (
+            <li key={t} className="flex gap-3 rounded-2xl bg-card p-3 text-xs leading-relaxed text-ink/70">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-hoop text-cream">
+                <HugeiconsIcon icon={icon} size={15} />
+              </span>
               <span>
-                <b className="text-cream">{t}.</b> {desc}
+                <b className="font-medium text-ink">{t}.</b> {desc}
               </span>
             </li>
           ))}
         </ol>
       )}
 
-      <div className="mt-5 grid grid-cols-2 gap-2 sm:mt-6 sm:grid-cols-4" role="radiogroup" aria-label="Game mode">
+      <div className="mt-6 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Game mode">
         {MODE_ORDER.map((id) => {
           const m = MODES[id];
           const on = id === p.mode;
@@ -309,99 +377,104 @@ export function StartMenu(p: {
               role="radio"
               aria-checked={on}
               onClick={() => p.onMode(id)}
-              className={`rounded-2xl border px-2 py-2.5 text-center transition sm:p-3 sm:text-left ${on ? "border-hoop bg-hoop/15" : "border-cream/10 hover:border-cream/30"}`}
+              className={`relative flex min-h-24 flex-col justify-between rounded-2xl p-3 text-left transition ${on ? "bg-hoop text-cream" : "bg-card hover:bg-white"}`}
             >
-              <div className="display text-base leading-tight whitespace-nowrap min-[360px]:text-lg sm:text-xl">
+              <span className={`grid size-9 place-items-center rounded-full ${on ? "bg-cream text-hoop" : "bg-paper"}`}>
+                <HugeiconsIcon icon={MODE_ICON[id]} size={18} />
+              </span>
+              <span className="mt-3 block text-base leading-tight font-medium">
                 {m.name}
-                {id === "timed" && <span className="hidden sm:inline"> · {formatDuration(p.timedSeconds)}</span>}
-                {id === "daily" && <span className="ml-1.5 align-middle font-sans text-[10px] font-bold tracking-wide text-sun uppercase">{dailyLabel(p.daily.key)}</span>}
-              </div>
-              <div className="mt-1 hidden text-xs leading-snug text-cream/65 sm:block">{m.blurb}</div>
+                {id === "daily" && <span className={`ml-1.5 text-[10px] ${on ? "text-cream/75" : "text-stone"}`}>{dailyLabel(p.daily.key)}</span>}
+              </span>
+              {on && (
+                <span className="absolute top-3 right-3 grid size-5 place-items-center rounded-full bg-cream text-hoop">
+                  <HugeiconsIcon icon={Tick02Icon} size={12} strokeWidth={2.4} />
+                </span>
+              )}
             </button>
           );
         })}
       </div>
-      <p className="mt-2 text-xs text-cream/60 sm:hidden">{MODES[p.mode].blurb}</p>
+      <p className="mt-2 text-xs text-stone">{MODES[p.mode].blurb}</p>
 
-      {p.mode === "timed" && <ShotClockPicker seconds={p.timedSeconds} onChange={p.onTimedSeconds} />}
+      <div className="mt-6 space-y-6">
+        {p.mode === "timed" && <ShotClockPicker seconds={p.timedSeconds} onChange={p.onTimedSeconds} />}
 
-      {isDaily ? (
-        <DailyCard rules={p.daily} />
-      ) : (
-        <div className="mt-4">
-          <div className="grid grid-cols-4 gap-1 rounded-xl bg-white/5 p-1" role="radiogroup" aria-label="Difficulty">
-            {DIFFICULTY_ORDER.map((id) => (
-              <button
-                key={id}
-                type="button"
-                role="radio"
-                aria-checked={id === p.difficulty}
-                onClick={() => p.onDifficulty(id)}
-                className={`rounded-lg py-2 text-xs font-semibold transition sm:text-sm ${id === p.difficulty ? "bg-cream text-ink" : "text-cream/70 hover:text-cream"}`}
-              >
-                {DIFFICULTIES[id].name}
-              </button>
-            ))}
-          </div>
-          <p className="mt-2 text-xs text-cream/60">
-            {d.blurb} · {d.distance} m{d.hoopMotion ? " · moving hoop" : ""}
-            {d.windMax ? ` · wind ±${d.windMax}` : ""}
-            {d.scoreMultiplier > 1 ? ` · ×${d.scoreMultiplier} points` : ""}
-          </p>
-        </div>
-      )}
-
-      {(p.mode === "timed" || isDaily) && (
-        <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 text-xs text-cream/70">
-          <span>Race the ghost of your best run (a see-through ball)</span>
-          <input type="checkbox" checked={p.ghost} onChange={(e) => p.onGhost(e.target.checked)} className="size-4 accent-hoop" />
-        </label>
-      )}
-
-      <CourtPicker value={p.courtTheme} onChange={p.onCourtTheme} />
-      <ViewPicker value={p.renderer} onChange={p.onRenderer} replays={p.replays} onReplays={p.onReplays} />
-      <ClipSettings value={p.clips} onChange={p.onClips} />
-
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/[0.04] px-4 py-3 text-sm">
-        {p.camera ? (
-          p.calibration ? (
-            <span className="text-cream/80">
-              <span className="text-good">●</span> Calibrated: your throw {p.calibration.avg.toFixed(1)} t/s ±{Math.round(consistency(p.calibration) * 100)}%
-            </span>
-          ) : (
-            <span className="text-cream/80">
-              <span className="text-warn">●</span> Not calibrated. 3 practice throws make your normal shot score.
-            </span>
-          )
+        {isDaily ? (
+          <DailyCard rules={p.daily} />
         ) : (
-          <span className="text-cream/70">Keyboard mode: hold Space to shoot.</span>
+          <div>
+            <Label icon={DashboardSpeed01Icon}>Difficulty</Label>
+            <Segmented
+              label="Difficulty"
+              value={p.difficulty}
+              onChange={p.onDifficulty}
+              options={DIFFICULTY_ORDER.map((id) => ({ id, label: DIFFICULTIES[id].name }))}
+            />
+            <p className="mt-2 text-xs text-stone">
+              {d.blurb} · {d.distance} m{d.hoopMotion ? " · moving hoop" : ""}
+              {d.windMax ? ` · wind ±${d.windMax}` : ""}
+              {d.scoreMultiplier > 1 ? ` · ×${d.scoreMultiplier} points` : ""}
+            </p>
+          </div>
         )}
-        {p.camera && (
-          <button type="button" onClick={p.onCalibrate} className="text-xs font-semibold text-hoop-soft underline underline-offset-4">
-            {p.calibration ? "Recalibrate" : "Calibrate now"}
-          </button>
-        )}
-      </div>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
-        <Primary onClick={p.onStart}>
-          Play {MODES[p.mode].name}
-          {p.mode === "timed" ? ` · ${formatDuration(p.timedSeconds)}` : ""}
-          {isDaily ? ` · ${d.name} ${formatDuration(p.daily.seconds)}` : ""}
-        </Primary>
-        {p.best && (
-          <span className="text-center text-xs text-cream/60 sm:text-right">
-            Best: <b className="text-cream">{p.mode === "streak" ? `${p.best.streak} in a row` : `${p.best.points} pts`}</b>
+        <CourtPicker value={p.courtTheme} onChange={p.onCourtTheme} />
+
+        <div>
+          <Label icon={CubeIcon} aside={has3d ? undefined : "This browser has no 3D graphics"}>
+            View
+          </Label>
+          {has3d && (
+            <Segmented
+              label="View"
+              value={view}
+              onChange={p.onRenderer}
+              options={[
+                { id: "3d", label: "3D court", icon: CubeIcon },
+                { id: "2d", label: "Classic 2D", icon: Layout01Icon },
+              ]}
+            />
+          )}
+        </div>
+
+        {/* Extras as icon switches */}
+        <div className="grid grid-cols-4 gap-2">
+          {(p.mode === "timed" || isDaily) && <ToggleTile icon={GhostIcon} label="Race your ghost" on={p.ghost} onChange={p.onGhost} />}
+          {view === "3d" && <ToggleTile icon={VideoReplayIcon} label="Instant replays" on={p.replays} onChange={p.onReplays} />}
+          {clipsOk && <ToggleTile icon={Film01Icon} label={`Record clips (C)`} on={p.clips.record} onChange={(record) => p.onClips({ ...p.clips, record })} />}
+          {clipsOk && p.clips.record && (
+            <ToggleTile icon={Camera01Icon} offIcon={CameraOff01Icon} label="Me in clips" on={p.clips.camera} onChange={(camera) => p.onClips({ ...p.clips, camera })} />
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 rounded-2xl bg-card p-3">
+          <span className={`grid size-10 shrink-0 place-items-center rounded-full ${!p.camera ? "bg-paper" : p.calibration ? "bg-good/15 text-good" : "bg-warn/20 text-ink"}`}>
+            <HugeiconsIcon icon={!p.camera ? KeyboardIcon : p.calibration ? Tick02Icon : Alert02Icon} size={18} />
           </span>
-        )}
+          <p className="min-w-0 flex-1 text-xs leading-snug text-ink/70">
+            {p.camera ? (
+              p.calibration ? (
+                <>
+                  <b className="font-medium text-ink">Calibrated</b>: your throw {p.calibration.avg.toFixed(1)} t/s ±{Math.round(consistency(p.calibration) * 100)}%
+                </>
+              ) : (
+                <>
+                  <b className="font-medium text-ink">Not calibrated.</b> 3 practice throws make your normal shot score.
+                </>
+              )
+            ) : (
+              <>
+                <b className="font-medium text-ink">Keyboard mode</b>: hold Space to shoot.
+              </>
+            )}
+          </p>
+          {p.camera && <IconButton icon={Target02Icon} label={p.calibration ? "Recalibrate" : "Calibrate now"} tone={p.calibration ? "outline" : "dark"} onClick={p.onCalibrate} />}
+        </div>
+
+        <p className="text-center text-[11px] text-stone">Video never leaves your device</p>
       </div>
-      <p className="mt-3 text-center text-[11px] text-cream/45">
-        Video never leaves your device ·{" "}
-        <Link href="/how-to-play" className="underline underline-offset-2 hover:text-cream">
-          How to play: camera, light and stance
-        </Link>
-      </p>
-    </Modal>
+    </Drawer>
   );
 }
 
@@ -416,22 +489,23 @@ function DailyCard({ rules }: { rules: DailyRules }) {
   const h = Math.floor(left / 3_600_000);
   const m = Math.floor((left % 3_600_000) / 60_000);
   return (
-    <div className="mt-4 rounded-2xl border border-sun/30 bg-sun/[0.07] px-4 py-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <span className="display text-xl">
-          {d.name} · {formatDuration(rules.seconds)}
-        </span>
-        <span className="text-[11px] text-cream/60">
-          New challenge in {h}h {m}m
-        </span>
+    <div className="rounded-2xl bg-court p-4 text-cream">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <span className="display text-2xl">
+            {d.name} · {formatDuration(rules.seconds)}
+          </span>
+          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-cream/70">
+            <HugeiconsIcon icon={Timer02Icon} size={12} />
+            New challenge in {h}h {m}m
+          </p>
+        </div>
+        <IconLink href={`/leaderboard?mode=${rules.key}`} icon={ChampionIcon} label="Today's board" tone="light" size={38} />
       </div>
-      <p className="mt-1 text-xs text-cream/70">
+      <p className="mt-3 text-xs leading-relaxed text-cream/80">
         {d.distance} m{d.hoopMotion ? " · moving hoop" : ""}
         {d.windMax ? " · the same wind as everyone, shot for shot" : ""}
-        {d.scoreMultiplier > 1 ? ` · ×${d.scoreMultiplier} points` : ""}. Play as often as you like: your best run counts.{" "}
-        <Link href={`/leaderboard?mode=${rules.key}`} className="font-semibold text-sun underline-offset-2 hover:underline">
-          Today&apos;s board →
-        </Link>
+        {d.scoreMultiplier > 1 ? ` · ×${d.scoreMultiplier} points` : ""}. Play as often as you like: your best run counts.
       </p>
     </div>
   );
@@ -442,56 +516,45 @@ function ShotClockPicker({ seconds, onChange }: { seconds: number; onChange: (s:
   const [custom, setCustom] = useState(!isPresetDuration(seconds));
   const minutes = Math.round(seconds / 60);
   const setMinutes = (m: number) => onChange(clampTimedSeconds(m * 60));
-  const chip = (on: boolean) =>
-    `rounded-lg py-1.5 font-mono text-xs font-semibold transition ${on ? "bg-hoop text-cream" : "text-cream/70 hover:text-cream"}`;
+  const chip = (on: boolean) => `rounded-full py-2 font-mono text-xs transition ${on ? "bg-ink text-cream" : "text-ink/65 hover:text-ink"}`;
 
   return (
-    <div className="mt-3">
-      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-        <span className="text-xs text-cream/60">Shot clock</span>
-        <div className="grid flex-1 grid-cols-5 gap-1 rounded-xl bg-white/5 p-1" role="radiogroup" aria-label="Shot clock">
-          {TIMED_OPTIONS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              role="radio"
-              aria-checked={!custom && s === seconds}
-              onClick={() => {
-                setCustom(false);
-                onChange(s);
-              }}
-              className={chip(!custom && s === seconds)}
-            >
-              {formatDuration(s)}
-            </button>
-          ))}
+    <div>
+      <Label icon={Timer02Icon}>Shot clock</Label>
+      <div className="grid grid-cols-5 gap-1 rounded-full bg-card p-1" role="radiogroup" aria-label="Shot clock">
+        {TIMED_OPTIONS.map((s) => (
           <button
+            key={s}
             type="button"
             role="radio"
-            aria-checked={custom}
+            aria-checked={!custom && s === seconds}
             onClick={() => {
-              setCustom(true);
-              // Start from a duration the presets don't already cover.
-              if (isPresetDuration(seconds)) onChange(180);
+              setCustom(false);
+              onChange(s);
             }}
-            className={chip(custom)}
+            className={chip(!custom && s === seconds)}
           >
-            Custom
+            {formatDuration(s)}
           </button>
-        </div>
+        ))}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={custom}
+          aria-label="Custom"
+          onClick={() => {
+            setCustom(true);
+            // Start from a duration the presets don't already cover.
+            if (isPresetDuration(seconds)) onChange(180);
+          }}
+          className={`grid place-items-center ${chip(custom)}`}
+        >
+          <HugeiconsIcon icon={Settings02Icon} size={14} />
+        </button>
       </div>
       {custom && (
         <div className="mt-2 flex items-center justify-end gap-2">
-          <span className="text-xs text-cream/60">Minutes</span>
-          <button
-            type="button"
-            aria-label="One minute less"
-            onClick={() => setMinutes(minutes - 1)}
-            disabled={minutes <= CUSTOM_MINUTES.min}
-            className="grid size-8 place-items-center rounded-lg bg-white/5 text-lg hover:bg-white/10 disabled:opacity-30"
-          >
-            −
-          </button>
+          <IconButton icon={MinusSignIcon} label="One minute less" onClick={() => setMinutes(minutes - 1)} disabled={minutes <= CUSTOM_MINUTES.min} size={34} />
           <input
             type="number"
             inputMode="numeric"
@@ -504,20 +567,10 @@ function ShotClockPicker({ seconds, onChange }: { seconds: number; onChange: (s:
               const v = Number(e.target.value);
               if (e.target.value !== "" && Number.isFinite(v)) setMinutes(v);
             }}
-            className="w-16 rounded-lg border border-cream/15 bg-ink px-2 py-1.5 text-center font-mono text-sm text-cream outline-none focus:border-hoop"
+            className="w-16 rounded-full bg-card px-2 py-1.5 text-center font-mono text-base outline-none focus:ring-2 focus:ring-ink sm:text-sm"
           />
-          <button
-            type="button"
-            aria-label="One minute more"
-            onClick={() => setMinutes(minutes + 1)}
-            disabled={minutes >= CUSTOM_MINUTES.max}
-            className="grid size-8 place-items-center rounded-lg bg-white/5 text-lg hover:bg-white/10 disabled:opacity-30"
-          >
-            +
-          </button>
-          <span className="text-[11px] text-cream/45">
-            {CUSTOM_MINUTES.min}–{CUSTOM_MINUTES.max} min
-          </span>
+          <IconButton icon={Add01Icon} label="One minute more" onClick={() => setMinutes(minutes + 1)} disabled={minutes >= CUSTOM_MINUTES.max} size={34} />
+          <span className="text-[11px] text-stone">min</span>
         </div>
       )}
     </div>
@@ -578,35 +631,33 @@ export function SetupCheck(p: {
 
   return (
     <Modal label="Camera setup">
-      <Eyebrow>Get in position</Eyebrow>
-      <h2 className="display mt-2 text-4xl">Move into frame</h2>
-      <ul className="mt-5 space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <Tag>
+            <HugeiconsIcon icon={Camera01Icon} size={12} /> Get in position
+          </Tag>
+          <h2 className="display mt-3 text-3xl">Move into frame</h2>
+        </div>
+        <IconButton icon={Cancel01Icon} label="Skip check" onClick={p.onSkip} />
+      </div>
+      <ul className="mt-5 grid grid-cols-2 gap-2">
         {checks.map((c) => (
-          <li key={c.label} className="flex items-center gap-3 text-sm">
+          <li key={c.label} className={`flex items-center gap-2 rounded-2xl p-2.5 text-xs ${c.state === "ok" ? "bg-card text-ink" : "bg-card/60 text-ink/60"}`}>
             <span
-              className={`grid size-5 shrink-0 place-items-center rounded-full text-[11px] font-bold ${
-                c.state === "ok" ? "bg-good text-ink" : c.state === "bad" ? "bg-bad text-ink" : "bg-white/10 text-cream/50"
-              }`}
+              className={`grid size-6 shrink-0 place-items-center rounded-full ${c.state === "ok" ? "bg-good text-cream" : c.state === "bad" ? "bg-bad text-cream" : "bg-paper text-ink/40"}`}
               aria-hidden
             >
-              {c.state === "ok" ? "✓" : c.state === "bad" ? "!" : "…"}
+              <HugeiconsIcon icon={c.state === "ok" ? Tick02Icon : c.state === "bad" ? Alert02Icon : Loading03Icon} size={12} strokeWidth={2.2} className={c.state === "wait" ? "animate-spin" : ""} />
             </span>
-            <span className={c.state === "ok" ? "text-cream" : "text-cream/70"}>{c.label}</span>
+            {c.label}
           </li>
         ))}
       </ul>
-      <div className={`relative mt-4 overflow-hidden rounded-xl px-3 py-2 text-sm ${allOk ? "bg-good/15 text-good" : "bg-white/5 text-cream/80"}`} aria-live="polite">
+      <div className={`relative mt-4 overflow-hidden rounded-2xl px-4 py-3 text-sm ${allOk ? "bg-court text-cream" : "bg-ink text-cream"}`} aria-live="polite">
         {allOk ? "Looking good! Hold still, starting…" : firstBad?.fix}
         {allOk && (
-          <span
-            key="progress"
-            className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-good"
-            style={{ animation: `setup-fill ${AUTO_CONTINUE_MS}ms linear forwards` }}
-          />
+          <span key="progress" className="absolute inset-x-0 bottom-0 h-1 origin-left bg-cream/70" style={{ animation: `setup-fill ${AUTO_CONTINUE_MS}ms linear forwards` }} />
         )}
-      </div>
-      <div className="mt-6">
-        <Secondary onClick={p.onSkip}>Skip check</Secondary>
       </div>
     </Modal>
   );
@@ -625,11 +676,21 @@ export function CalibrationPanel(p: {
 }) {
   const done = p.samples.length >= CALIBRATION_THROWS;
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-24 z-30 flex justify-center px-4 sm:top-28">
-      <div className="pointer-events-auto w-full max-w-md rounded-3xl border border-cream/10 bg-ink/90 p-5 shadow-2xl backdrop-blur" role="dialog" aria-label="Calibration">
-        <Eyebrow>Calibration</Eyebrow>
-        <h2 className="display mt-1 text-3xl">{done ? "Got your shot" : `Practice throw ${p.samples.length + 1} of ${CALIBRATION_THROWS}`}</h2>
-        <p className="mt-1 text-sm text-cream/70">
+    <div className="pointer-events-none absolute inset-x-0 top-24 z-30 flex justify-center px-3 sm:top-28">
+      <div className="pointer-events-auto w-full max-w-md rounded-[1.75rem] bg-paper p-5 text-ink shadow-2xl" role="dialog" aria-label="Calibration">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <Tag>
+              <HugeiconsIcon icon={Target02Icon} size={12} /> Calibration
+            </Tag>
+            <h2 className="display mt-2 text-2xl">{done ? "Got your shot" : `Practice throw ${p.samples.length + 1} of ${CALIBRATION_THROWS}`}</h2>
+          </div>
+          <div className="flex gap-2">
+            {p.samples.length > 0 && <IconButton icon={Delete02Icon} label="Redo last throw" onClick={p.onRedo} size={36} />}
+            {!done && <IconButton icon={Cancel01Icon} label="Skip calibration" onClick={p.onSkip} size={36} />}
+          </div>
+        </div>
+        <p className="mt-1 text-sm text-ink/65">
           {done
             ? "Your normal throw will now land in the hoop at any distance."
             : p.loaded
@@ -642,40 +703,27 @@ export function CalibrationPanel(p: {
             return (
               <div
                 key={i}
-                className={`rounded-2xl border px-2 py-3 text-center transition ${
-                  v !== undefined ? "border-good/60 bg-good/10" : i === p.samples.length ? "animate-pulse border-hoop/60" : "border-cream/10"
-                }`}
+                className={`rounded-2xl px-2 py-3 text-center transition ${v !== undefined ? "bg-ink text-cream" : i === p.samples.length ? "animate-pulse bg-hoop/15 ring-2 ring-hoop" : "bg-card"}`}
               >
                 <div className="font-mono text-xl tabular-nums">{v !== undefined ? v.toFixed(1) : "–"}</div>
-                <div className="text-[10px] tracking-wide text-cream/50 uppercase">torso/s</div>
+                <div className="text-[10px] opacity-55">torso/s</div>
               </div>
             );
           })}
         </div>
-        {p.outlier && !done && (
-          <p className="mt-3 rounded-xl bg-warn/15 px-3 py-2 text-xs text-warn">That one was very different from the others. Redo it?</p>
-        )}
+        {p.outlier && !done && <p className="mt-3 rounded-xl bg-warn/20 px-3 py-2 text-xs">That one was very different from the others. Redo it?</p>}
         {done && p.result && (
-          <p className="mt-3 text-xs text-cream/70">
-            Average <b className="text-cream">{p.result.avg.toFixed(2)}</b> · consistency ±{Math.round(consistency(p.result) * 100)}%
+          <p className="mt-3 text-xs text-ink/65">
+            Average <b className="text-ink">{p.result.avg.toFixed(2)}</b> · consistency ±{Math.round(consistency(p.result) * 100)}%
             {consistency(p.result) > 0.25 ? " (pretty varied: Rookie or Starter will feel fairest)" : ""}
           </p>
         )}
-        <div className="mt-4 flex gap-2">
-          {done ? (
-            <Primary onClick={p.onSave}>Save &amp; continue</Primary>
-          ) : (
-            <span className="flex-1 self-center text-xs text-cream/50">Throws here don&apos;t count.</span>
-          )}
-          {p.samples.length > 0 && (
-            <button type="button" onClick={p.onRedo} className="rounded-full border border-cream/15 px-4 text-sm text-cream/80 hover:border-cream/40">
-              Redo last
-            </button>
-          )}
-          {!done && (
-            <button type="button" onClick={p.onSkip} className="rounded-full px-3 text-sm text-cream/60 hover:text-cream">
-              Skip
-            </button>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <span className="text-xs text-stone">{done ? "" : "Throws here don't count."}</span>
+          {done && (
+            <ArrowButton icon={Tick02Icon} onClick={p.onSave}>
+              Save
+            </ArrowButton>
           )}
         </div>
       </div>
@@ -697,26 +745,18 @@ export function PauseMenu(p: {
 }) {
   return (
     <Modal label="Paused">
-      <Eyebrow>Paused</Eyebrow>
-      <h2 className="display mt-2 text-5xl">Timeout</h2>
-      <div className="mt-6 space-y-2">
-        <Primary onClick={p.onResume}>Resume</Primary>
-        <Secondary onClick={p.onRestart}>Restart</Secondary>
-        {p.camera && <Secondary onClick={p.onRecalibrate}>Recalibrate</Secondary>}
-        <Secondary onClick={p.onMenu}>Change mode / difficulty</Secondary>
+      <Tag>Paused</Tag>
+      <h2 className="display mt-3 text-5xl">Timeout</h2>
+      <div className="mt-6 grid grid-cols-4 gap-y-5">
+        <RoundAction icon={PlayIcon} label="Resume" tone="dark" onClick={p.onResume} />
+        <RoundAction icon={RepeatIcon} label="Restart" onClick={p.onRestart} />
+        <RoundAction icon={Settings02Icon} label="Mode" onClick={p.onMenu} />
+        {p.camera ? <RoundAction icon={Target02Icon} label="Calibrate" onClick={p.onRecalibrate} /> : <span />}
+        <RoundAction icon={p.sound ? VolumeHighIcon : VolumeOffIcon} label={p.sound ? "Sound on" : "Sound off"} onClick={p.onSound} />
+        <RoundAction icon={p.camera ? Camera01Icon : CameraOff01Icon} label={p.camera ? "Camera on" : "Camera off"} onClick={p.onCamera} />
+        <RoundAction icon={Home01Icon} label="Quit" href="/" />
       </div>
-      <div className="mt-5 flex justify-center gap-4 text-xs text-cream/70">
-        <button type="button" onClick={p.onSound} className="underline underline-offset-4 hover:text-cream">
-          Sound {p.sound ? "on" : "off"}
-        </button>
-        <button type="button" onClick={p.onCamera} className="underline underline-offset-4 hover:text-cream">
-          Camera {p.camera ? "on" : "off"}
-        </button>
-        <Link href="/" className="underline underline-offset-4 hover:text-cream">
-          Quit
-        </Link>
-      </div>
-      <p className="mt-4 text-center text-[11px] text-cream/40">Esc or P to resume</p>
+      <p className="mt-6 text-center text-[11px] text-stone">Esc or P to resume</p>
     </Modal>
   );
 }
@@ -772,43 +812,60 @@ export function GameOver(p: {
     theme: p.courtTheme,
     url: site,
   };
+
+  const footer = (
+    <div className="flex items-center gap-2">
+      <IconButton icon={Settings02Icon} label="Change mode" onClick={p.onMenu} size={44} />
+      {p.onClip && <IconButton icon={Film01Icon} label={`Save a clip of the last ${CLIP_SECONDS} seconds`} onClick={p.onClip} size={44} />}
+      <ArrowButton icon={RepeatIcon} onClick={p.onAgain} className="ml-auto">
+        Play again
+      </ArrowButton>
+    </div>
+  );
+
   return (
-    <Modal label="Game over">
-      <Eyebrow>{what}</Eyebrow>
-      <h2 className="display mt-2 text-5xl">{p.seconds ? "Buzzer!" : p.mode === "streak" ? "Streak over" : "Nice session"}</h2>
-      <div className="mt-4 flex items-baseline gap-3">
-        <span className="display text-6xl text-hoop">{headline}</span>
-        {p.newBest && <span className="animate-count-pop rounded-full bg-sun px-3 py-1 text-xs font-bold text-ink">NEW BEST</span>}
+    <Drawer label="Game over" footer={footer}>
+      <Tag>{what}</Tag>
+      <h2 className="display mt-4 text-4xl">{p.seconds ? "Buzzer!" : p.mode === "streak" ? "Streak over" : "Nice session"}</h2>
+
+      <div className="relative mt-4 overflow-hidden rounded-[1.5rem] bg-hoop p-5 text-cream">
+        <svg viewBox="0 0 400 200" className="absolute -right-10 -bottom-10 w-72 text-white/10" aria-hidden>
+          <path d="M10 180C60 40 180 0 260 40s40 120-60 130" fill="none" stroke="currentColor" strokeWidth="30" strokeLinecap="round" />
+        </svg>
+        <div className="relative flex items-start justify-between gap-3">
+          <span className="display text-5xl sm:text-6xl">{headline}</span>
+          {p.newBest && <Tag tone="dark" className="animate-count-pop">New best</Tag>}
+        </div>
+        <p className="relative mt-2 text-xs text-cream/75">
+          {p.newBest && p.seconds
+            ? "Saved as your ghost: race it next time."
+            : p.best && !p.newBest
+              ? `Your best: ${p.mode === "streak" ? `${p.best.streak} in a row` : `${p.best.points} pts`}`
+              : " "}
+        </p>
       </div>
-      <dl className="mt-5 grid grid-cols-4 gap-2 text-center">
+
+      <dl className="mt-3 grid grid-cols-4 gap-2 text-center">
         {[
           ["Makes", `${t.makes}/${t.shots}`],
           ["Accuracy", `${accuracy}%`],
           ["Swishes", t.swishes],
-          ["Best streak", t.best],
+          ["Streak", t.best],
         ].map(([k, v]) => (
-          <div key={k} className="rounded-xl bg-white/[0.04] py-2">
-            <dt className="text-[10px] tracking-wide text-cream/50 uppercase">{k}</dt>
+          <div key={k} className="rounded-2xl bg-card py-3">
             <dd className="font-mono text-lg tabular-nums">{v}</dd>
+            <dt className="text-[10px] text-stone">{k}</dt>
           </div>
         ))}
       </dl>
-      {p.newBest && p.seconds && <p className="mt-3 text-center text-xs text-cream/55">Saved as your ghost: race it next time.</p>}
-      {p.xp && <XpSummary before={p.xp.before} after={p.xp.after} className="mt-4" />}
-      {!p.newBest && p.best && (
-        <p className="mt-3 text-center text-xs text-cream/55">
-          Your best: {p.mode === "streak" ? `${p.best.streak} in a row` : `${p.best.points} pts`}
-        </p>
-      )}
+
+      {p.xp && <XpSummary before={p.xp.before} after={p.xp.after} className="mt-3 !bg-card" />}
       {p.run && <LeaderboardPost run={p.run} />}
-      <div className="mt-6 space-y-2">
-        <Primary onClick={p.onAgain}>Play again</Primary>
-        {t.shots > 0 && (
+      {t.shots > 0 && (
+        <div className="mt-3">
           <ShareCardButton card={card} filename="airhoops-score.png" text={`${headline} on AirHoops 🏀 Beat that, using only your arms. ${site}/play`} />
-        )}
-        {p.onClip && <Secondary onClick={p.onClip}>🎬 Save a clip of the last {CLIP_SECONDS} seconds</Secondary>}
-        <Secondary onClick={p.onMenu}>Change mode</Secondary>
-      </div>
-    </Modal>
+        </div>
+      )}
+    </Drawer>
   );
 }

@@ -57,18 +57,18 @@ export function LeaderboardPost({ run }: { run: RunSubmission & { id: number } }
   const where = daily ? `Daily, ${dailyLabel(run.mode)}` : `${DIFFICULTIES[run.difficulty as DifficultyId]?.name ?? run.difficulty}, all-time`;
 
   return (
-    <div className="mt-4 rounded-2xl border border-cream/10 bg-white/[0.03] px-4 py-3 text-sm" aria-live="polite">
+    <div className="mt-4 rounded-2xl border border-current/10 bg-current/[0.05] px-4 py-3 text-sm" aria-live="polite">
       {state.kind === "posted" ? (
         <div className="flex items-center justify-between gap-3">
           <span>
-            <b className="display text-xl text-sun">#{state.rank}</b> <span className="text-cream/70">on the leaderboard ({where})</span>
+            <b className="display text-xl text-hoop">#{state.rank}</b> <span className="text-current/70">on the leaderboard ({where})</span>
           </span>
           <Link href={board} className="shrink-0 font-semibold text-hoop hover:underline">
             View →
           </Link>
         </div>
       ) : state.kind === "posting" ? (
-        <span className="text-cream/60">Posting to the leaderboard…</span>
+        <span className="text-current/60">Posting to the leaderboard…</span>
       ) : hasGuest ? (
         <div className="flex items-center justify-between gap-3">
           <span className="text-bad">{state.kind === "error" ? state.message : ""}</span>
@@ -84,7 +84,7 @@ export function LeaderboardPost({ run }: { run: RunSubmission & { id: number } }
             if (validName(name)) void post(name.trim());
           }}
         >
-          <label htmlFor="lb-name" className="w-full text-cream/70">
+          <label htmlFor="lb-name" className="w-full text-current/70">
             Post this score to the leaderboard?
           </label>
           <input
@@ -93,13 +93,13 @@ export function LeaderboardPost({ run }: { run: RunSubmission & { id: number } }
             maxLength={20}
             onChange={(e) => setName(e.target.value)}
             placeholder="Your name"
-            className="min-w-0 flex-1 rounded-lg border border-cream/15 bg-ink px-3 py-2 outline-none focus:border-hoop"
+            className="min-w-0 flex-1 rounded-lg border border-current/15 bg-transparent px-3 py-2 text-base outline-none sm:text-sm focus:border-hoop"
           />
-          <button type="submit" disabled={!validName(name)} className="rounded-full bg-cream px-4 py-2 font-semibold text-ink disabled:opacity-40">
+          <button type="submit" disabled={!validName(name)} className="rounded-full bg-ink px-4 py-2 font-semibold text-cream disabled:opacity-40">
             Post
           </button>
           {state.kind === "error" && <span className="w-full text-xs text-bad">{state.message}</span>}
-          <span className="w-full text-[11px] text-cream/60">Shares your name, look and score. Never video.</span>
+          <span className="w-full text-[11px] text-current/60">Shares your name, look and score. Never video.</span>
         </form>
       )}
     </div>

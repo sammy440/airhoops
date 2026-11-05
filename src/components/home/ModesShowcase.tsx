@@ -1,101 +1,128 @@
 "use client";
 
-import Link from "next/link";
+import { Share08Icon, Tick02Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
-import { Appear } from "@/components/motion/Appear";
-import { SplitText } from "@/components/motion/SplitText";
-import { ArrowButtons } from "./ArrowButtons";
 import type { PhotoKey } from "@/lib/images";
+import { siteUrl } from "@/lib/share";
+import { BallIcon } from "@/components/ui/Logo";
+import { ArrowLink } from "@/components/ui/Pills";
+import { ArrowButtons } from "./ArrowButtons";
 import { Photo } from "./Photo";
+import { Reveal } from "./Reveal";
 
-const MODES: { name: string; tag: string; body: string; photo: PhotoKey }[] = [
-  { name: "Free Play", tag: "Solo", body: "No clock, no pressure. Warm up, find your release and learn the arc.", photo: "modeFree" },
-  { name: "Timed", tag: "Solo", body: "30 seconds to 30 minutes on the clock. Shoot fast, shoot clean, chase your best.", photo: "modeTimed" },
-  { name: "King of the Court", tag: "Streak", body: "Every make builds your multiplier. One miss and the crown resets.", photo: "modeKing" },
-  { name: "1v1 Shootout", tag: "Multiplayer", body: "Five shots each, sudden death on ties. The server keeps it honest.", photo: "mode1v1" },
-  { name: "Timed Race", tag: "Multiplayer", body: "Everyone shoots at once against the buzzer. Highest score takes it.", photo: "modeRace" },
+type Group = "Solo" | "Friends" | "Daily";
+
+const MODES: { name: string; group: Group; body: string; photo: PhotoKey; href: string }[] = [
+  { name: "Free play", group: "Solo", body: "No clock, no pressure. Warm up, find your release and learn the arc.", photo: "modeFree", href: "/play" },
+  { name: "Timed", group: "Solo", body: "30 seconds to 30 minutes on the clock. Shoot fast, shoot clean, chase your best.", photo: "modeTimed", href: "/play" },
+  { name: "Streak", group: "Solo", body: "Keep making them. Every make builds the run; one miss and it's over.", photo: "modeKing", href: "/play" },
+  { name: "Daily challenge", group: "Daily", body: "The same difficulty, clock and wind for everyone today. Your best run counts.", photo: "sunsetHoop", href: "/play" },
+  { name: "1v1 Shootout", group: "Friends", body: "Five shots each, sudden death on ties. The server keeps it honest.", photo: "mode1v1", href: "/multiplayer" },
+  { name: "Race", group: "Friends", body: "Everyone shoots at once against the buzzer. Highest score takes it.", photo: "modeRace", href: "/multiplayer" },
+  { name: "H-O-R-S-E", group: "Friends", body: "Call your shot. Miss a matched shot and you take a letter.", photo: "jumpLeap", href: "/multiplayer" },
 ];
+const GROUPS: Group[] = ["Solo", "Friends", "Daily"];
 
+/** Every mode, one at a time, on a clay card; the tags jump between solo, friends and daily. */
 export function ModesShowcase() {
-  const [active, setActive] = useState(2);
+  const [i, setI] = useState(0);
+  const [copied, setCopied] = useState(false);
   const n = MODES.length;
-  const go = (d: number) => setActive((a) => (a + d + n) % n);
+  const go = (d: number) => setI((v) => (v + d + n) % n);
+  const m = MODES[i];
 
-  // Show the active mode in the middle with two neighbours either side.
-  const visible = [-2, -1, 0, 1, 2].map((off) => ({ off, idx: (active + off + n) % n }));
+  const invite = async () => {
+    const url = `${siteUrl()}/multiplayer`;
+    try {
+      if (navigator.share) await navigator.share({ title: "AirHoops", text: "Shoot hoops with me 🏀", url });
+      else {
+        await navigator.clipboard.writeText(url);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1800);
+      }
+    } catch {
+      /* dismissed */
+    }
+  };
 
   return (
-    <div>
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-5 sm:px-8">
-        <p className="flex items-center gap-2 text-xs font-medium">
-          <span className="size-1.5 rounded-full bg-ink" /> Game modes
-        </p>
-        <ArrowButtons onPrev={() => go(-1)} onNext={() => go(1)} />
-      </div>
+    <section className="mx-auto w-full max-w-7xl border-t border-rule px-3 py-14 sm:px-5 sm:py-20">
+      <span className="grid size-14 place-items-center rounded-full bg-ink">
+        <BallIcon className="size-7" />
+      </span>
 
-      <div className="relative mt-4 overflow-x-clip pt-6">
-        <Appear from={{ y: 80 }} className="flex items-end justify-center gap-3 px-2 sm:gap-5">
-          {visible.map(({ off, idx }) => {
-            const m = MODES[idx];
-            const isActive = off === 0;
-            const far = Math.abs(off) === 2;
-            return (
-              // Keyed by mode (not slot) so each card glides to its new position.
-              <motion.button
-                key={idx}
-                layout
-                transition={{ type: "spring", stiffness: 140, damping: 22 }}
-                style={{ borderRadius: 16 }}
-                type="button"
-                onClick={() => go(off)}
-                aria-label={m.name}
-                className={`relative shrink-0 overflow-hidden transition-opacity ${
-                  isActive
-                    ? "z-10 mb-6 w-[64vw] max-w-[300px] shadow-[0_30px_60px_-20px_rgba(14,14,13,.5)]"
-                    : far
-                      ? "hidden w-[16vw] max-w-[220px] opacity-60 md:block"
-                      : "w-[30vw] max-w-[260px] opacity-90 hover:opacity-100"
-                }`}
+      <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_1.15fr] lg:gap-12">
+        <Reveal className="flex flex-col justify-between gap-10">
+          <div>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Kind of game">
+              {GROUPS.map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  aria-pressed={m.group === g}
+                  onClick={() => setI(MODES.findIndex((x) => x.group === g))}
+                  className={`rounded-full border px-3 py-1 text-[11px] font-medium transition ${m.group === g ? "border-ink bg-ink text-cream" : "border-ink/15 text-ink/75 hover:border-ink"}`}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+            <h2 className="display mt-6 text-[clamp(2.4rem,5vw,3.75rem)]">Every mode, one court, and your arms</h2>
+          </div>
+
+          <div className="relative w-full max-w-xs rounded-2xl bg-ink p-4 text-cream">
+            <p className="text-sm">Bring a friend</p>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <button type="button" onClick={invite} className="inline-flex items-center gap-1.5 rounded-full bg-cream px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-white">
+                <HugeiconsIcon icon={copied ? Tick02Icon : Share08Icon} size={14} />
+                {copied ? "Copied" : "Share link"}
+              </button>
+              <span className="flex -space-x-2" aria-hidden>
+                {["bg-hoop", "bg-court", "bg-sun", "bg-cream"].map((c) => (
+                  <span key={c} className={`grid size-7 place-items-center rounded-full ring-2 ring-ink ${c}`}>
+                    <BallIcon className="size-3.5 opacity-80" />
+                  </span>
+                ))}
+              </span>
+            </div>
+            {/* The pointer from the reference: a little clay cursor */}
+            <svg viewBox="0 0 24 24" className="absolute -bottom-4 left-12 size-6 rotate-[-20deg] text-hoop drop-shadow" aria-hidden>
+              <path d="M3 2l18 8-8 2.5L10 21z" fill="currentColor" stroke="white" strokeWidth="1.4" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </Reveal>
+
+        <Reveal delay={120}>
+          <div className="rounded-[1.75rem] bg-hoop p-3 text-cream sm:p-4">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={m.name}
+                className="grid gap-5 sm:grid-cols-[0.9fr_1fr]"
+                initial={{ opacity: 0, x: 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -24 }}
+                transition={{ duration: 0.35 }}
               >
-                <motion.div layout>
-                  <Photo photo={m.photo} sizes="300px" className={isActive ? "aspect-[3/4]" : "aspect-[4/5]"} />
-                </motion.div>
-                <AnimatePresence>
-                  {isActive && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 24 }}
-                      animate={{ opacity: 1, y: 0, transition: { delay: 0.25, duration: 0.5 } }}
-                      exit={{ opacity: 0, y: 12, transition: { duration: 0.15 } }}
-                      className="absolute inset-x-3 bottom-3 rounded-xl bg-cream p-4 text-left text-ink"
-                    >
-                      <span className="text-[10px] font-bold tracking-[0.14em] text-hoop uppercase">{m.tag}</span>
-                      <h3 className="mt-1 text-lg leading-tight font-semibold">{m.name}</h3>
-                      <p className="mt-1.5 text-xs leading-relaxed text-stone">{m.body}</p>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.button>
-            );
-          })}
-        </Appear>
-
-        <div className="pointer-events-none relative z-20 mx-auto mt-2 flex max-w-7xl items-end justify-between px-5 sm:-mt-24 sm:px-8">
-          <SplitText text="Shoot & Go" className="display text-[clamp(2.5rem,12vw,3.75rem)] text-hoop sm:text-8xl" />
-          <SplitText text="Modes" delay={0.2} className="display text-[clamp(2.5rem,12vw,3.75rem)] text-hoop sm:text-8xl" />
-        </div>
-        <div className="mt-6 flex justify-center gap-1.5" aria-hidden>
-          {MODES.map((m, i) => (
-            <span key={m.name} className={`h-1.5 rounded-full transition-all ${i === active ? "w-6 bg-hoop" : "w-1.5 bg-ink/20"}`} />
-          ))}
-        </div>
-        <p className="mt-6 px-5 text-center text-xs text-stone">
-          Solo free play, timed and streak runs, plus shootouts, races and H-O-R-S-E with friends.{" "}
-          <Link href="/play" className="font-semibold text-ink underline underline-offset-4 hover:text-hoop">
-            Play now
-          </Link>
-        </p>
+                <Photo photo={m.photo} sizes="(min-width: 1024px) 26vw, 90vw" className="aspect-[4/3.4] rounded-2xl sm:aspect-[4/4.4]" />
+                <div className="flex flex-col p-2 sm:py-4">
+                  <span className="text-xs text-cream/70">{m.group}</span>
+                  <h3 className="display mt-1 text-3xl">{m.name}</h3>
+                  <p className="mt-3 text-sm leading-relaxed text-cream/80">{m.body}</p>
+                  <ArrowLink href={m.href} tone="light" size="sm" className="mt-6 self-start">
+                    Play
+                  </ArrowLink>
+                  <span className="mt-auto pt-6 text-right font-mono text-xs text-cream/70">
+                    {i + 1} / <span className="text-cream/45">{n}</span>
+                  </span>
+                </div>
+              </motion.div>
+            </AnimatePresence>
+          </div>
+          <ArrowButtons onPrev={() => go(-1)} onNext={() => go(1)} className="mt-4 justify-end" />
+        </Reveal>
       </div>
-    </div>
+    </section>
   );
 }

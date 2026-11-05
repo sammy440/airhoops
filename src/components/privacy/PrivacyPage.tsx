@@ -27,16 +27,15 @@ const ON_SERVER = [
 
 export function PrivacyPage() {
   return (
-    <div className="min-h-screen flex-1 bg-ink text-cream">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,rgba(61,220,151,.10),transparent_70%)]" />
-      <SiteNav tone="light" />
+    <div className="min-h-screen flex-1 bg-paper text-ink">
+      <SiteNav />
       <main id="main" className="relative mx-auto max-w-3xl px-5 pb-20 sm:px-8">
-        <p className="mt-4 flex items-center gap-2 text-xs font-medium text-cream/70">
+        <p className="mt-4 flex items-center gap-2 text-xs font-medium text-ink/70">
           <span className="size-1.5 rounded-full bg-good" /> Privacy
         </p>
-        <h1 className="display mt-3 text-6xl text-hoop sm:text-7xl">Your video stays home/</h1>
-        <p className="mt-4 text-lg text-cream/80">
-          AirHoops watches your throw with your camera, but <b className="text-cream">the video never leaves your device</b>. It is not uploaded, not
+        <h1 className="display mt-3 text-5xl sm:text-7xl">Your video stays home</h1>
+        <p className="mt-4 text-lg text-ink/80">
+          AirHoops watches your throw with your camera, but <b className="text-ink">the video never leaves your device</b>. It is not uploaded, not
           recorded and not seen by anyone, including us.
         </p>
 
@@ -46,15 +45,15 @@ export function PrivacyPage() {
             ["🦴", "Skeleton", "The model turns each frame into 33 body points. The frame is then discarded."],
             ["🏀", "Throw", "Only the throw (a few numbers: power, angle, arc and aim) is used to play, and sent online only in multiplayer."],
           ].map(([icon, title, body], i) => (
-            <div key={title} className="rounded-3xl border border-cream/10 bg-white/[0.03] p-5">
+            <div key={title} className="rounded-3xl border border-ink/10 bg-card p-5">
               <div className="flex items-center gap-2">
                 <span aria-hidden className="text-2xl">
                   {icon}
                 </span>
-                <span className="font-mono text-xs text-cream/60">0{i + 1}</span>
+                <span className="font-mono text-xs text-ink/60">0{i + 1}</span>
               </div>
               <h2 className="display mt-3 text-2xl">{title}</h2>
-              <p className="mt-1 text-sm text-cream/65">{body}</p>
+              <p className="mt-1 text-sm text-ink/65">{body}</p>
             </div>
           ))}
         </div>
@@ -105,7 +104,7 @@ export function PrivacyPage() {
           <DeleteData />
         </Section>
 
-        <p className="mt-12 text-xs text-cream/60">Last updated November 2026.</p>
+        <p className="mt-12 text-xs text-ink/60">Last updated November 2026.</p>
       </main>
     </div>
   );
@@ -115,18 +114,18 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mt-12">
       <h2 className="display text-3xl">{title}</h2>
-      <div className="mt-3 space-y-3 text-[15px] leading-relaxed text-cream/75 [&_a]:font-semibold [&_a]:text-hoop [&_a:hover]:underline">{children}</div>
+      <div className="mt-3 space-y-3 text-[15px] leading-relaxed text-ink/75 [&_a]:font-semibold [&_a]:text-hoop [&_a:hover]:underline">{children}</div>
     </section>
   );
 }
 
 function Table({ rows }: { rows: string[][] }) {
   return (
-    <dl className="divide-y divide-cream/10 overflow-hidden rounded-2xl border border-cream/10">
+    <dl className="divide-y divide-ink/10 overflow-hidden rounded-2xl border border-ink/10">
       {rows.map(([k, v]) => (
         <div key={k} className="grid gap-1 px-4 py-3 sm:grid-cols-[11rem_1fr]">
-          <dt className="font-semibold text-cream">{k}</dt>
-          <dd className="text-sm text-cream/65">{v}</dd>
+          <dt className="font-semibold text-ink">{k}</dt>
+          <dd className="text-sm text-ink/65">{v}</dd>
         </div>
       ))}
     </dl>
@@ -134,5 +133,5 @@ function Table({ rows }: { rows: string[][] }) {
 }
 
 function Kbd({ children }: { children: ReactNode }) {
-  return <kbd className="rounded border border-cream/25 bg-white/5 px-1.5 py-0.5 font-mono text-xs text-cream">{children}</kbd>;
+  return <kbd className="rounded border border-ink/25 bg-card px-1.5 py-0.5 font-mono text-xs text-ink">{children}</kbd>;
 }

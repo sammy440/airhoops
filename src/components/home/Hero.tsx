@@ -1,13 +1,13 @@
 "use client";
 
-import { ArrowUpRight01Icon } from "@hugeicons/core-free-icons";
+import { Calendar03Icon, UserGroupIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import Image from "next/image";
-import Link from "next/link";
 import { motion, useScroll, useTransform } from "motion/react";
 import { useRef } from "react";
 import { PHOTOS } from "@/lib/images";
-import { SplitText } from "@/components/motion/SplitText";
+import { BallIcon } from "@/components/ui/Logo";
+import { ArrowLink, IconLink } from "@/components/ui/Pills";
 import { SiteNav } from "./SiteNav";
 
 const EASE = [0.2, 0.8, 0.2, 1] as const;
@@ -15,70 +15,66 @@ const EASE = [0.2, 0.8, 0.2, 1] as const;
 export function Hero() {
   const ref = useRef<HTMLElement>(null);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
-  // Parallax: the photo drifts and zooms slower than the page; the title sinks.
-  const imgScale = useTransform(scrollYProgress, [0, 1], [1, 1.2]);
-  const imgY = useTransform(scrollYProgress, [0, 1], ["0%", "14%"]);
-  const titleY = useTransform(scrollYProgress, [0, 1], ["0%", "40%"]);
-  const fade = useTransform(scrollYProgress, [0, 0.6], [1, 0]);
+  // Parallax: the photo drifts and zooms slower than the page.
+  const imgScale = useTransform(scrollYProgress, [0, 1], [1, 1.15]);
+  const imgY = useTransform(scrollYProgress, [0, 1], ["0%", "10%"]);
 
   return (
-    <section ref={ref} className="relative flex h-[100svh] min-h-[620px] flex-col overflow-hidden bg-ink">
-      <motion.div className="absolute inset-0" style={{ scale: imgScale, y: imgY }}>
-        <Image
-          src={PHOTOS.hero.src}
-          alt={PHOTOS.hero.alt}
-          placeholder="blur"
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover object-[32%_40%]"
-        />
-      </motion.div>
-      {/* Warm grade: dark top for the nav, sun-baked orange bottom for the title */}
-      <div className="absolute inset-0 bg-gradient-to-b from-ink/55 via-transparent to-transparent" />
-      <div className="absolute inset-x-0 bottom-0 h-[55%] bg-gradient-to-t from-sun via-sun/60 to-transparent mix-blend-multiply" />
-      <div className="absolute inset-x-0 bottom-0 h-[38%] bg-gradient-to-t from-sun/90 to-transparent" />
-
-      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: EASE }}>
-        <SiteNav tone="light" />
-      </motion.div>
-
-      <motion.div style={{ opacity: fade }} className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col justify-end px-5 sm:px-8">
-        <motion.div
-          className="mb-4 flex flex-col items-start gap-5 sm:flex-row sm:items-end sm:justify-between sm:gap-6"
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.9, ease: EASE, delay: 0.7 }}
-        >
-          <div className="max-w-xs">
-            <p className="font-display text-lg tracking-wide text-hoop uppercase">/ Dream</p>
-            <p className="mt-2 text-sm leading-relaxed font-medium text-cream/90">
-              Mime the throw. Watch the ball fly. A basketball game controlled by nothing but your body.
-            </p>
-          </div>
-          <Link
-            href="/play"
-            className="group flex items-center gap-3 rounded-full bg-ink py-2 pr-2 pl-5 text-sm font-semibold text-cream transition hover:bg-hoop"
-          >
-            Start shooting
-            <span className="grid size-8 place-items-center rounded-full bg-cream text-ink transition group-hover:rotate-45">
-              <HugeiconsIcon icon={ArrowUpRight01Icon} size={18} strokeWidth={2} />
-            </span>
-          </Link>
+    <section ref={ref} className="p-2 sm:p-3">
+      <div className="relative flex h-[calc(100svh-1rem)] min-h-[600px] flex-col overflow-hidden rounded-[1.75rem] bg-ink sm:h-[calc(100svh-1.5rem)] sm:rounded-[2rem]">
+        <motion.div className="absolute inset-0" style={{ scale: imgScale, y: imgY }}>
+          <Image src={PHOTOS.hero.src} alt={PHOTOS.hero.alt} placeholder="blur" fill priority sizes="100vw" className="object-cover object-[32%_40%]" />
         </motion.div>
-      </motion.div>
+        <div className="absolute inset-0 bg-gradient-to-b from-ink/45 via-transparent to-ink/70" />
+        <div className="absolute inset-0 bg-gradient-to-tr from-hoop/45 via-transparent to-transparent mix-blend-multiply" />
 
-      <motion.h1
-        style={{ y: titleY }}
-        // The letters' boxes rise well above the heading and sit over "Start shooting": let clicks through.
-        className="display pointer-events-none relative z-10 mt-[2.5vw] -mb-[0.06em] text-center text-[22.5vw] leading-[0.78] whitespace-nowrap select-none"
-      >
-        <SplitText text="Airhoops." trigger="mount" delay={0.15} stagger={0.06} charClassName="text-grit" />
-      </motion.h1>
+        <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, ease: EASE }}>
+          <SiteNav tone="light" />
+        </motion.div>
 
-      <span className="absolute right-6 bottom-[24vw] z-10 hidden font-display text-[11px] tracking-[0.3em] text-cream/70 uppercase [writing-mode:vertical-rl] lg:block">
-        No. 23 — Shoot your shot
-      </span>
+        {/* Watermark, like a club crest on the court */}
+        <div aria-hidden className="pointer-events-none absolute top-1/2 right-6 hidden -translate-y-1/2 items-center gap-4 text-cream/45 lg:flex">
+          <BallIcon className="size-20 opacity-60 grayscale" />
+          <span className="text-5xl leading-[0.95] font-semibold tracking-[0.18em]">
+            AIR
+            <br />
+            HOOPS
+          </span>
+        </div>
+
+        <div className="relative z-10 mt-auto flex flex-col gap-6 p-5 sm:p-8 lg:flex-row lg:items-end lg:justify-between">
+          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, ease: EASE, delay: 0.3 }}>
+            <h1 className="display max-w-[14ch] text-[clamp(2.6rem,6.4vw,5.5rem)] text-cream">Shoot hoops with nothing but air</h1>
+            <p className="mt-4 max-w-sm text-sm leading-relaxed text-cream/80">
+              Mime the throw and watch the ball fly. A basketball game you play with your body, right in your browser.
+            </p>
+            <ArrowLink href="/play" tone="light" className="mt-6">
+              Start shooting
+            </ArrowLink>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.9, ease: EASE, delay: 0.5 }}
+            className="hidden w-60 rounded-2xl bg-card p-4 text-ink shadow-xl sm:block"
+          >
+            <p className="text-sm leading-snug font-medium">
+              Today&apos;s challenge
+              <br />
+              <span className="text-stone">Same shots for everyone</span>
+            </p>
+            <div className="mt-4 flex items-center gap-2">
+              <IconLink href="/play" icon={Calendar03Icon} label="Play today's challenge" tone="dark" size={36} />
+              <IconLink href="/multiplayer" icon={UserGroupIcon} label="Play with friends" size={36} />
+              <span className="ml-auto text-[11px] text-stone">
+                <HugeiconsIcon icon={Calendar03Icon} size={12} className="mr-1 inline" />
+                New daily
+              </span>
+            </div>
+          </motion.div>
+        </div>
+      </div>
     </section>
   );
 }

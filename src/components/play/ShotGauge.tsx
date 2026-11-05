@@ -50,7 +50,7 @@ export function ShotGauge({ shot }: { shot: LastShot }) {
 
   return (
     <div className="glass w-[min(92vw,420px)] rounded-2xl px-4 py-3">
-      <div className="flex items-baseline justify-between text-[11px] tracking-[0.12em] text-cream/60 uppercase">
+      <div className="flex items-baseline justify-between text-[11px] text-cream/60">
         <span>Your power {pct(power)}</span>
         <span>
           {shot.input === "keys" ? "manual" : "camera"} · {shot.angle.toFixed(0)}°
@@ -68,7 +68,7 @@ export function ShotGauge({ shot }: { shot: LastShot }) {
         <div className={dot} style={{ left: `${Math.min(1, Math.max(0, power)) * 100}%` }} />
       </div>
 
-      <div className="mt-2.5 flex items-baseline justify-between text-[11px] tracking-[0.12em] text-cream/60 uppercase">
+      <div className="mt-2.5 flex items-baseline justify-between text-[11px] text-cream/60">
         <span>Direction</span>
         <span>{Math.abs(shot.aim) < 0.5 ? "straight" : `${Math.abs(shot.aim).toFixed(0)}° ${shot.aim > 0 ? "right" : "left"}`}</span>
       </div>

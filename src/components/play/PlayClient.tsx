@@ -3,6 +3,8 @@
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SkeletonOverlayHandle } from "@/components/lab/SkeletonOverlay";
+import { Camera01Icon, CameraOff01Icon, Film01Icon, PauseIcon, RepeatIcon, VolumeHighIcon, VolumeOffIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import { Logo } from "@/components/ui/Logo";
 import { useLighting } from "@/hooks/useLighting";
 import { useCourtGestures, type ChargeControls } from "@/hooks/useCourtGestures";
@@ -896,7 +898,7 @@ export function PlayClient() {
       <header className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-4 p-4 sm:p-6">
         <div className="flex items-center gap-3">
           <Logo className="text-cream" />
-          <span className="hidden rounded-full border border-cream/15 px-3 py-1 text-[11px] tracking-[0.14em] text-cream/70 uppercase md:inline">
+          <span className="hidden rounded-full border border-white/20 bg-black/30 px-3 py-1 text-[11px] text-cream/80 backdrop-blur-md md:inline">
             {mode.name}
             {mode.seconds ? ` ${formatDuration(mode.seconds)}` : ""} · {difficulty.name}
           </span>
@@ -911,13 +913,13 @@ export function PlayClient() {
           <div key={tally.points} className="display animate-count-pop text-6xl leading-none sm:text-7xl">
             {mode.suddenDeath ? tally.streak : tally.points}
           </div>
-          <div className="mt-1 text-[11px] tracking-[0.16em] text-cream/60 uppercase">
+          <div className="mt-1 text-[11px] text-cream/65">
             {mode.suddenDeath ? "in a row" : "points"}
-            {mult > 1 && <span className="ml-2 rounded-full bg-sun px-1.5 py-0.5 font-bold text-ink">×{mult}</span>}
+            {mult > 1 && <span className="ml-2 rounded-full bg-hoop px-1.5 py-0.5 font-bold text-cream">×{mult}</span>}
             {!mode.suddenDeath && tally.streak >= 2 && <span className="ml-2 text-sun">🔥 {tally.streak}</span>}
           </div>
           {rivalPoints !== null && inRun && (
-            <div className="mt-1 text-[11px] tracking-[0.12em] text-cream/50 uppercase" title="Your best run, flown beside you as the see-through ball">
+            <div className="mt-1 text-[11px] text-cream/55" title="Your best run, flown beside you as the see-through ball">
               vs best{" "}
               <b className={`font-mono tabular-nums ${tally.points > rivalPoints ? "text-good" : tally.points < rivalPoints ? "text-hoop-soft" : "text-cream/75"}`}>
                 {tally.points > rivalPoints ? `+${tally.points - rivalPoints}` : tally.points < rivalPoints ? `−${rivalPoints - tally.points}` : "level"}
@@ -945,7 +947,7 @@ export function PlayClient() {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="glass hidden rounded-xl px-3 py-1.5 text-right font-mono text-xs tabular-nums sm:block">
+          <div className="glass hidden rounded-2xl px-3 py-1.5 text-right font-mono text-xs tabular-nums sm:block">
             <div>
               {tally.makes}/{tally.shots} · {accuracy}%
             </div>
@@ -957,27 +959,21 @@ export function PlayClient() {
               <div className="text-cream/50">best streak {tally.best}</div>
             )}
           </div>
-          <IconButton label={prefs.sound ? "Mute" : "Unmute"} on={prefs.sound} onClick={() => set("sound", !prefs.sound)}>
-            {prefs.sound ? <path d="M4 9v6h4l5 4V5L8 9H4zm12 .5a4 4 0 0 1 0 5M18.5 7a7.5 7.5 0 0 1 0 10" /> : <path d="M4 9v6h4l5 4V5L8 9H4zm12 1 5 5m0-5-5 5" />}
-          </IconButton>
+          <HudButton label={prefs.sound ? "Mute" : "Unmute"} on={prefs.sound} onClick={() => set("sound", !prefs.sound)} icon={prefs.sound ? VolumeHighIcon : VolumeOffIcon} />
           {clipsOn && inRun && (
-            <IconButton label="Save a clip of the last 8 seconds (C)" on onClick={() => void saveClip()}>
-              <path d="M4 6h11v12H4zM15 10l5-3v10l-5-3" />
-            </IconButton>
+            <HudButton label="Save a clip of the last 8 seconds (C)" on onClick={() => void saveClip()} icon={Film01Icon} />
           )}
           {looked && prefs.renderer === "3d" && (
-            <IconButton label="Reset view" on onClick={resetView}>
-              <path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5" />
-            </IconButton>
+            <HudButton label="Reset view" on onClick={resetView} icon={RepeatIcon} />
           )}
-          <IconButton label={prefs.camera ? "Camera off (keyboard only)" : "Camera on"} on={prefs.camera} onClick={() => set("camera", !prefs.camera)}>
-            <path d="M4 7h3l2-3h6l2 3h3v12H4zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" />
-            {!prefs.camera && <path d="M3 3l18 18" />}
-          </IconButton>
+          <HudButton
+            label={prefs.camera ? "Camera off (keyboard only)" : "Camera on"}
+            on={prefs.camera}
+            onClick={() => set("camera", !prefs.camera)}
+            icon={prefs.camera ? Camera01Icon : CameraOff01Icon}
+          />
           {inRun && (
-            <IconButton label="Pause (Esc)" on onClick={() => pause(true)}>
-              <path d="M9 5v14M15 5v14" />
-            </IconButton>
+            <HudButton label="Pause (Esc)" on onClick={() => pause(true)} icon={PauseIcon} />
           )}
         </div>
       </header>
@@ -1024,7 +1020,7 @@ export function PlayClient() {
         <div className="pointer-events-none absolute inset-0 z-[5]" aria-live="polite">
           <div className="animate-letterbox absolute inset-x-0 top-0 h-[9vh] origin-top bg-ink/85" />
           <div className="animate-letterbox absolute inset-x-0 bottom-0 grid h-[9vh] origin-bottom place-items-center bg-ink/85">
-            <p className="text-[11px] tracking-[0.16em] text-cream/55 uppercase">
+            <p className="text-[11px] text-cream/60">
               <span className="mr-2 inline-block size-2 animate-pulse rounded-full bg-hoop align-middle" aria-hidden />
               Instant replay · <span className="font-semibold text-sun">{replay}</span>
               <span className="hidden sm:inline"> · tap or Space to skip</span>
@@ -1035,7 +1031,7 @@ export function PlayClient() {
 
       {levelUp && inRun && (
         <div className="animate-count-pop pointer-events-none absolute inset-x-0 top-[30%] z-10 flex justify-center px-4" aria-live="polite">
-          <div className="rounded-2xl bg-sun px-5 py-2.5 text-center text-ink shadow-xl">
+          <div className="rounded-2xl bg-hoop px-5 py-2.5 text-center text-cream shadow-xl">
             <div className="display text-3xl leading-none">Level {levelUp.level}!</div>
             {levelUp.unlocks.length > 0 && <div className="mt-1 text-xs font-semibold">Unlocked: {levelUp.unlocks.join(", ")}</div>}
           </div>
@@ -1164,18 +1160,16 @@ const RAISE_LABELS: Record<RaiseAction, string> = {
   again: "Play again",
 };
 
-function IconButton({ label, on, onClick, children }: { label: string; on: boolean; onClick: () => void; children: React.ReactNode }) {
+function HudButton({ label, on, onClick, icon }: { label: string; on: boolean; onClick: () => void; icon: IconSvgElement }) {
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
       onClick={onClick}
-      className={`glass grid size-9 place-items-center rounded-full transition hover:bg-white/15 ${on ? "" : "opacity-60"}`}
+      className={`grid size-10 place-items-center rounded-full border border-white/15 bg-black/35 text-cream backdrop-blur-md transition hover:bg-black/55 ${on ? "" : "opacity-55"}`}
     >
-      <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-        {children}
-      </svg>
+      <HugeiconsIcon icon={icon} size={18} strokeWidth={1.8} />
     </button>
   );
 }

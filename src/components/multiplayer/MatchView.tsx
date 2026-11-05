@@ -432,7 +432,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
       <header className="absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-4 p-4 sm:p-6">
         <div className="flex items-center gap-3">
           <Logo className="text-cream" />
-          <span className="hidden rounded-full border border-cream/15 px-3 py-1 text-[11px] tracking-[0.14em] text-cream/70 uppercase md:inline">
+          <span className="hidden rounded-full border border-cream/15 px-3 py-1 text-[11px] text-cream/70 md:inline">
             {room.code} · {modeName(start.mode, start.raceSeconds)} · {difficulty.name}
           </span>
         </div>
@@ -650,7 +650,7 @@ function Results({
   return (
     <div className="absolute inset-0 z-30 grid place-items-center bg-ink/70 p-4 backdrop-blur-sm" role="dialog" aria-label="Match results">
       <div className="w-full max-w-md rounded-3xl border border-cream/10 bg-ink/92 p-6 shadow-2xl sm:p-8">
-        {why && <p className="text-xs tracking-[0.16em] text-hoop uppercase">{why}</p>}
+        {why && <p className="text-xs text-hoop">{why}</p>}
         <h2 className={`display mt-2 text-5xl ${youWon ? "text-hoop" : ""}`}>{headline}</h2>
         {inSeries && (
           <p className={`mt-2 text-sm ${champ ? "font-semibold text-sun" : "text-cream/70"}`}>

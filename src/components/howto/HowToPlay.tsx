@@ -15,22 +15,21 @@ const SECTIONS = [
 
 export function HowToPlay() {
   return (
-    <div className="min-h-screen flex-1 bg-ink text-cream">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,rgba(234,58,29,.14),transparent_70%)]" />
-      <SiteNav tone="light" />
+    <div className="min-h-screen flex-1 bg-paper text-ink">
+      <SiteNav />
       <main id="main" className="relative mx-auto max-w-3xl px-5 pb-20 sm:px-8">
-        <p className="mt-4 flex items-center gap-2 text-xs font-medium text-cream/70">
-          <span className="size-1.5 rounded-full bg-hoop" /> How to play
+        <p className="mt-4 flex items-center gap-2 text-xs font-medium text-ink/70">
+          <span className="size-1.5 rounded-full bg-ink text-cream" /> How to play
         </p>
-        <h1 className="display mt-3 text-6xl text-hoop sm:text-7xl">Shoot with your body/</h1>
-        <p className="mt-4 text-lg text-cream/80">
+        <h1 className="display mt-3 text-5xl sm:text-7xl">Shoot with your body</h1>
+        <p className="mt-4 text-lg text-ink/80">
           Your webcam watches your arms and turns a real shooting motion into a shot. A good spot, decent light and a clear set-and-push make all
           the difference. Two minutes here saves a lot of air balls.
         </p>
 
         <nav aria-label="On this page" className="mt-8 flex flex-wrap gap-2">
           {SECTIONS.map(([id, label]) => (
-            <a key={id} href={`#${id}`} className="rounded-full border border-cream/15 px-3 py-1.5 text-xs text-cream/75 transition hover:border-hoop hover:text-cream">
+            <a key={id} href={`#${id}`} className="rounded-full border border-ink/15 px-3 py-1.5 text-xs text-ink/75 transition hover:border-hoop hover:text-ink">
               {label}
             </a>
           ))}
@@ -139,10 +138,10 @@ export function HowToPlay() {
         </Section>
 
         <div className="mt-14 flex flex-wrap gap-3">
-          <Link href="/play" className="rounded-full bg-hoop px-6 py-3 text-sm font-semibold transition hover:bg-hoop-soft">
+          <Link href="/play" className="rounded-full bg-ink text-cream px-6 py-3 text-sm font-semibold transition hover:bg-hoop">
             Start playing
           </Link>
-          <Link href="/multiplayer" className="rounded-full border border-cream/20 px-6 py-3 text-sm font-semibold transition hover:border-cream/50">
+          <Link href="/multiplayer" className="rounded-full border border-ink/20 px-6 py-3 text-sm font-semibold transition hover:border-ink/50">
             Play with friends
           </Link>
         </div>
@@ -155,7 +154,7 @@ function Section({ id, title, children }: { id: string; title: string; children:
   return (
     <section id={id} className="mt-14 scroll-mt-6">
       <h2 className="display text-3xl sm:text-4xl">{title}</h2>
-      <div className="mt-4 space-y-4 text-[15px] leading-relaxed text-cream/75 [&_a]:font-semibold [&_a]:text-hoop [&_a:hover]:underline">{children}</div>
+      <div className="mt-4 space-y-4 text-[15px] leading-relaxed text-ink/75 [&_a]:font-semibold [&_a]:text-hoop [&_a:hover]:underline">{children}</div>
     </section>
   );
 }
@@ -164,11 +163,11 @@ function Steps({ items }: { items: [string, string][] }) {
   return (
     <ol className="grid gap-3 sm:grid-cols-2">
       {items.map(([title, body], i) => (
-        <li key={title} className="flex gap-3 rounded-2xl border border-cream/10 bg-white/[0.03] p-4">
-          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-hoop text-sm font-bold">{i + 1}</span>
+        <li key={title} className="flex gap-3 rounded-2xl border border-ink/10 bg-card p-4">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-ink text-cream text-sm font-bold">{i + 1}</span>
           <span>
-            <b className="block text-cream">{title}</b>
-            <span className="text-sm text-cream/65">{body}</span>
+            <b className="block text-ink">{title}</b>
+            <span className="text-sm text-ink/65">{body}</span>
           </span>
         </li>
       ))}
@@ -178,11 +177,11 @@ function Steps({ items }: { items: [string, string][] }) {
 
 function Tips({ items }: { items: [string, string][] }) {
   return (
-    <dl className="divide-y divide-cream/10 overflow-hidden rounded-2xl border border-cream/10">
+    <dl className="divide-y divide-ink/10 overflow-hidden rounded-2xl border border-ink/10">
       {items.map(([k, v]) => (
         <div key={k} className="grid gap-1 px-4 py-3 sm:grid-cols-[11rem_1fr]">
-          <dt className="font-semibold text-cream">{k}</dt>
-          <dd className="text-sm text-cream/65">{v}</dd>
+          <dt className="font-semibold text-ink">{k}</dt>
+          <dd className="text-sm text-ink/65">{v}</dd>
         </div>
       ))}
     </dl>
@@ -190,7 +189,7 @@ function Tips({ items }: { items: [string, string][] }) {
 }
 
 function Kbd({ children }: { children: ReactNode }) {
-  return <kbd className="mx-0.5 rounded border border-cream/25 bg-white/5 px-1.5 py-0.5 font-mono text-xs text-cream">{children}</kbd>;
+  return <kbd className="mx-0.5 rounded border border-ink/25 bg-card px-1.5 py-0.5 font-mono text-xs text-ink">{children}</kbd>;
 }
 
 /**
@@ -202,7 +201,7 @@ function PlacementDiagram() {
   const hoop = "#ea3a1d";
   return (
     <figure className="grid gap-3 sm:grid-cols-[1.7fr_1fr]">
-      <div className="rounded-3xl border border-cream/10 bg-white/[0.03] p-4">
+      <div className="rounded-3xl border border-ink/10 bg-card p-4">
         <svg viewBox="0 0 420 230" className="w-full" role="img" aria-label="Side view: an open laptop on a table at chest height with its screen and camera facing the player, who stands 2 to 3 metres away facing it, ball held up over the head">
           <line x1="10" y1="200" x2="410" y2="200" stroke={ink} strokeOpacity=".25" strokeWidth="2" />
           {/* table */}
@@ -250,7 +249,7 @@ function PlacementDiagram() {
           </text>
         </svg>
       </div>
-      <div className="rounded-3xl border border-cream/10 bg-white/[0.03] p-4">
+      <div className="rounded-3xl border border-ink/10 bg-card p-4">
         <svg viewBox="0 0 200 230" className="mx-auto w-full max-w-[220px] sm:max-w-none" role="img" aria-label="What the camera sees: you facing it, centred, from head to hips, with space above your raised hands">
           <text x="100" y="16" textAnchor="middle" fontSize="11" fill={ink} fillOpacity=".7">
             What the camera sees

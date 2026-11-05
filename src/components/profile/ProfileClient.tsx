@@ -107,28 +107,27 @@ export function ProfileClient() {
   const nameBad = name.trim() !== "" && !nameOk;
 
   return (
-    <div className="min-h-screen flex-1 bg-ink text-cream">
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(60%_50%_at_30%_0%,rgba(234,58,29,.16),transparent_70%)]" />
-      <SiteNav tone="light" />
+    <div className="min-h-screen flex-1 bg-paper text-ink">
+      <SiteNav />
       <main id="main" className="relative mx-auto max-w-6xl px-5 pb-28 sm:px-8">
-        <p className="mt-4 flex items-center gap-2 text-xs font-medium text-cream/70">
-          <span className="size-1.5 rounded-full bg-hoop" /> Profile
+        <p className="mt-4 flex items-center gap-2 text-xs font-medium text-ink/70">
+          <span className="size-1.5 rounded-full bg-ink text-cream" /> Profile
         </p>
-        <h1 className="display mt-3 text-6xl text-hoop sm:text-7xl">Your player/</h1>
-        <p className="mt-2 max-w-xl text-sm text-cream/60">
+        <h1 className="display mt-3 text-5xl sm:text-7xl">Your player</h1>
+        <p className="mt-2 max-w-xl text-sm text-ink/60">
           This is who takes the shots in Play and who your friends see in Multiplayer. Saved on this device; no account needed.
         </p>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
           {/* Preview */}
           <section className="lg:sticky lg:top-6 lg:self-start">
-            <div className="relative overflow-hidden rounded-3xl border border-cream/10 bg-[radial-gradient(80%_60%_at_50%_30%,rgba(246,161,58,.18),transparent_70%),linear-gradient(#1f1e1b,#0e0e0d)]">
+            <div className="relative overflow-hidden rounded-3xl border border-ink/10 bg-[radial-gradient(80%_60%_at_50%_30%,rgba(246,161,58,.18),transparent_70%),linear-gradient(#1f1e1b,#0e0e0d)]">
               <div className="absolute inset-x-0 bottom-0 h-[14%] bg-[linear-gradient(#7a4a24,#5a3518)] opacity-80" />
               <AvatarCanvas avatar={look} pose={pose} label={`${name || "Your player"}'s avatar`} className="relative block aspect-[4/5] w-full" />
-              <div className="absolute top-4 left-4 rounded-full bg-ink/70 px-3 py-1 text-sm font-semibold backdrop-blur">
-                {name.trim() || "Your name"} <span className="font-mono text-cream/60">#{look.number}</span>
+              <div className="absolute top-4 left-4 rounded-full bg-ink/70 px-3 py-1 text-sm font-semibold text-cream backdrop-blur">
+                {name.trim() || "Your name"} <span className="font-mono text-ink/60">#{look.number}</span>
               </div>
-              <div className="absolute top-4 right-4 flex rounded-full bg-ink/70 p-1 text-[11px] font-semibold backdrop-blur">
+              <div className="absolute top-4 right-4 flex rounded-full bg-ink/70 p-1 text-[11px] font-semibold text-cream backdrop-blur">
                 {(["standing", "shooting"] as const).map((p) => (
                   <button
                     key={p}
@@ -146,14 +145,14 @@ export function ProfileClient() {
               <button
                 type="button"
                 onClick={() => commit(name, randomAvatar())}
-                className="flex-1 rounded-full border border-cream/15 py-2.5 text-sm font-semibold transition hover:border-cream/40"
+                className="flex-1 rounded-full border border-ink/15 py-2.5 text-sm font-semibold transition hover:border-ink/40"
               >
                 🎲 Randomize
               </button>
               <button
                 type="button"
                 onClick={() => commit(name, DEFAULT_AVATAR)}
-                className="flex-1 rounded-full border border-cream/15 py-2.5 text-sm font-semibold transition hover:border-cream/40"
+                className="flex-1 rounded-full border border-ink/15 py-2.5 text-sm font-semibold transition hover:border-ink/40"
               >
                 Reset
               </button>
@@ -171,9 +170,9 @@ export function ProfileClient() {
                 onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
                 enterKeyHint="done"
                 placeholder="e.g. Dayo"
-                className={`w-full rounded-xl border bg-ink px-4 py-3 text-lg outline-none ${nameBad ? "border-bad" : "border-cream/15 focus:border-hoop"}`}
+                className={`w-full rounded-xl border bg-card px-4 py-3 text-lg outline-none ${nameBad ? "border-bad" : "border-ink/15 focus:border-hoop"}`}
               />
-              <p className={`mt-2 text-xs ${nameBad ? "text-bad" : "text-cream/55"}`}>
+              <p className={`mt-2 text-xs ${nameBad ? "text-bad" : "text-ink/55"}`}>
                 {nameBad ? `Not saved: 2–20 letters, numbers, spaces, . _ -${savedName ? ` (keeping “${savedName}”)` : ""}` : "2–20 letters, numbers, spaces, . _ -"}
               </p>
             </Panel>
@@ -182,22 +181,22 @@ export function ProfileClient() {
               <Panel title="Account">
                 {onGoogle ? (
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="text-sm text-cream/75">
+                    <p className="text-sm text-ink/75">
                       <span className="text-good">●</span> Signed in with Google. Your player, look and scores follow you to any device.
                     </p>
-                    <button type="button" onClick={signOut} className="rounded-full border border-cream/15 px-4 py-2 text-sm hover:border-cream/40">
+                    <button type="button" onClick={signOut} className="rounded-full border border-ink/15 px-4 py-2 text-sm hover:border-ink/40">
                       Sign out on this device
                     </button>
                   </div>
                 ) : (
                   <>
-                    <p className="mb-4 text-sm text-cream/65">
+                    <p className="mb-4 text-sm text-ink/65">
                       Keep this player on every device: phone, laptop, a friend&apos;s TV. Your guest scores come with you.
                     </p>
                     <GoogleButton onSignedIn={signedIn} />
                   </>
                 )}
-                <p className="mt-3 text-xs text-cream/45">We keep only Google&apos;s account ID: no email, contacts or photo. Video never leaves your device.</p>
+                <p className="mt-3 text-xs text-ink/45">We keep only Google&apos;s account ID: no email, contacts or photo. Video never leaves your device.</p>
               </Panel>
             )}
 
@@ -233,7 +232,7 @@ export function ProfileClient() {
               <Swatches options={KIT_COLORS} value={look.jersey} onChange={(v) => set("jersey", v)} custom />
               <Label>Number</Label>
               <div className="flex items-center gap-2">
-                <button type="button" aria-label="Lower number" onClick={() => set("number", (look.number + 99) % 100)} className="size-10 rounded-xl border border-cream/15 text-lg hover:border-cream/40">
+                <button type="button" aria-label="Lower number" onClick={() => set("number", (look.number + 99) % 100)} className="size-10 rounded-xl border border-ink/15 text-lg hover:border-ink/40">
                   −
                 </button>
                 <input
@@ -244,9 +243,9 @@ export function ProfileClient() {
                     const n = Number(e.target.value.replace(/\D/g, "").slice(-2) || 0);
                     set("number", n);
                   }}
-                  className="h-10 w-16 rounded-xl border border-cream/15 bg-ink text-center font-mono text-lg outline-none focus:border-hoop"
+                  className="h-10 w-16 rounded-xl border border-ink/15 bg-card text-center font-mono text-lg outline-none focus:border-hoop"
                 />
-                <button type="button" aria-label="Raise number" onClick={() => set("number", (look.number + 1) % 100)} className="size-10 rounded-xl border border-cream/15 text-lg hover:border-cream/40">
+                <button type="button" aria-label="Raise number" onClick={() => set("number", (look.number + 1) % 100)} className="size-10 rounded-xl border border-ink/15 text-lg hover:border-ink/40">
                   +
                 </button>
               </div>
@@ -266,9 +265,9 @@ export function ProfileClient() {
       </main>
 
       {/* Status bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-cream/10 bg-ink/90 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink/10 bg-paper/90 pb-[env(safe-area-inset-bottom)] backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-5 py-3 sm:px-8">
-          <p className="flex min-w-0 items-center gap-2 text-sm text-cream/70" aria-live="polite">
+          <p className="flex min-w-0 items-center gap-2 text-sm text-ink/70" aria-live="polite">
             <span aria-hidden className={`size-2 shrink-0 rounded-full ${nameBad ? "bg-warn" : status === "syncing" ? "animate-pulse bg-sun" : "bg-good"}`} />
             <span className="truncate">
               {nameBad
@@ -282,7 +281,7 @@ export function ProfileClient() {
                       : "Changes save automatically"}
             </span>
           </p>
-          <Link href="/play" className="flex shrink-0 items-center gap-1.5 rounded-full bg-hoop py-2.5 pr-6 pl-5 text-sm font-semibold transition hover:bg-hoop-soft">
+          <Link href="/play" className="flex shrink-0 items-center gap-1.5 rounded-full bg-ink text-cream py-2.5 pr-6 pl-5 text-sm font-semibold transition hover:bg-hoop">
             <HugeiconsIcon icon={PlayIcon} size={16} strokeWidth={2.2} />
             Play
           </Link>
@@ -294,7 +293,7 @@ export function ProfileClient() {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-3xl border border-cream/10 bg-white/[0.03] p-5 sm:p-6">
+    <section className="rounded-3xl border border-ink/10 bg-card p-5 sm:p-6">
       <h2 className="display mb-4 text-2xl">{title}</h2>
       {children}
     </section>
@@ -302,7 +301,7 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 }
 
 function Label({ children }: { children: React.ReactNode }) {
-  return <div className="mt-5 mb-2 text-xs font-semibold tracking-[0.14em] text-cream/55 uppercase">{children}</div>;
+  return <div className="mt-5 mb-2 text-xs font-semibold text-ink/55">{children}</div>;
 }
 
 function Choice({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -311,7 +310,7 @@ function Choice({ active, onClick, children }: { active: boolean; onClick: () =>
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition ${active ? "border-hoop bg-hoop/15 text-cream" : "border-cream/10 text-cream/75 hover:border-cream/30"}`}
+      className={`rounded-xl border px-3 py-2.5 text-sm font-semibold transition ${active ? "border-ink bg-ink text-cream" : "border-ink/10 text-ink/75 hover:border-ink/30"}`}
     >
       {children}
     </button>
@@ -340,14 +339,14 @@ function Swatches({
           aria-label={o.name}
           aria-pressed={value === o.hex}
           onClick={() => onChange(o.hex)}
-          className={`size-10 rounded-full border-2 transition ${value === o.hex ? "scale-110 border-cream" : "border-cream/10 hover:border-cream/40"}`}
+          className={`size-10 rounded-full border-2 transition ${value === o.hex ? "scale-110 border-cream" : "border-ink/10 hover:border-ink/40"}`}
           style={{ background: o.hex }}
         />
       ))}
       {custom && (
         <label
           title="Custom colour"
-          className={`relative grid size-10 cursor-pointer place-items-center overflow-hidden rounded-full border-2 transition ${isCustom ? "scale-110 border-cream" : "border-cream/10 hover:border-cream/40"}`}
+          className={`relative grid size-10 cursor-pointer place-items-center overflow-hidden rounded-full border-2 transition ${isCustom ? "scale-110 border-cream" : "border-ink/10 hover:border-ink/40"}`}
           style={{ background: isCustom ? value : "conic-gradient(#ea3a1d,#f2b705,#13804f,#3aa8e8,#6b2fb3,#e84d8a,#ea3a1d)" }}
         >
           <span className="sr-only">Custom colour</span>

@@ -1,70 +1,112 @@
-import Link from "next/link";
-import { SplitText } from "@/components/motion/SplitText";
+"use client";
 
-const MODES = ["Free Play", "Timed", "Streak", "Shootout"];
+import { ArrowRight02Icon, GithubIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Logo } from "@/components/ui/Logo";
+import { extractRoomCode, ROOM_CODE_LENGTH } from "@/lib/net/api";
+
 const GITHUB_URL = "https://github.com/sammy440/airhoops";
-const LINKS = [
-  { href: "/how-to-play", label: "How to play" },
-  { href: "#how", label: "How it works" },
-  { href: "/leaderboard", label: "Leaderboards" },
-  { href: "/privacy", label: "Privacy" },
+const COLUMNS: { title: string; links: { href: string; label: string }[] }[] = [
+  {
+    title: "Play",
+    links: [
+      { href: "/play", label: "Free play" },
+      { href: "/play", label: "Timed" },
+      { href: "/play", label: "Streak" },
+      { href: "/play", label: "Daily challenge" },
+      { href: "/multiplayer", label: "Multiplayer" },
+    ],
+  },
+  {
+    title: "About",
+    links: [
+      { href: "/how-to-play", label: "How to play" },
+      { href: "/leaderboard", label: "Leaderboard" },
+      { href: "/privacy", label: "Privacy" },
+    ],
+  },
 ];
 
+/** The footer card: links, GitHub, and a room-code box that drops you straight into a friend's room. */
 export function SiteFooter() {
+  const router = useRouter();
+  const [code, setCode] = useState("");
+  const clean = extractRoomCode(code);
+
   return (
-    <footer className="overflow-hidden bg-ink text-cream">
-      <div className="mx-auto max-w-7xl px-5 pt-16 sm:px-8">
-        <div className="grid gap-10 md:grid-cols-[1.2fr_1fr_1fr]">
-          <ul className="space-y-1 text-3xl font-medium tracking-tight">
-            {MODES.map((m) => (
-              <li key={m}>
-                <Link href="#modes" className="transition hover:text-hoop">
-                  {m}
-                </Link>
-              </li>
-            ))}
-          </ul>
-          <div className="space-y-8 text-xs">
-            <ul className="space-y-1.5">
-              {LINKS.map((l) => (
-                <li key={l.label}>
-                  <Link href={l.href} className="text-cream/70 transition hover:text-hoop">
-                    {l.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <div>
-              <p className="text-[10px] tracking-[0.16em] text-cream/40 uppercase">Built for</p>
-              <p className="mt-1.5 text-cream/70">Chrome · Edge · Safari · Firefox</p>
-              <p className="text-cream/70">Any webcam. No downloads.</p>
-            </div>
+    <footer className="px-3 pb-3 sm:px-5 sm:pb-5">
+      <div className="mx-auto max-w-7xl rounded-[2rem] bg-card px-5 pt-8 pb-5 sm:px-10 sm:pt-10">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 md:grid-cols-[1.4fr_0.8fr_0.8fr_0.7fr_1.3fr]">
+          <div className="col-span-2 flex flex-col justify-between gap-10 md:col-span-1">
+            <Logo className="text-xl" />
+            <p className="display max-w-[15rem] text-xl leading-[1.35]">
+              <span className="mark">Your arms</span>, your shot. <span className="mark">On-device</span> tracking for every throw
+            </p>
           </div>
-          <div className="flex flex-col justify-between gap-6 md:items-end">
-            <p className="text-[10px] tracking-[0.16em] text-cream/40 uppercase">Your video never leaves your device</p>
+
+          {COLUMNS.map((col) => (
+            <div key={col.title}>
+              <p className="text-sm font-medium">{col.title}</p>
+              <ul className="mt-3 space-y-2 text-xs text-ink/65">
+                {col.links.map((l) => (
+                  <li key={l.label}>
+                    <Link href={l.href} className="transition hover:text-hoop">
+                      {l.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+
+          <div>
+            <p className="text-sm font-medium">Code</p>
             <a
               href={GITHUB_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="group inline-flex items-center gap-2.5 self-start rounded-full border border-cream/15 py-2 pr-4 pl-2.5 text-xs font-semibold text-cream/85 transition hover:border-cream/40 hover:text-cream md:self-auto"
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-ink/15 px-3 py-1 text-xs transition hover:border-ink"
             >
-              <svg viewBox="0 0 16 16" className="size-5" fill="currentColor" aria-hidden>
-                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
-              </svg>
-              Star or contribute on GitHub
-              <span aria-hidden className="text-sun transition group-hover:rotate-12">★</span>
+              <HugeiconsIcon icon={GithubIcon} size={14} />
+              GitHub
             </a>
+          </div>
+
+          <div className="col-span-2 md:col-span-1">
+            <p className="text-sm font-medium">Join a room</p>
+            <form
+              className="mt-3 flex items-center gap-2 rounded-full border border-ink/15 py-1 pr-1 pl-4 focus-within:border-ink"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (clean.length === ROOM_CODE_LENGTH) router.push(`/multiplayer?room=${clean}`);
+              }}
+            >
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Room code"
+                aria-label="Room code"
+                autoCapitalize="characters"
+                autoComplete="off"
+                className="min-w-0 flex-1 bg-transparent py-1.5 font-mono text-base tracking-widest uppercase outline-none placeholder:font-sans placeholder:tracking-normal placeholder:normal-case placeholder:text-stone sm:text-sm"
+              />
+              <button
+                type="submit"
+                aria-label="Join room"
+                disabled={clean.length !== ROOM_CODE_LENGTH}
+                className="grid size-9 shrink-0 place-items-center rounded-full bg-ink text-cream transition hover:bg-hoop disabled:opacity-40"
+              >
+                <HugeiconsIcon icon={ArrowRight02Icon} size={16} />
+              </button>
+            </form>
           </div>
         </div>
 
-        <Link href="/play" className="group mt-14 block" aria-label="Play AirHoops">
-          <span className="display block text-[15vw] leading-[0.8] whitespace-nowrap text-hoop transition-colors group-hover:text-hoop-soft xl:text-[12.8rem]">
-            <SplitText text="/ Take the shot" stagger={0.04} />
-          </span>
-        </Link>
-
-        <div className="mt-10 flex flex-wrap justify-between gap-4 border-t border-cream/10 py-6 text-[11px] text-cream/40">
-          <Link href="/privacy" className="hover:text-cream">
+        <div className="mt-14 flex flex-wrap justify-between gap-3 text-[11px] text-stone">
+          <Link href="/privacy" className="hover:text-ink">
             Privacy: tracking runs 100% on-device
           </Link>
           <span>© AirHoops</span>

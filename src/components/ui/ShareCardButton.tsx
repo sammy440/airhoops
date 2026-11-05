@@ -41,13 +41,13 @@ export function ShareCardButton({ card, filename, text }: { card: ResultCardData
       onClick={share}
       disabled={!image}
       aria-live="polite"
-      className="flex w-full items-center gap-3 rounded-full border border-cream/15 py-1.5 pr-5 pl-1.5 text-sm transition hover:border-cream/40 disabled:opacity-60"
+      className="flex w-full items-center gap-3 rounded-full border border-current/15 py-1.5 pr-5 pl-1.5 text-sm transition hover:border-current/40 disabled:opacity-60"
     >
       {image ? (
         // eslint-disable-next-line @next/next/no-img-element -- a local blob: URL, nothing for next/image to optimise
         <img src={image.url} alt="" className="h-10 w-8 shrink-0 rounded-[10px] object-cover" />
       ) : (
-        <span className="h-10 w-8 shrink-0 animate-pulse rounded-[10px] bg-white/10" />
+        <span className="h-10 w-8 shrink-0 animate-pulse rounded-[10px] bg-current/10" />
       )}
       <span className="flex-1 text-center font-semibold">{status ?? (image ? "Share result image" : "Making your card…")}</span>
     </button>

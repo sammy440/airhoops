@@ -40,7 +40,7 @@ export function MotionOverlay({ motion, thresholds }: { motion: MotionReadout | 
         <Metric label="peak" value={motion ? motion.peak.toFixed(1) : "–"} unit="t/s" className="hidden sm:flex" />
         <Metric label="angle" value={motion ? `${motion.angle.toFixed(0)}°` : "–"} />
         <Metric label="reach" value={motion ? motion.extension.toFixed(2) : "–"} className="hidden sm:flex" />
-        <span className="ml-auto mr-3 rounded bg-white/15 px-1 py-0.5 tracking-wide uppercase">{motion ? `${motion.hand[0]} hand` : "no arm"}</span>
+        <span className="ml-auto mr-3 rounded bg-white/15 px-1 py-0.5">{motion ? `${motion.hand[0]} hand` : "no arm"}</span>
       </div>
     </>
   );
@@ -49,7 +49,7 @@ export function MotionOverlay({ motion, thresholds }: { motion: MotionReadout | 
 function Metric({ label, value, unit, hot, className = "" }: { label: string; value: string; unit?: string; hot?: boolean; className?: string }) {
   return (
     <span className={`flex flex-col rounded bg-black/40 px-1.5 py-0.5 ${className}`}>
-      <span className="text-[8px] tracking-wider text-cream/55 uppercase">{label}</span>
+      <span className="text-[8px]r text-cream/55">{label}</span>
       <span className={`tabular-nums ${hot ? "text-hoop-soft" : ""}`}>
         {value}
         {unit && <span className="ml-0.5 text-cream/50">{unit}</span>}
