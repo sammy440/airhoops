@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { NormalizedLandmark, PoseLandmarker } from "@mediapipe/tasks-vision";
 import { createPoseLandmarker, type Delegate, type PoseModel } from "@/lib/pose/poseLandmarker";
-import { framingIssue, trackingConfidence, type FramingIssue } from "@/lib/pose/landmarks";
+import { framingIssue, trackingConfidence, type BodyOptions, type FramingIssue } from "@/lib/pose/landmarks";
 
 export interface PoseFrame {
   pose: NormalizedLandmark[] | undefined;
@@ -32,8 +32,12 @@ const STATS_INTERVAL_MS = 250;
  */
 export function usePoseTracking(
   videoRef: RefObject<HTMLVideoElement | null>,
-  { enabled, model, onFrame }: { enabled: boolean; model: PoseModel; onFrame?: (frame: PoseFrame) => void },
+  { enabled, model, onFrame, body }: { enabled: boolean; model: PoseModel; onFrame?: (frame: PoseFrame) => void; body?: BodyOptions },
 ) {
+  const bodyRef = useRef(body);
+  useEffect(() => {
+    bodyRef.current = body;
+  }, [body]);
   const [attempt, setAttempt] = useState(0);
   // Outcome of the most recent load, tagged with the request it belongs to.
   const [loaded, setLoaded] = useState<{ key: string; state: TrackerState } | null>(null);
@@ -119,8 +123,8 @@ export function usePoseTracking(
         setStats({
           fps: (frames * 1000) / elapsed,
           inferenceMs: frames ? inferSum / frames : 0,
-          confidence: trackingConfidence(pose),
-          framing: framingIssue(pose),
+          confidence: trackingConfidence(pose, bodyRef.current),
+          framing: framingIssue(pose, bodyRef.current),
         });
         frames = 0;
         inferSum = 0;

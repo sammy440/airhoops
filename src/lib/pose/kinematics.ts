@@ -145,6 +145,16 @@ export class KinematicsTracker {
   private activity: Record<Side, number> = { left: 0, right: 0 };
   private lastT = 0;
   private autoHand: Side = "right";
+  /**
+   * Seated play: with the hips hidden (a desk, a chair's arms), lean is measured from where the hips were last
+   * seen, or the middle of the frame, so aim still works. Off by default (the lab's port has no such mode).
+   */
+  private seated = false;
+  private hipX: number | null = null;
+
+  setSeated(on: boolean) {
+    this.seated = on;
+  }
 
   reset() {
     this.history = { left: [], right: [] };
@@ -201,7 +211,10 @@ export class KinematicsTracker {
     const handsApart = l && r ? Math.hypot((l.wrist.x - r.wrist.x) * aspect, l.wrist.y - r.wrist.y) / this.scale : null;
 
     const [ls, rs, lh, rh] = [LM.LEFT_SHOULDER, LM.RIGHT_SHOULDER, LM.LEFT_HIP, LM.RIGHT_HIP].map((i) => pose[i]);
-    const lean = ok(ls) && ok(rs) && ok(lh) && ok(rh) ? (((ls.x + rs.x) / 2 - (lh.x + rh.x) / 2) * aspect) / this.scale : null;
+    const hipsSeen = ok(lh) && ok(rh);
+    if (hipsSeen) this.hipX = (lh.x + rh.x) / 2;
+    const anchor = hipsSeen ? this.hipX : this.seated ? (this.hipX ?? 0.5) : null;
+    const lean = ok(ls) && ok(rs) && anchor !== null ? (((ls.x + rs.x) / 2 - anchor) * aspect) / this.scale : null;
 
     return {
       t,

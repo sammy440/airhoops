@@ -6,7 +6,7 @@ import { useCamera } from "@/hooks/useCamera";
 import { usePoseTracking, type PoseFrame } from "@/hooks/usePoseTracking";
 import { DribbleDetector, type BounceEvent } from "@/lib/pose/dribbleDetector";
 import { KinematicsTracker, type KinematicsFrame, type Side } from "@/lib/pose/kinematics";
-import { LM, UPPER_BODY } from "@/lib/pose/landmarks";
+import { LM, UPPER_BODY, type BodyOptions } from "@/lib/pose/landmarks";
 import { DEFAULT_SMOOTHING, PoseSmoother } from "@/lib/pose/oneEuroFilter";
 import { RaiseHandDetector, type RaiseHandEvent, type RaiseHandState } from "@/lib/pose/raiseHandDetector";
 import { DEFAULT_THROW_PARAMS, ThrowDetector, type DetectorState, type ThrowEvent } from "@/lib/pose/throwDetector";
@@ -54,8 +54,11 @@ export function useThrowInput(
     onBounce,
     onRaiseHand,
     onPose,
+    body,
   }: {
     enabled: boolean;
+    /** Seated or one-armed play: what the framing check expects, and aim with the hips hidden */
+    body?: BodyOptions;
     onThrow: (ev: ThrowEvent) => void;
     /** A hand patted the ball down at waist height. */
     onBounce?: (ev: BounceEvent) => void;
@@ -109,7 +112,11 @@ export function useThrowInput(
     [pipeline],
   );
 
-  const { state: tracker, stats, retry: retryTracker } = usePoseTracking(videoRef, { enabled: live, model: "lite", onFrame });
+  useEffect(() => {
+    pipeline.kin.setSeated(!!body?.seated);
+  }, [pipeline, body?.seated]);
+
+  const { state: tracker, stats, retry: retryTracker } = usePoseTracking(videoRef, { enabled: live, model: "lite", onFrame, body });
 
   const [detectorState, setDetectorState] = useState<DetectorState>("IDLE");
   const [dribbling, setDribbling] = useState(false);
