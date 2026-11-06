@@ -50,9 +50,13 @@ import {
 import type { Launch, ShotSim } from "@/lib/game/physics";
 import { addShot, EMPTY_TALLY, hotMultiplier, streakMultiplier, type Tally } from "@/lib/game/scoring";
 import { setMuted, unlockAudio } from "@/lib/game/sfx";
+import { CHALLENGE_PARAM, challengeRun, decodeChallenge, type Challenge } from "@/lib/game/challenge";
+import { CLUTCH_MULTIPLIER, CLUTCH_SECONDS, clutchMotion, inClutch, shotCourt } from "@/lib/game/clutch";
+import { coachRun, type CoachReport, type CoachShot } from "@/lib/game/coach";
 import { coachShot, DEFAULT_TUNING, keyboardThrow, throwAimFor, throwToLaunch } from "@/lib/game/shot";
 import type { KinematicsFrame, Side } from "@/lib/pose/kinematics";
 import type { BounceEvent } from "@/lib/pose/dribbleDetector";
+import type { BodyOptions } from "@/lib/pose/landmarks";
 import type { ThrowEvent } from "@/lib/pose/throwDetector";
 import { CameraPip, useCourtInset } from "./CameraPip";
 import type { RunSubmission } from "@/lib/net/api";
@@ -91,6 +95,9 @@ interface Prefs {
   /** Keep the last few seconds of play, ready to save as a clip; and whether your camera is in them (off unless you choose). */
   clips: boolean;
   clipCamera: boolean;
+  /** Plays seated (hips can be hidden) or with one arm: what the camera expects to see */
+  seated: boolean;
+  oneArm: boolean;
 }
 const DEFAULT_PREFS: Prefs = {
   camera: true,
@@ -105,6 +112,8 @@ const DEFAULT_PREFS: Prefs = {
   replays: true,
   seenLookTip: false,
   ghost: true,
+  seated: false,
+  oneArm: false,
   clips: true,
   clipCamera: false,
 };
@@ -123,6 +132,10 @@ interface PendingShot {
   hot: boolean;
   /** Run time (s) at launch, for the ghost */
   at: number;
+  /** Camera throws: how hard they jumped into it, for the coach */
+  jump?: number;
+  /** Released in clutch time: scores double */
+  clutch: boolean;
 }
 
 export function PlayClient() {
@@ -173,6 +186,40 @@ export function PlayClient() {
     [prefs.mode, isDaily, daily.seconds, prefs.timedSeconds],
   );
   const court = useMemo(() => courtFor(difficulty), [difficulty]);
+  const body = useMemo(() => ({ seated: prefs.seated, oneArm: prefs.oneArm }), [prefs.seated, prefs.oneArm]);
+  const setBody = useCallback((b: BodyOptions) => setPrefs((p) => ({ ...p, seated: !!b.seated, oneArm: !!b.oneArm })), []);
+
+  // Challenge links: the run a friend sent (raced instead of your ghost while its settings are picked), why a link
+  // couldn't be raced, the challenge the last run raced (for the result), and the last run as a challenge to send
+  const [vs, setVs] = useState<Challenge | null>(null);
+  const [vsNote, setVsNote] = useState<string | null>(null);
+  const racingRef = useRef<Challenge | null>(null);
+  const [raced, setRaced] = useState<Challenge | null>(null);
+  const [sendable, setSendable] = useState<Challenge | null>(null);
+
+  // A challenge link (/play?vs=…): picks the friend's settings and races their run. Read once, then taken off the
+  // address so a reload or a shared screenshot doesn't carry it.
+  const pickVs = useCallback((c: Challenge) => {
+    setPrefs((p) => ({ ...p, mode: c.mode, courtTheme: c.court, ...(c.mode === "timed" ? { timedSeconds: c.seconds, difficulty: c.difficulty } : {}) }));
+  }, []);
+  useEffect(() => {
+    if (!hydrated) return;
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get(CHALLENGE_PARAM);
+    if (code === null) return;
+    url.searchParams.delete(CHALLENGE_PARAM);
+    window.history.replaceState(window.history.state, "", url);
+    const c = decodeChallenge(code);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of the address
+    if (!c) setVsNote("That challenge link is broken. Ask for a fresh one.");
+    else if (c.mode === "daily" && c.daily !== dailyRules(new Date()).key) setVsNote(`${c.name || "Your friend"}'s daily challenge has ended. Today's is a new one.`);
+    else {
+      setVs(c);
+      pickVs(c);
+    }
+  }, [hydrated, pickVs]);
+  const vsActive =
+    !!vs && prefs.mode === vs.mode && (vs.mode === "daily" ? daily.key === vs.daily : prefs.timedSeconds === vs.seconds && prefs.difficulty === vs.difficulty);
 
   // ── Flow state ──
   const [screen, setScreen] = useState<Screen>("menu");
@@ -194,6 +241,10 @@ export function PlayClient() {
   const [wind, setWind] = useState(0);
   const [countdown, setCountdown] = useState(3);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  // Clutch time (the last seconds of a timed run), and the game clock the hoop phase counts from (for its slide)
+  const [clutch, setClutch] = useState(false);
+  const clutchRef = useRef(false);
+  const phaseStartRef = useRef(0);
   const [newBest, setNewBest] = useState(false);
   const [run, setRun] = useState<(RunSubmission & { id: number }) | null>(null);
   const [calSamples, setCalSamples] = useState<PracticeThrow[]>([]);
@@ -207,8 +258,12 @@ export function PlayClient() {
   // raced. Timed from GO because the countdown runs on wall time: on a struggling device the game clock covers less.
   const runStartRef = useRef(0);
   const runShotsRef = useRef<GhostShot[]>([]);
+  // The coach reads every shot of the run and sums it up at the end
+  const coachShotsRef = useRef<CoachShot[]>([]);
+  const [coach, setCoach] = useState<CoachReport | null>(null);
   const rivalRef = useRef<GhostPlayer | null>(null);
   const [rivalPoints, setRivalPoints] = useState<number | null>(null);
+  const [rivalName, setRivalName] = useState<string | null>(null);
   // XP: what you had when the run started (for "+N XP" at the end), and a level-up shown mid-run
   const runXpRef = useRef(0);
   const [runXp, setRunXp] = useState<{ before: number; after: number } | null>(null);
@@ -259,8 +314,25 @@ export function PlayClient() {
           },
     );
     setBests(loadBests());
+    setCoach(coachRun(coachShotsRef.current));
+    setRaced(racingRef.current);
+    const timed = prefs.mode === "timed" || prefs.mode === "daily";
+    setSendable(
+      timed && runShotsRef.current.length
+        ? {
+            name: loadProfile().name,
+            mode: prefs.mode === "daily" ? "daily" : "timed",
+            seconds: prefs.mode === "daily" ? daily.seconds : prefs.timedSeconds,
+            difficulty: difficultyId,
+            court: prefs.courtTheme,
+            daily: prefs.mode === "daily" ? daily.key : null,
+            points: t.points,
+            shots: runShotsRef.current,
+          }
+        : null,
+    );
     setScreen("over");
-  }, [prefs.mode, difficultyId, prefs.timedSeconds, daily.key]);
+  }, [prefs.mode, difficultyId, prefs.timedSeconds, prefs.courtTheme, daily.key, daily.seconds]);
 
   // ── Game engine (created once; callbacks read the latest state through refs) ──
   // Hot hand: dribble in rhythm, then shoot (solo only; the server scores multiplayer).
@@ -381,7 +453,7 @@ export function PlayClient() {
   useEffect(() => {
     handlers.current.onResult = (sim) => {
       const p = pendingRef.current;
-      const { tally: t, score } = addShot(tallyRef.current, sim.result, difficulty.scoreMultiplier, p?.hot);
+      const { tally: t, score } = addShot(tallyRef.current, sim.result, difficulty.scoreMultiplier * (p?.clutch ? CLUTCH_MULTIPLIER : 1), p?.hot);
       tallyRef.current = t;
       setTally(t);
       gameRef.current?.setStreak(t.streak);
@@ -397,8 +469,10 @@ export function PlayClient() {
         // Free play has no end: send play every couple of dozen shots
         if (loadProgress().pending.shots >= 25) void syncProgress();
         runShotsRef.current.push({ t: p.at, speed: l.speed, angle: l.angle, aim: l.aim ?? 0, wind: p.wind, phase: p.phase, points: score.points });
-        const coach = coachShot(sim.launch, court, DEFAULT_TUNING, { wind: p.wind, phase: p.phase });
-        setLast({
+        // Judged on the court it was thrown on (in clutch time, a still hoop slides)
+        const thrownOn = mode.seconds ? shotCourt(court, { t: p.at, phase: p.phase }, mode.seconds) : court;
+        const coach = coachShot(sim.launch, thrownOn, DEFAULT_TUNING, { wind: p.wind, phase: p.phase });
+        const judged = {
           power: p.power,
           angle: p.angle,
           aim: p.aim,
@@ -407,19 +481,32 @@ export function PlayClient() {
           window: coach.window,
           aimTarget: coach.aimTarget,
           aimTolerance: coach.aimTolerance,
-        });
+        };
+        setLast(judged);
+        coachShotsRef.current.push({ ...judged, jump: p.jump });
       }
       if (screenRef.current === "playing") {
         if (mode.suddenDeath && !sim.result.scored) window.setTimeout(endGame, 1300);
         else if (buzzerRef.current) window.setTimeout(endGame, 900);
       }
       if (!score.points) return;
-      return `+${score.points}${score.multiplier > 1 ? `  ×${score.multiplier}` : ""}${score.hot ? "  HOT" : ""}`;
+      return `+${score.points}${score.multiplier > 1 ? `  ×${score.multiplier}` : ""}${score.hot ? "  HOT" : ""}${p?.clutch ? "  CLUTCH" : ""}`;
     };
     handlers.current.onReady = () => nextWind();
   }, [difficulty, court, mode, endGame, nextWind]);
 
-  const shoot = useCallback((launch: Launch, power: number, input: LastShot["input"]) => {
+  // Clutch time starts: the badge, a cue, and a still hoop starts sliding from the middle, from the exact moment
+  // clutch time began (a shot released in it can get here before the shot clock's next tick)
+  const enterClutch = useCallback(() => {
+    const game = gameRef.current;
+    if (clutchRef.current || !game || endsAtRef.current === null) return;
+    clutchRef.current = true;
+    setClutch(true);
+    game.setHoopMotion(clutchMotion(game.court, endsAtRef.current - CLUTCH_SECONDS - phaseStartRef.current));
+    beep(988, 160);
+  }, []);
+
+  const shoot = useCallback((launch: Launch, power: number, input: LastShot["input"], jump?: number) => {
     const game = gameRef.current;
     if (screenRef.current !== "playing" || buzzerRef.current || !game) return false;
     // During a replay: a camera throw cuts it short and still shoots (it can't be thrown again);
@@ -431,15 +518,18 @@ export function PlayClient() {
       }
       game.skipReplay(true);
     }
+    const at = game.clock - runStartRef.current;
+    const clutchShot = !!mode.seconds && inClutch(at, mode.seconds);
+    if (clutchShot) enterClutch();
     const phase = game.hoopPhase;
     const w = wind;
     if (!game.throwBall(launch, input === "camera")) return false;
     const hot = hotHand.shoot(performance.now());
     setHotBounces(0);
     game.setHot(false);
-    pendingRef.current = { power, angle: launch.angle, aim: launch.aim ?? 0, input, wind: w, phase, hot, at: game.clock - runStartRef.current };
+    pendingRef.current = { power, angle: launch.angle, aim: launch.aim ?? 0, input, wind: w, phase, hot, at, jump, clutch: clutchShot };
     return true;
-  }, [wind, hotHand]);
+  }, [wind, hotHand, mode.seconds, enterClutch]);
 
   // ── Camera input ──
   const onThrow = useCallback(
@@ -461,9 +551,9 @@ export function PlayClient() {
       aimCenter.observe(ev.lean);
       if (calibration) {
         const { launch, power } = calibratedLaunch(thrown, calibration, court, difficulty);
-        shoot(launch, power, "camera");
+        shoot(launch, power, "camera", ev.jump);
       } else {
-        shoot(throwToLaunch(thrown), ev.power, "camera");
+        shoot(throwToLaunch(thrown), ev.power, "camera", ev.jump);
       }
     },
     [calibration, court, difficulty, shoot, aimCenter],
@@ -519,6 +609,7 @@ export function PlayClient() {
     onBounce,
     onRaiseHand,
     onPose,
+    body,
   });
   const tracking = tracker.status === "ready";
   const lighting = useLighting(videoRef, prefs.camera && screen === "setup");
@@ -572,20 +663,29 @@ export function PlayClient() {
     const game = gameRef.current;
     game?.setCourt(court);
     runShotsRef.current = [];
+    coachShotsRef.current = [];
+    clutchRef.current = false;
+    setClutch(false);
     // The moving hoop starts from the same spot every run (its clock starts with the countdown): the same for
     // everyone on the daily, and the same as your ghost's run.
     if (game) {
       const start = game.clock;
+      phaseStartRef.current = start;
       game.setPhaseSource(() => game.clock - start);
-      const ghost = mode.seconds && prefs.ghost ? loadGhost(bestKey(prefs.mode, difficultyId, prefs.timedSeconds, daily.key)) : null;
-      rivalRef.current = ghost && new GhostPlayer(ghost, court);
+      // A friend's challenge with its settings picked is raced instead of your own ghost.
+      const racing = vsActive ? vs : null;
+      racingRef.current = racing;
+      const ghost = racing ? challengeRun(racing) : mode.seconds && prefs.ghost ? loadGhost(bestKey(prefs.mode, difficultyId, prefs.timedSeconds, daily.key)) : null;
+      const seconds = mode.seconds;
+      rivalRef.current = ghost && new GhostPlayer(ghost, seconds ? (shot) => shotCourt(court, shot, seconds) : court);
+      setRivalName(racing ? racing.name || "friend" : null);
       game.setRival(null); // until GO
     }
     setRivalPoints(rivalRef.current ? 0 : null);
     pause(false);
     setCountdown(3);
     setScreen("countdown");
-  }, [mode, court, pause, nextWind, hotHand, prefs.ghost, prefs.mode, prefs.timedSeconds, difficultyId, daily.key]);
+  }, [mode, court, pause, nextWind, hotHand, prefs.ghost, prefs.mode, prefs.timedSeconds, difficultyId, daily.key, vs, vsActive]);
 
   // A returning player who's already standing in a good spot goes straight to the countdown.
   const inPosition = prefs.setupPassed && tracking && stats.framing === null && stats.confidence >= 0.6;
@@ -702,6 +802,7 @@ export function PlayClient() {
       const left = Math.max(0, endsAtRef.current - game.clock);
       setTimeLeft(left);
       if (rivalRef.current) setRivalPoints(rivalRef.current.pointsAt(game.clock - runStartRef.current));
+      if (left > 0 && left <= CLUTCH_SECONDS) enterClutch();
       if (left <= 0 && !buzzerRef.current) {
         buzzerRef.current = true;
         beep(220, 700, 0.25);
@@ -710,7 +811,7 @@ export function PlayClient() {
       }
     }, 100);
     return () => window.clearInterval(id);
-  }, [screen, mode.seconds, endGame]);
+  }, [screen, mode.seconds, endGame, enterClutch]);
 
   // Auto-pause when the tab is hidden (performance + fairness).
   useEffect(() => {
@@ -908,8 +1009,13 @@ export function PlayClient() {
 
         <div className="absolute left-1/2 -translate-x-1/2 text-center">
           {mode.seconds && timeLeft !== null && inRun ? (
-            <div className={`font-mono text-sm tabular-nums ${timeLeft <= 10 ? "text-hoop-soft" : "text-cream/70"}`}>
+            <div className={`flex items-center justify-center gap-2 font-mono text-sm tabular-nums ${timeLeft <= CLUTCH_SECONDS ? "text-hoop-soft" : "text-cream/70"}`}>
               {Math.floor(clockSecs / 60)}:{String(clockSecs % 60).padStart(2, "0")}
+              {clutch && timeLeft > 0 && (
+                <span className="animate-count-pop rounded-full bg-hoop px-2 py-0.5 font-sans text-[10px] font-semibold text-cream" title="Last seconds: makes score double">
+                  Clutch ×{CLUTCH_MULTIPLIER}
+                </span>
+              )}
             </div>
           ) : null}
           <div key={tally.points} className="display animate-count-pop text-6xl leading-none sm:text-7xl">
@@ -921,8 +1027,8 @@ export function PlayClient() {
             {!mode.suddenDeath && tally.streak >= 2 && <span className="ml-2 text-sun">🔥 {tally.streak}</span>}
           </div>
           {rivalPoints !== null && inRun && (
-            <div className="mt-1 text-[11px] text-cream/55" title="Your best run, flown beside you as the see-through ball">
-              vs best{" "}
+            <div className="mt-1 text-[11px] text-cream/55" title={rivalName ? `${rivalName}'s run, flown beside you as the see-through ball` : "Your best run, flown beside you as the see-through ball"}>
+              vs {rivalName ?? "best"}{" "}
               <b className={`font-mono tabular-nums ${tally.points > rivalPoints ? "text-good" : tally.points < rivalPoints ? "text-hoop-soft" : "text-cream/75"}`}>
                 {tally.points > rivalPoints ? `+${tally.points - rivalPoints}` : tally.points < rivalPoints ? `−${rivalPoints - tally.points}` : "level"}
               </b>
@@ -1073,6 +1179,16 @@ export function PlayClient() {
       {/* ── Screens ── */}
       {hydrated && screen === "menu" && (
         <StartMenu
+          challenge={{
+            vs,
+            note: vsNote,
+            active: vsActive,
+            onUse: () => vs && pickVs(vs),
+            onDismiss: () => {
+              setVs(null);
+              setVsNote(null);
+            },
+          }}
           firstTime={!prefs.seenIntro}
           mode={prefs.mode}
           difficulty={prefs.difficulty}
@@ -1085,6 +1201,8 @@ export function PlayClient() {
           onReplays={(on) => set("replays", on)}
           ghost={prefs.ghost}
           onGhost={(on) => set("ghost", on)}
+          body={body}
+          onBody={setBody}
           clips={{ record: prefs.clips, camera: prefs.clipCamera }}
           onClips={(c) => setPrefs((p) => ({ ...p, clips: c.record, clipCamera: c.camera }))}
           calibration={calibration}
@@ -1106,6 +1224,8 @@ export function PlayClient() {
           framing={stats.framing}
           confidence={stats.confidence}
           lighting={lighting.status}
+          body={body}
+          onBody={setBody}
           onContinue={() => afterSetup(true)}
           onSkip={() => afterSetup(false)}
         />
@@ -1155,6 +1275,9 @@ export function PlayClient() {
           run={run}
           courtTheme={prefs.courtTheme}
           xp={runXp}
+          coach={coach}
+          raced={raced}
+          challenge={sendable}
           onClip={clipsOn ? () => void saveClip() : undefined}
           onAgain={startRun}
           onMenu={() => setScreen("menu")}

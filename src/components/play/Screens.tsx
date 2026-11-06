@@ -18,8 +18,6 @@ import {
   Home01Icon,
   KeyboardIcon,
   Loading03Icon,
-  MinusSignIcon,
-  Add01Icon,
   PencilEdit02Icon,
   PlayIcon,
   RepeatIcon,
@@ -27,6 +25,8 @@ import {
   Share08Icon,
   Layout01Icon,
   Target02Icon,
+  ArmchairIcon,
+  WavingHand01Icon,
   Tick02Icon,
   Timer02Icon,
   VideoReplayIcon,
@@ -40,6 +40,7 @@ import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
 import { CourtPreview } from "@/components/ui/CourtPreview";
 import { XpBar, XpSummary } from "@/components/ui/Level";
 import { ArrowButton, IconButton, IconLink, Tag } from "@/components/ui/Pills";
+import { ShotClockPicker } from "@/components/ui/ShotClockPicker";
 import { ShareCardButton } from "@/components/ui/ShareCardButton";
 import type { LightingStatus } from "@/hooks/useLighting";
 import { COURT_THEME_ORDER, COURT_THEMES, type CourtThemeId } from "@/lib/game/courts";
@@ -48,24 +49,24 @@ import { CALIBRATION_THROWS, consistency, type Calibration } from "@/lib/game/ca
 import { dailyLabel, msUntilNextDaily, type DailyRules } from "@/lib/game/daily";
 import { DIFFICULTIES, DIFFICULTY_ORDER, type DifficultyId } from "@/lib/game/difficulty";
 import {
-  clampTimedSeconds,
-  CUSTOM_MINUTES,
   formatDuration,
-  isPresetDuration,
   MODES,
   MODE_ORDER,
-  TIMED_OPTIONS,
   type Best,
   type ModeId,
 } from "@/lib/game/modes";
 import { loadProfile } from "@/lib/game/avatar";
+import type { Challenge } from "@/lib/game/challenge";
+import type { CoachReport } from "@/lib/game/coach";
 import type { Tally } from "@/lib/game/scoring";
 import type { RunSubmission } from "@/lib/net/api";
 import type { ResultCardData } from "@/lib/resultCard";
 import { CLIP_SECONDS, clipsSupported } from "@/lib/clips/clipRecorder";
 import { shareFile, siteUrl } from "@/lib/share";
 import { LeaderboardPost } from "./LeaderboardPost";
-import type { FramingIssue } from "@/lib/pose/landmarks";
+import { ChallengeBanner, ChallengeResult } from "./ChallengeCard";
+import { ShotCoach } from "./ShotCoach";
+import type { BodyOptions, FramingIssue } from "@/lib/pose/landmarks";
 
 /* ───────── Shared shells ───────── */
 
@@ -279,6 +280,8 @@ const HOW_TO: [IconSvgElement, string, string][] = [
 const MODE_ICON: Record<ModeId, IconSvgElement> = { daily: Calendar03Icon, free: Basketball01Icon, timed: Timer02Icon, streak: FireIcon };
 
 export function StartMenu(p: {
+  /** A friend's challenge link: who to beat, whether its settings are picked, or why it can't be raced */
+  challenge: { vs: Challenge | null; note: string | null; active: boolean; onUse: () => void; onDismiss: () => void };
   firstTime: boolean;
   mode: ModeId;
   difficulty: DifficultyId;
@@ -295,6 +298,9 @@ export function StartMenu(p: {
   onClips: (c: { record: boolean; camera: boolean }) => void;
   calibration: Calibration | null;
   camera: boolean;
+  /** Seated, or throwing with one arm: what the camera expects to see */
+  body: BodyOptions;
+  onBody: (b: BodyOptions) => void;
   best: Best | undefined;
   /** Your XP (null until it's loaded) */
   xp: number | null;
@@ -351,6 +357,8 @@ export function StartMenu(p: {
 
       <h1 className="display mt-6 text-[2.6rem] sm:text-5xl">Shoot your shot</h1>
 
+      <ChallengeBanner challenge={p.challenge.vs} note={p.challenge.note} active={p.challenge.active} onUse={p.challenge.onUse} onDismiss={p.challenge.onDismiss} />
+
       {p.firstTime && (
         <ol className="mt-4 space-y-2">
           {HOW_TO.map(([icon, t, desc]) => (
@@ -398,7 +406,12 @@ export function StartMenu(p: {
       <p className="mt-2 text-xs text-stone">{MODES[p.mode].blurb}</p>
 
       <div className="mt-6 space-y-6">
-        {p.mode === "timed" && <ShotClockPicker seconds={p.timedSeconds} onChange={p.onTimedSeconds} />}
+        {p.mode === "timed" && (
+          <div>
+            <Label icon={Timer02Icon}>Shot clock</Label>
+            <ShotClockPicker seconds={p.timedSeconds} onChange={p.onTimedSeconds} label="Shot clock" />
+          </div>
+        )}
 
         {isDaily ? (
           <DailyCard rules={p.daily} />
@@ -472,6 +485,13 @@ export function StartMenu(p: {
           {p.camera && <IconButton icon={Target02Icon} label={p.calibration ? "Recalibrate" : "Calibrate now"} tone={p.calibration ? "outline" : "dark"} onClick={p.onCalibrate} />}
         </div>
 
+        {p.camera && (
+          <div className="grid grid-cols-2 gap-2">
+            <ToggleTile icon={ArmchairIcon} label="Seated (hips can be hidden)" on={!!p.body.seated} onChange={(seated) => p.onBody({ ...p.body, seated })} />
+            <ToggleTile icon={WavingHand01Icon} label="One arm (track just the one)" on={!!p.body.oneArm} onChange={(oneArm) => p.onBody({ ...p.body, oneArm })} />
+          </div>
+        )}
+
         <p className="text-center text-[11px] text-stone">Video never leaves your device</p>
       </div>
     </Drawer>
@@ -511,72 +531,6 @@ function DailyCard({ rules }: { rules: DailyRules }) {
   );
 }
 
-/** Preset shot clocks plus a "Custom" chip that reveals a 1–30 minute stepper. */
-function ShotClockPicker({ seconds, onChange }: { seconds: number; onChange: (s: number) => void }) {
-  const [custom, setCustom] = useState(!isPresetDuration(seconds));
-  const minutes = Math.round(seconds / 60);
-  const setMinutes = (m: number) => onChange(clampTimedSeconds(m * 60));
-  const chip = (on: boolean) => `rounded-full py-2 font-mono text-xs transition ${on ? "bg-ink text-cream" : "text-ink/65 hover:text-ink"}`;
-
-  return (
-    <div>
-      <Label icon={Timer02Icon}>Shot clock</Label>
-      <div className="grid grid-cols-5 gap-1 rounded-full bg-card p-1" role="radiogroup" aria-label="Shot clock">
-        {TIMED_OPTIONS.map((s) => (
-          <button
-            key={s}
-            type="button"
-            role="radio"
-            aria-checked={!custom && s === seconds}
-            onClick={() => {
-              setCustom(false);
-              onChange(s);
-            }}
-            className={chip(!custom && s === seconds)}
-          >
-            {formatDuration(s)}
-          </button>
-        ))}
-        <button
-          type="button"
-          role="radio"
-          aria-checked={custom}
-          aria-label="Custom"
-          onClick={() => {
-            setCustom(true);
-            // Start from a duration the presets don't already cover.
-            if (isPresetDuration(seconds)) onChange(180);
-          }}
-          className={`grid place-items-center ${chip(custom)}`}
-        >
-          <HugeiconsIcon icon={Settings02Icon} size={14} />
-        </button>
-      </div>
-      {custom && (
-        <div className="mt-2 flex items-center justify-end gap-2">
-          <IconButton icon={MinusSignIcon} label="One minute less" onClick={() => setMinutes(minutes - 1)} disabled={minutes <= CUSTOM_MINUTES.min} size={34} />
-          <input
-            type="number"
-            inputMode="numeric"
-            aria-label="Custom shot clock in minutes"
-            min={CUSTOM_MINUTES.min}
-            max={CUSTOM_MINUTES.max}
-            step={1}
-            value={minutes}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              if (e.target.value !== "" && Number.isFinite(v)) setMinutes(v);
-            }}
-            className="w-16 rounded-full bg-card px-2 py-1.5 text-center font-mono text-base outline-none focus:ring-2 focus:ring-ink sm:text-sm"
-          />
-          <IconButton icon={Add01Icon} label="One minute more" onClick={() => setMinutes(minutes + 1)} disabled={minutes >= CUSTOM_MINUTES.max} size={34} />
-          <span className="text-[11px] text-stone">min</span>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ───────── Move-into-frame guide ───────── */
 
 type CheckState = "ok" | "bad" | "wait";
@@ -589,10 +543,14 @@ export function SetupCheck(p: {
   framing: FramingIssue | null;
   confidence: number;
   lighting: LightingStatus;
+  /** Seated or one-armed play (switchable here: a seated player stuck on "step back" needs to find it) */
+  body: BodyOptions;
+  onBody: (b: BodyOptions) => void;
   onContinue: () => void;
   onSkip: () => void;
 }) {
   const f = p.framing;
+  const { seated, oneArm } = p.body;
   const seen = p.tracking && f !== "no_person";
   const checks: { label: string; state: CheckState; fix: string }[] = [
     { label: "Camera on", state: p.cameraLive ? "ok" : "wait", fix: "Allow camera access" },
@@ -601,13 +559,13 @@ export function SetupCheck(p: {
     {
       label: "Good distance",
       state: !seen ? "wait" : f === "too_close" || f === "too_far" ? "bad" : "ok",
-      fix: f === "too_far" ? "Come a bit closer" : "Step back until your hips are in view",
+      fix: f === "too_far" ? "Come a bit closer" : seated ? "Sit back until your shoulders are well inside the frame" : "Step back until your hips are in view",
     },
     { label: "Centred", state: !seen ? "wait" : f === "off_center" ? "bad" : "ok", fix: "Move toward the middle" },
     {
       label: "Upper body visible",
       state: !seen ? "wait" : f === "low_visibility" || p.confidence < 0.6 ? "bad" : "ok",
-      fix: "Show shoulders, arms and hips; avoid loose sleeves",
+      fix: `Show your shoulders, ${oneArm ? "your throwing arm" : "arms"}${seated ? "" : " and hips"}; avoid loose sleeves`,
     },
     {
       label: "Lighting",
@@ -658,6 +616,10 @@ export function SetupCheck(p: {
         {allOk && (
           <span key="progress" className="absolute inset-x-0 bottom-0 h-1 origin-left bg-cream/70" style={{ animation: `setup-fill ${AUTO_CONTINUE_MS}ms linear forwards` }} />
         )}
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <ToggleTile icon={ArmchairIcon} label="I'm seated" on={!!seated} onChange={(on) => p.onBody({ ...p.body, seated: on })} />
+        <ToggleTile icon={WavingHand01Icon} label="I throw with one arm" on={!!oneArm} onChange={(on) => p.onBody({ ...p.body, oneArm: on })} />
       </div>
     </Modal>
   );
@@ -777,6 +739,12 @@ export function GameOver(p: {
   courtTheme: CourtThemeId;
   /** XP before and after this run */
   xp: { before: number; after: number } | null;
+  /** What the run's shots say to work on */
+  coach: CoachReport | null;
+  /** The friend's challenge this run raced */
+  raced: Challenge | null;
+  /** This run, as a challenge to send (timed and daily runs with shots) */
+  challenge: Challenge | null;
   /** Save the last seconds of the run as a clip (absent when clips are off or unsupported) */
   onClip?: () => void;
   onAgain: () => void;
@@ -859,6 +827,8 @@ export function GameOver(p: {
         ))}
       </dl>
 
+      <ChallengeResult raced={p.raced} mine={p.challenge} points={t.points} className="mt-3" />
+      {p.coach && p.coach.shots > 0 && <ShotCoach report={p.coach} className="mt-3" />}
       {p.xp && <XpSummary before={p.xp.before} after={p.xp.after} className="mt-3 !bg-card" />}
       {p.run && <LeaderboardPost run={p.run} />}
       {t.shots > 0 && (

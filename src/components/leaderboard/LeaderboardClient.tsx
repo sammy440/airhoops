@@ -18,7 +18,7 @@ const PERIODS: { id: Period; label: string }[] = [
   { id: "week", label: "This week" },
   { id: "all", label: "All time" },
 ];
-const MODE_RE = /^(streak|timed\d{2,4}|daily\d{8}|shootout|race\d{2,3})$/;
+const MODE_RE = /^(streak|timed\d{2,4}|daily\d{8}|shootout|race\d{2,4})$/;
 const DAY_MS = 86_400_000;
 
 /** Today's and yesterday's Daily Challenge boards. */

@@ -26,6 +26,7 @@ import {
 import type { ClientMessage, MatchMode, SocketStatus } from "@/lib/net/socket";
 import { shareLink } from "@/lib/share";
 import { LevelChip } from "@/components/ui/Level";
+import { ShotClockPicker } from "@/components/ui/ShotClockPicker";
 import { MatchView } from "./MatchView";
 import { ChatLauncher } from "./Chat";
 import { ReactionBar, ReactionBursts } from "./Reactions";
@@ -35,7 +36,6 @@ const MATCH_MODES: { id: MatchMode; name: string; blurb: string }[] = [
   { id: "race", name: "Race", blurb: "Everyone shoots at once. Most points before the buzzer wins." },
   { id: "horse", name: "H-O-R-S-E", blurb: "Match their swish, bank or bucket, or take a letter. Spell HORSE, you're out." },
 ];
-const RACE_LENGTHS = [30, 60, 90, 120];
 const BEST_OF: BestOf[] = [1, 3, 5];
 const bestOfLabel = (n: number) => (n === 1 ? "Single game" : `Best of ${n}`);
 
@@ -469,22 +469,7 @@ function GameSettings({ value, onChange, className = "" }: { value: GameChoice; 
           </button>
         ))}
       </div>
-      {value.mode === "race" && (
-        <div className="mt-2 grid grid-cols-4 gap-1 rounded-xl bg-card p-1" role="radiogroup" aria-label="Race length">
-          {RACE_LENGTHS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              role="radio"
-              aria-checked={value.raceSeconds === s}
-              onClick={() => set({ raceSeconds: s })}
-              className={`rounded-lg py-1.5 font-mono text-xs font-semibold ${value.raceSeconds === s ? "bg-ink text-cream" : "text-ink/70 hover:text-ink"}`}
-            >
-              {formatDuration(s)}
-            </button>
-          ))}
-        </div>
-      )}
+      {value.mode === "race" && <ShotClockPicker seconds={value.raceSeconds} onChange={(raceSeconds) => set({ raceSeconds })} label="Race length" className="mt-2" />}
       <div className="mt-2 grid grid-cols-4 gap-1 rounded-xl bg-card p-1" role="radiogroup" aria-label="Difficulty">
         {DIFFICULTY_ORDER.map((d) => (
           <button
