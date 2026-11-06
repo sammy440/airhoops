@@ -2,6 +2,12 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Multiplayer results: "You win!" or "You lost"
+- At the end of a match a player who lost was told the winner's name ("Ada wins"). Now each player is told about
+  themselves: **"You win!"** or **"You lost"**, and the same for a series ("You lost the best-of-3 series"). A tie
+  you're part of is still "Shared win!"; the standings below still show who won. Only someone not in the standings
+  is told who won. The wording lives in `components/multiplayer/resultHeadline.ts`, with a test for each case.
+
 ## Multiplayer races: custom length
 - Races offered only 30 s to 2 min. The race length now uses the solo shot-clock picker (shared as
   `components/ui/ShotClockPicker.tsx`): the presets plus ⚙ for a custom **1–30 minutes**, when creating a room and

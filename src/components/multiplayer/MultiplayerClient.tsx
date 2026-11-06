@@ -805,7 +805,11 @@ function SeriesBar({ room, you, names }: { room: RoomState; you: string | null; 
           {bestOfLabel(series.best_of)} · first to {need}
           {series.games > 0 && !champ ? ` · game ${series.games + 1}` : ""}
         </span>
-        {champ && <span className="text-sm font-semibold text-hoop">🏆 {champ === you ? "You win the series!" : `${name(champ)} wins the series`}</span>}
+        {champ && (
+          <span className="text-sm font-semibold text-hoop">
+            {champ === you ? "🏆 You win the series!" : you && ids.includes(you) ? "You lost the series" : `🏆 ${name(champ)} wins the series`}
+          </span>
+        )}
       </div>
       <ul className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
         {ids.map((id) => (

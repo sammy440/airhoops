@@ -7,6 +7,7 @@ import { CameraPip, useCourtInset } from "@/components/play/CameraPip";
 import { Logo } from "@/components/ui/Logo";
 import { ShareCardButton } from "@/components/ui/ShareCardButton";
 import type { ChatLine, MatchState, Reaction } from "@/hooks/useRoom";
+import { resultHeadline } from "./resultHeadline";
 import { useCourtGestures, type ChargeControls } from "@/hooks/useCourtGestures";
 import { useThrowInput } from "@/hooks/useThrowInput";
 import { DEFAULT_AVATAR, loadProfile, sanitizeAvatar } from "@/lib/game/avatar";
@@ -601,16 +602,8 @@ function Results({
   onLeave: () => void;
 }) {
   const youWon = result.winners.includes(you);
-  const headline =
-    result.reason === "aborted"
-      ? "Match ended"
-      : result.winners.length > 1
-        ? youWon
-          ? "Shared win!"
-          : "It's a draw"
-        : youWon
-          ? "You win!"
-          : `${names[result.winner ?? ""] ?? "Someone"} wins`;
+  const played = result.standings.some((r) => r.playerId === you);
+  const headline = resultHeadline(result, you, names);
   const why = { complete: "", time: "Buzzer!", forfeit: "By forfeit", aborted: "The host ended the match" }[result.reason];
   const inSeries = series.best_of > 1;
   const champ = series.winner;
@@ -655,7 +648,11 @@ function Results({
         {inSeries && (
           <p className={`mt-2 text-sm ${champ ? "font-semibold text-sun" : "text-cream/70"}`}>
             {champ
-              ? `🏆 ${champ === you ? "You win" : `${names[champ] ?? "Someone"} wins`} the ${bestOfName(series.best_of)} series`
+              ? champ === you
+                ? `🏆 You win the ${bestOfName(series.best_of)} series`
+                : played
+                  ? `You lost the ${bestOfName(series.best_of)} series`
+                  : `🏆 ${names[champ] ?? "Someone"} wins the ${bestOfName(series.best_of)} series`
               : `${bestOfName(series.best_of)}: ${result.standings
                   .map((r) => `${r.playerId === you ? "You" : (names[r.playerId] ?? "Player")} ${series.wins[r.playerId] ?? 0}`)
                   .join(" · ")}`}
