@@ -60,9 +60,10 @@ export class Game extends GameCore {
     return this.hoopX + this.court.rimRadius + this.court.boardGap;
   }
 
-  /** Board position at rest: frames the camera so a moving hoop doesn't move the view. */
+  /** Board position at rest: frames the camera so a moving hoop doesn't move the view (one that starts mid-run, in clutch time, doesn't reframe it). */
   private get restBoardX() {
-    return this.court.hoopDistance + this.court.rimRadius + this.court.boardGap + (this.court.hoopMotion?.amplitude ?? 0);
+    const m = this.court.hoopMotion;
+    return this.court.hoopDistance + this.court.rimRadius + this.court.boardGap + (m && m.from === undefined ? m.amplitude : 0);
   }
 
   private view() {

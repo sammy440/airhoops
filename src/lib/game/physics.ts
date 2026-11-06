@@ -16,6 +16,11 @@
 export interface HoopMotion {
   amplitude: number;
   frequency: number;
+  /**
+   * Phase (s) the slide starts at, from the middle: still before it (solo clutch time, see clutch.ts).
+   * Not part of the multiplayer physics: the server's port has no such field.
+   */
+  from?: number;
 }
 
 export interface Court {
@@ -54,7 +59,9 @@ export interface ShotConditions {
 /** Sideways (z) hoop offset (m) at game-clock time t (s). */
 export function hoopOffset(court: Court, t: number) {
   const m = court.hoopMotion;
-  return m ? m.amplitude * Math.sin(2 * Math.PI * m.frequency * t) : 0;
+  if (!m) return 0;
+  const since = t - (m.from ?? 0);
+  return m.from !== undefined && since < 0 ? 0 : m.amplitude * Math.sin(2 * Math.PI * m.frequency * since);
 }
 
 export const DEFAULT_COURT: Court = {

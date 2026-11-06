@@ -58,9 +58,11 @@ export function saveGhost(key: string, run: GhostRun) {
 export class GhostPlayer {
   private sims: { shot: GhostShot; sim: ShotSim; scoredAt: number }[];
 
-  constructor(run: GhostRun, court: Court) {
+  /** `court`: the court, or the court each shot was thrown on (clutch time changes the hoop's motion late in a run). */
+  constructor(run: GhostRun, court: Court | ((shot: GhostShot) => Court)) {
+    const courtOf = typeof court === "function" ? court : () => court;
     this.sims = run.shots.map((shot) => {
-      const sim = simulateShot({ speed: shot.speed, angle: shot.angle, aim: shot.aim }, court, { wind: shot.wind, phase: shot.phase });
+      const sim = simulateShot({ speed: shot.speed, angle: shot.angle, aim: shot.aim }, courtOf(shot), { wind: shot.wind, phase: shot.phase });
       const score = sim.events.find((e) => e.type === "score");
       return { shot, sim, scoredAt: shot.t + (score ? score.t : sim.duration) };
     });

@@ -4,7 +4,7 @@ import { DEFAULT_AVATAR, type Avatar } from "./avatar";
 import type { GhostPlayer } from "./ghostRun";
 import { ballSkin, DEFAULT_LOADOUT, trailSkin, type BallSkin, type Loadout, type TrailSkin } from "./cosmetics";
 import { COURT_THEMES, DEFAULT_COURT_THEME, type CourtTheme, type CourtThemeId } from "./courts";
-import { DEFAULT_COURT, hoopOffset, simulateShot, type Court, type Launch, type PathPoint, type ShotEvent, type ShotSim } from "./physics";
+import { DEFAULT_COURT, hoopOffset, simulateShot, type Court, type HoopMotion, type Launch, type PathPoint, type ShotEvent, type ShotSim } from "./physics";
 import { greenLaunch, greenLoop, isGreen } from "./green";
 import { replayReason, replayWindow, REPLAY_SPEED } from "./replay";
 import { ON_FIRE } from "./scoring";
@@ -248,6 +248,11 @@ export abstract class GameCore {
     this.court = court;
     this.ghost = null;
     this.sceneChanged();
+  }
+
+  /** Clutch time: the same court with the hoop sliding; nothing is rebuilt, so it starts without a hitch. */
+  setHoopMotion(m: HoopMotion | null) {
+    this.court = { ...this.court, hoopMotion: m };
   }
 
   /** Cosmetic court scenery (see courts.ts). */

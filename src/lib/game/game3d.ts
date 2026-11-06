@@ -8,6 +8,7 @@ import { hoopOffset, type Court } from "./physics";
 import { Player3D } from "./player3d";
 import { restBody, Retargeter, type Body } from "./pose3d";
 import { buildVenue, type Venue } from "./venues3d";
+import { buildWeather, type Weather } from "./weather3d";
 
 /**
  * 3D WebGL renderer (three.js): the court from behind the shooter's right shoulder.
@@ -74,6 +75,8 @@ export class Game3D extends GameCore {
   private flag!: THREE.Mesh;
   /** The surroundings: stands, a street, a beach… (venues3d.ts) */
   private venue: Venue | null = null;
+  /** Leaves, sand, rain or motes, blown by the crosswind (weather3d.ts) */
+  private weather: Weather | null = null;
 
   // Dynamic objects
   private ballMesh: THREE.Mesh;
@@ -259,6 +262,7 @@ export class Game3D extends GameCore {
 
   protected dispose() {
     this.venue?.dispose();
+    this.weather?.dispose();
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
       m.geometry?.dispose();
@@ -345,6 +349,9 @@ export class Game3D extends GameCore {
     toThree({ x: c.hoopDistance, y: 0, z: 0 }, this.venue.group.position);
     this.world.add(this.venue.group);
     this.scene.fog = new THREE.Fog(p.fog, ...this.venue.fog);
+    this.weather?.dispose();
+    this.weather = buildWeather(this.theme.id, { tex: canvasTexture, calm: this.calm });
+    if (this.weather) this.venue.group.add(this.weather.object);
     this.hemi.color.set(p.light[0]);
     this.hemi.groundColor.set(p.light[1]);
     this.hemi.intensity = p.lightIntensity;
@@ -509,6 +516,7 @@ export class Game3D extends GameCore {
     this.updateSparks();
     this.updateTexts();
     this.venue?.update(performance.now() / 1000, (this.now - this.madeAt) / 1000);
+    this.weather?.update(this.now / 1000, this.wind);
     this.renderer.render(this.scene, this.camera);
   }
 
