@@ -2,6 +2,91 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Multiplayer races: custom length
+- Races offered only 30 s to 2 min. The race length now uses the solo shot-clock picker (shared as
+  `components/ui/ShotClockPicker.tsx`): the presets plus ⚙ for a custom **1–30 minutes**, when creating a room and
+  under "Change game" in the lobby. Everyone in the room sees the new length, and a custom length shows the
+  stepper when the picker opens.
+- **API:** races were limited to 30–300 s. Now they take the same set as solo: 30 s, 90 s, or whole minutes up to
+  30 (`valid_race_seconds` in `match.py`), so each length has one leaderboard rather than one per second. The
+  leaderboard key allows `race1800` (`race\d{2,4}`). Long races need nothing else: heartbeats keep the sockets
+  alive and the server has no match time limit.
+
+## Install as an app
+- AirHoops can be installed (Install in Chrome and Edge, Add to Home Screen on phones). It opens straight into the
+  game (`/play`), full screen without the browser bar, on a dark splash. Long-press shortcuts: Play, Play a friend,
+  Leaderboard. `src/app/manifest.ts` is served at `/manifest.webmanifest`; Chrome reports no installability errors.
+- Icons in `public/icons` are rendered from `icon.svg` at 192 and 512 px, plus a maskable 512 px one: the ball fills
+  the middle **66%** on the ink background, inside the 80% safe zone, so round and squircle masks don't clip it.
+- On iPhone, Add to Home Screen opens full screen too (`appleWebApp` in the layout). It still needs a connection:
+  there is no offline cache yet (the pose model and its WebAssembly are the big downloads to cache first).
+
+## Seated and one-arm play
+- Two switches, in the start menu and on the camera setup check: **Seated** and **One arm**
+  (`BodyOptions` in `lib/pose/landmarks.ts`). Both are off by default, and with them off nothing changes.
+- **Seated:** hips hidden behind a desk or a chair's arms no longer mean "step back". With the hips out of view,
+  distance is judged by the shoulders: **0.08–0.42** of the frame width apart. Aim (the shoulders' lean) is
+  measured from where the hips were last seen, or the middle of the frame if they never were, so leaning still
+  steers; tracking confidence leaves the hips out. With the hips in view, everything is as before.
+- **One arm:** tracking confidence counts the better-seen arm twice instead of averaging in an arm that isn't
+  there. In ordinary room light (landmarks seen at about 0.7) a missing arm pulled the average under the
+  **0.55** bar and the setup check asked to "show your upper body". The one-handed reach throw was already
+  supported; the elbow snap still needs both hands on the ball.
+- The setup check's advice follows the switches ("Sit back until your shoulders are well inside the frame",
+  "Show your shoulders, your throwing arm"). The lab's Python port has no seated mode; it's opt-in, so they agree
+  by default.
+
+## Clutch time: the last 10 seconds count double
+- Timed and daily runs end with **clutch time**, the last **10 s** (`lib/game/clutch.ts`). Makes released in it score
+  **×2** (on top of streak and difficulty), a "Clutch ×2" badge sits by the clock, and the point label says
+  CLUTCH. A shot counts as clutch by when it left the hands, so a buzzer beater released in time scores double.
+- A hoop that was standing still (Rookie, Starter) starts to slide: **0.3 m at 0.15 Hz**, slower and narrower than
+  All-Star's 0.45 m at 0.22 Hz, starting from the middle so it doesn't jump. A hoop that already slides keeps going.
+  `HoopMotion.from` (solo only; the server's physics port doesn't have it) holds it still until then, and the 2D
+  view keeps its framing. Changing the motion doesn't rebuild the scene, so clutch time starts without a hitch.
+- Ghosts and challenge links re-fly clutch shots on the court they were thrown on: hoop phase and run time tick
+  together, so each shot says where clutch time began. Ghosts saved before this change fly their last 10 s on the
+  sliding hoop, but their scores (stored per shot) are unchanged.
+- **API (deploy it first):** the solo score check allows the doubled makes. A shot takes over a second, so at most
+  10 makes are clutch: score ≤ (makes + min(makes, 10)) × the most one make can earn. Older runs on the
+  leaderboards were scored without clutch time.
+
+## 3D weather: see the crosswind
+- The wind used to show only on the flag. Each outdoor court now has weather blown by the same crosswind the ball
+  feels (`lib/game/weather3d.ts`): **leaves** at the park (110, falling 0.5–1.1 m/s, fluttering), **sand spray** at
+  the beach (600 low specks that only show in a wind: full strength from **0.8 m/s²**), **rain** on the rooftop
+  (700 streaks slanted by the wind) and **glowing motes** rising on the neon grid. The arena is indoors.
+- Sideways drift per m/s² of wind: leaves 2.2 m/s, sand 6, rain 3, motes 1.4, so a stronger wind is plain to see.
+  The particles fill a 24 m box round the court and the camera and wrap round it; they run on the game clock, so a
+  pause freezes them, and reduced motion leaves them out.
+
+## Challenge links: race a friend's run
+- After a timed or daily run, "Challenge a friend" shares a link (`/play?vs=…`) through the share sheet, or copies
+  it. Opening it picks the sender's mode, clock, difficulty and court, and races their run as the ghost, with their
+  name on the live readout ("vs Ayo −2"). The end screen says who won and by how much, and offers to send it back.
+- Nothing is stored: the run travels in the link (`lib/game/challenge.ts`). The ghost keeps only launches and the
+  physics is deterministic, so the friend's game re-flies the same shots. Numbers are sent as scaled integers
+  (speed and wind to 1/10 000, angles and phase to 1/1000, times to 1/100): a test re-simulates a run of mixed makes
+  and misses from the link and every shot lands the same way. A 30-shot minute is about 1 600 characters; links
+  carry at most **120 shots** (a race is decided by then) and decoding refuses anything over 12 000 characters.
+- The code is taken off the address once read, so a reload or a screenshot doesn't carry it. A daily challenge can
+  only be raced on its day (each day has its own rules); a broken or old link says so in the menu. Changing the
+  settings away from the challenge's races your own ghost again, and the menu offers "Use their settings".
+
+## Coach: what to work on, at the end of every run
+- The post-shot gauge judges one shot; a run's worth shows a habit. At game over the coach (`lib/game/coach.ts`)
+  reads every shot with the same judgement (power against the make zone with the direction put right, direction
+  against where the rim was) and shows a shot chart (where each ball came down round the rim, seen from above),
+  the misses by kind, and up to two tips, biggest first, in body moves for camera throws or keys for keyboard.
+- Thresholds (first guesses, to tune against real runs): a tip needs at least **3 shots**, and **2 shots** showing
+  the habit. Power is a habit when it averages **0.04** off the middle of the zone (about half a zone's width);
+  shot-to-shot spread is too loose at a standard deviation of **0.07**. Direction is a habit when it averages
+  outside the rim's tolerance. "Too little arc" needs **30%** of shots unable to reach. **70%** accuracy with no
+  strong habit says "locked in, try a harder difficulty".
+- Short camera throws by a player who barely jumps (average jump under **0.25**) are told a small jump adds power,
+  from the lab's jump measure. Rim-outs only get their own "you're close" tip when no habit explains them: a
+  drift rattles out too.
+
 ## Phones: game controls fold away from the score
 - On a phone the five round buttons (sound, clip, reset view, camera, pause) ran across the top and covered the
   score. Below the `sm` breakpoint only Pause and a "more" button (⋯) show; ⋯ drops the others down in a column

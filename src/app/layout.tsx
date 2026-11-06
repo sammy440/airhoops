@@ -18,12 +18,14 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://airhoops.vercel.ap
 const DESCRIPTION = "Shoot hoops with nothing but air. A camera-controlled basketball game that runs entirely in your browser.";
 
 // Share images and icons come from the file conventions in this folder:
-// opengraph-image.jpg, twitter-image.jpg, icon.svg, apple-icon.png, favicon.ico.
+// opengraph-image.jpg, twitter-image.jpg, icon.svg, apple-icon.png, favicon.ico, manifest.ts.
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: "AirHoops: shoot hoops with nothing but air", template: "%s · AirHoops" },
   description: DESCRIPTION,
   applicationName: "AirHoops",
+  // Added to an iPhone's home screen, it opens full screen like the installed app elsewhere (manifest.ts)
+  appleWebApp: { capable: true, title: "AirHoops", statusBarStyle: "black-translucent" },
   openGraph: {
     type: "website",
     siteName: "AirHoops",
