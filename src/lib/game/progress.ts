@@ -1,5 +1,6 @@
 import { api, loadGuest, pushProfile, type XpGain } from "@/lib/net/api";
 import { DEFAULT_LOADOUT, type Loadout } from "./cosmetics";
+import type { MissKind } from "./physics";
 import { XP, xpFor } from "./xp";
 
 /**
@@ -26,6 +27,20 @@ export interface PendingPlay {
   runs: number;
   /** A finished daily challenge, e.g. "daily20261104" */
   daily: string | null;
+  /** Misses by kind: no XP, they feed the shooting trends on the profile */
+  misses: Misses;
+}
+
+export type Misses = Partial<Record<MissKind, number>>;
+
+function addMisses(a: Misses, b: Misses | undefined, sign = 1): Misses {
+  const out: Misses = { ...a };
+  for (const [k, n] of Object.entries(b ?? {}) as [MissKind, number][]) {
+    const v = (out[k] ?? 0) + sign * n;
+    if (v > 0) out[k] = v;
+    else delete out[k];
+  }
+  return out;
 }
 
 export interface Progress {
@@ -43,7 +58,7 @@ export interface Progress {
   loadoutSent: string | null;
 }
 
-const NO_PLAY: PendingPlay = { shots: 0, makes: 0, swishes: 0, banks: 0, bestStreak: 0, runs: 0, daily: null };
+const NO_PLAY: PendingPlay = { shots: 0, makes: 0, swishes: 0, banks: 0, bestStreak: 0, runs: 0, daily: null, misses: {} };
 const FRESH: Progress = { local: 0, server: null, account: null, pending: NO_PLAY, lastDaily: null, loadout: DEFAULT_LOADOUT, loadoutSent: null };
 
 export function loadProgress(): Progress {
@@ -104,6 +119,7 @@ export function recordPlay(play: Partial<PendingPlay>) {
       bestStreak: Math.max(p.pending.bestStreak, add.bestStreak),
       runs: p.pending.runs + add.runs,
       daily: daily ?? p.pending.daily,
+      misses: addMisses(p.pending.misses, add.misses),
     },
   };
   save(next);
@@ -132,7 +148,15 @@ export function toGain(p: PendingPlay): XpGain {
   const makes = Math.min(shots, scale(p.makes));
   const swishes = Math.min(makes, scale(p.swishes));
   const banks = Math.min(makes - swishes, scale(p.banks));
-  return { shots, makes, swishes, banks, best_streak: Math.min(makes, p.bestStreak), runs: Math.min(50, p.runs), daily: p.daily };
+  // Misses can't outnumber the missed shots (rounding down each kind keeps them under)
+  const misses: Misses = {};
+  let room = shots - makes;
+  for (const [kind, n] of Object.entries(p.misses ?? {}) as [MissKind, number][]) {
+    const m = Math.min(room, scale(n));
+    if (m > 0) misses[kind] = m;
+    room -= m;
+  }
+  return { shots, makes, swishes, banks, best_streak: Math.min(makes, p.bestStreak), runs: Math.min(50, p.runs), daily: p.daily, misses };
 }
 
 const isEmpty = (p: PendingPlay) => !p.shots && !p.runs && !p.daily;
@@ -164,6 +188,7 @@ export function syncProgress(): Promise<Progress> {
           bestStreak: now.pending.bestStreak > sent.bestStreak ? now.pending.bestStreak : 0,
           runs: Math.max(0, now.pending.runs - sent.runs),
           daily: now.pending.daily !== sent.daily ? now.pending.daily : null,
+          misses: addMisses(now.pending.misses, sent.misses, -1),
         };
         p = { ...now, server: res.xp, pending: left };
       } else {

@@ -2,6 +2,59 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Offline: opens fast, plays solo without a connection
+- A service worker (`public/sw.js`, registered in production by `components/app/ServiceWorker.tsx` once the page has
+  loaded) caches the big downloads the first time they're used: the pose model and its WebAssembly, only the
+  variant this device needs (about **19 MB** for the lite model, not every variant, **~55 MB** in all). Repeat launches
+  skip them, and the installed app plays solo offline.
+- Pages are network-first: online you always get the latest; offline, the page as last seen, else the game
+  (`/play` is saved when the worker installs), else a short "you're offline" note. Hashed `_next/static` files are
+  cache-first in a cache per release (`NEXT_PUBLIC_SW_VERSION`, the commit), so each deploy drops the last one's.
+  The model cache is kept across releases.
+- A new release's worker waits until every AirHoops tab is closed: nothing changes under a game in progress.
+  `/sw.js` is served `no-cache` so updates are found.
+- Offline play still counts: XP, misses and bests wait on the device and go up on the next sync. Multiplayer,
+  leaderboards and the profile's online sections need a connection. The API (its own origin) is never cached.
+
+## Achievements
+- **18 achievements** in five groups (`lib/game/achievements.ts`, the same ids as the API's `app/game/achievements.py`):
+  shooting totals (first make; 10 and 100 swishes; 10 banks; 1,000 and 10,000 shots), streaks (**5 / 10 / 20** in a
+  row), the Daily (finish one; **7** days in a row), multiplayer (a win, H-O-R-S-E without a letter, a shootout
+  without a miss, a series) and three solo moments.
+- The server decides almost all of them from your history and refereed matches. The solo moments are claimed from
+  the browser: **buzzer beater** (a make released in the last **1 s** of a timed or daily run), **green light** (a
+  swish off the green rim), **world tour** (a finished run on all five courts, counted on this device). Claims made
+  without a player online wait on the device and go up later.
+- New ones are announced at the end of a run and in a match's toasts. A device's first look at an account
+  announces nothing, so old achievements aren't re-announced on a new phone. The profile lists them all, earned
+  with the date, the rest greyed with how to get them.
+- **API (deploy it first):** `GET /me/achievements`, `POST /me/achievements/{id}`, `achievements` on `/xp` and over
+  the socket, migration `0009`.
+
+## Personal bests and ghosts follow you
+- With a player online, bests and ghosts are also kept with the account (`lib/game/cloudBests.ts`, API `/me/bests`).
+  Opening Play merges both ways: the account's better bests come down with their ghosts, this device's better ones
+  go up, so bests from before you had an account, or set offline, upload the next time. A new best is sent right
+  after the run.
+- "Better" is the same everywhere (`beats` in `modes.ts`, `better` in the API): streak boards on the streak, the rest
+  on points, with makes breaking a tie. A ghost only travels with the best it scored; one the API refuses (an older
+  version's that doesn't add up) is left behind and the best goes up without it.
+- Dailies sync for **2 days** (older challenges can't be raced); the old key without a date stays on the device.
+- **API (deploy it first):** `GET /me/bests`, `GET /me/bests/{key}/ghost`, `PUT /me/bests/{key}`, migration `0008`.
+
+## Your game: match history and shooting trends
+- The profile has a **Your game** section (`components/profile/ProfileStats.tsx`): shots, make rate, swishes and
+  matches won over 7, 30 or 90 days, a make-rate-by-day chart, and your recent multiplayer matches with everyone's
+  line (paged, newest first). It needs a player online (multiplayer or Google); without one it says so.
+- Solo shots now also count **misses by kind** (`PendingPlay.misses`), sent with the XP batch. They earn nothing:
+  the server adds them to your day for the trends. `toGain` scales them with the rest and never sends more misses
+  than missed shots.
+- **Insights** (`lib/game/trends.ts`), at most three: make rate this week against last (needs **20** shots in each
+  week; a move of **3** points or more is up/down), a miss habit when one kind is **40%** of at least **8** misses
+  (six kinds, so an even spread is ~17%), and for refereed multiplayer misses, where they land on average once
+  that's **15 cm** or more off on one axis. The miss habit and the landing spot never say the same thing twice.
+- **API (deploy it first):** `GET /me/matches`, `GET /me/stats`, `misses` on `POST /xp`, migration `0007`.
+
 ## Multiplayer results: "You win!" or "You lost"
 - At the end of a match a player who lost was told the winner's name ("Ada wins"). Now each player is told about
   themselves: **"You win!"** or **"You lost"**, and the same for a series ("You lost the best-of-3 series"). A tie
@@ -25,7 +78,7 @@ Every tuned threshold is recorded here with the reason, as the project README as
 - Icons in `public/icons` are rendered from `icon.svg` at 192 and 512 px, plus a maskable 512 px one: the ball fills
   the middle **66%** on the ink background, inside the 80% safe zone, so round and squircle masks don't clip it.
 - On iPhone, Add to Home Screen opens full screen too (`appleWebApp` in the layout). It still needs a connection:
-  there is no offline cache yet (the pose model and its WebAssembly are the big downloads to cache first).
+  offline support came later (see "Offline" above).
 
 ## Seated and one-arm play
 - Two switches, in the start menu and on the camera setup check: **Seated** and **One arm**

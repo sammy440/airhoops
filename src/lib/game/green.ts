@@ -70,3 +70,17 @@ export function greenLaunch(court: Court = DEFAULT_COURT, cond: ShotConditions =
   }
   return make;
 }
+
+/** The tick comes this long (s) before the rim lights: about a throw's length, so it's time to go. */
+export const GREEN_SOON_S = 0.5;
+
+/**
+ * Which green-rim sound to play as the countdown moves from `prev` to `next` (seconds until green,
+ * 0 = green now, null = can't throw). Once a loop each: "soon" as it crosses GREEN_SOON_S, "on" as it lights.
+ */
+export function greenSounds(prev: number | null, next: number | null): "soon" | "on" | null {
+  if (next === null) return null;
+  if (next === 0) return prev === 0 ? null : "on";
+  if (next <= GREEN_SOON_S && (prev === null || prev === 0 || prev > GREEN_SOON_S)) return "soon";
+  return null;
+}

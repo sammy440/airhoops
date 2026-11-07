@@ -11,11 +11,15 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  // Each build gets its own service worker version (public/sw.js keeps a cache per release).
+  env: { NEXT_PUBLIC_SW_VERSION: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? process.env.NEXT_PUBLIC_RELEASE ?? String(Date.now()) },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
       // Pose models and WASM are large and rarely change: cache for a week, refresh in the background.
       { source: "/mediapipe/:path*", headers: [{ key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=2592000" }] },
+      // The service worker itself is always checked for a new version.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache" }, { key: "Service-Worker-Allowed", value: "/" }] },
     ];
   },
   partialPrefetching: true,

@@ -75,6 +75,13 @@ src/
 
 Video frames never leave the browser.
 
+## Offline
+
+`public/sw.js` (production only) caches the pose model and WebAssembly on first use, hashed static files per
+release, and pages as they're visited, so the installed app opens fast and solo play works without a connection.
+To test it locally: `npm run build && npm start`, open `/play` once, then go offline in DevTools (Application →
+Service workers shows the worker; "Update on reload" while working on it).
+
 ## Photos
 
 All photos are from [Unsplash](https://unsplash.com) under the free Unsplash License (no Unsplash+).

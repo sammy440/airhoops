@@ -73,6 +73,21 @@ function tone(freq: number, peak: number, decay: number, type: OscillatorType = 
 const vol = (impact: number, lo = 1, hi = 9) => Math.min(1, Math.max(0.15, (impact - lo) / (hi - lo)));
 
 export const sfx = {
+  /** The green rim is about to light: a soft, short tick (opt-in, for players watching themselves, not the rim). */
+  greenSoon() {
+    if (muted) return;
+    try {
+      tone(880, 0.12, 0.06, "sine");
+    } catch {}
+  },
+  /** The green rim is lit: shoot now. */
+  greenOn() {
+    if (muted) return;
+    try {
+      tone(1320, 0.22, 0.16, "sine");
+      tone(1980, 0.1, 0.12, "sine");
+    } catch {}
+  },
   release() {
     if (muted) return;
     try {

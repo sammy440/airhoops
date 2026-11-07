@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { achievement, markSeen } from "@/lib/game/achievements";
 import { awardFromServer } from "@/lib/game/progress";
 import type { RoomState } from "@/lib/net/api";
 import { QUICK_CHAT, RoomSocket, SHOT_KIND_NAMES, type ClientMessage, type ReactionId, type MatchEnd, type PlayerScore, type ServerMessage, type ServerShot, type SocketStatus } from "@/lib/net/socket";
@@ -135,6 +136,11 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
           case "xp": {
             const xp = awardFromServer(msg.gained, msg.xp);
             setMatch((m) => (m ? { ...m, xp } : m));
+            break;
+          }
+          case "achievements": {
+            markSeen(msg.ids);
+            for (const a of msg.ids.flatMap((id) => achievement(id) ?? [])) toast(`${a.icon} Achievement unlocked: ${a.name}`, "info");
             break;
           }
           case "chat": {

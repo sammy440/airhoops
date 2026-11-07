@@ -85,6 +85,22 @@ export function loadBests(): Bests {
   }
 }
 
+/** Does best `a` beat `b` on this board? Streak boards are won on the streak, the rest on points (makes break ties). */
+export function beats(key: string, a: Pick<Best, "points" | "makes" | "streak">, b: Pick<Best, "points" | "makes" | "streak"> | undefined): boolean {
+  if (!b) return true;
+  const [x, y] = key.startsWith("streak") ? [[a.streak, a.makes], [b.streak, b.makes]] : [[a.points, a.makes], [b.points, b.makes]];
+  return x[0] > y[0] || (x[0] === y[0] && x[1] > y[1]);
+}
+
+/** Stores a best as is (from the account: see cloudBests.ts). */
+export function putBest(key: string, best: Best) {
+  const bests = loadBests();
+  bests[key] = best;
+  try {
+    localStorage.setItem(BESTS_KEY, JSON.stringify(bests));
+  } catch {}
+}
+
 /** Saves if it beats the previous best points; returns true for a new record. */
 export function recordBest(mode: ModeId, difficulty: DifficultyId, run: Omit<Best, "at">, timedSeconds?: number, dailyKey?: string): boolean {
   const bests = loadBests();

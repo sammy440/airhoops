@@ -2,6 +2,7 @@
 
 import {
   Alert02Icon,
+  ArmchairIcon,
   Basketball01Icon,
   BookOpen01Icon,
   Calendar03Icon,
@@ -17,21 +18,21 @@ import {
   GhostIcon,
   Home01Icon,
   KeyboardIcon,
+  Layout01Icon,
   Loading03Icon,
+  Notification01Icon,
   PencilEdit02Icon,
   PlayIcon,
   RepeatIcon,
   Settings02Icon,
   Share08Icon,
-  Layout01Icon,
   Target02Icon,
-  ArmchairIcon,
-  WavingHand01Icon,
   Tick02Icon,
   Timer02Icon,
   VideoReplayIcon,
   VolumeHighIcon,
   VolumeOffIcon,
+  WavingHand01Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
 import Link from "next/link";
@@ -294,6 +295,9 @@ export function StartMenu(p: {
   onReplays: (on: boolean) => void;
   ghost: boolean;
   onGhost: (on: boolean) => void;
+  /** Green rim sound cues (camera play only, where the green rim is) */
+  greenSound: boolean;
+  onGreenSound: (on: boolean) => void;
   clips: { record: boolean; camera: boolean };
   onClips: (c: { record: boolean; camera: boolean }) => void;
   calibration: Calibration | null;
@@ -455,6 +459,7 @@ export function StartMenu(p: {
         <div className="grid grid-cols-4 gap-2">
           {(p.mode === "timed" || isDaily) && <ToggleTile icon={GhostIcon} label="Race your ghost" on={p.ghost} onChange={p.onGhost} />}
           {view === "3d" && <ToggleTile icon={VideoReplayIcon} label="Instant replays" on={p.replays} onChange={p.onReplays} />}
+          {p.camera && <ToggleTile icon={Notification01Icon} label="Green rim sound" on={p.greenSound} onChange={p.onGreenSound} />}
           {clipsOk && <ToggleTile icon={Film01Icon} label={`Record clips (C)`} on={p.clips.record} onChange={(record) => p.onClips({ ...p.clips, record })} />}
           {clipsOk && p.clips.record && (
             <ToggleTile icon={Camera01Icon} offIcon={CameraOff01Icon} label="Me in clips" on={p.clips.camera} onChange={(camera) => p.onClips({ ...p.clips, camera })} />

@@ -53,7 +53,22 @@ describe("progress on this device", () => {
   });
 
   it("sends a big backlog scaled into one batch the API accepts", () => {
-    const g = toGain({ shots: 5000, makes: 2500, swishes: 600, banks: 100, bestStreak: 40, runs: 80, daily: null });
-    expect(g).toEqual({ shots: 2000, makes: 1000, swishes: 240, banks: 40, best_streak: 40, runs: 50, daily: null });
+    const g = toGain({ shots: 5000, makes: 2500, swishes: 600, banks: 100, bestStreak: 40, runs: 80, daily: null, misses: { short: 2000, rim: 500 } });
+    expect(g).toEqual({ shots: 2000, makes: 1000, swishes: 240, banks: 40, best_streak: 40, runs: 50, daily: null, misses: { short: 800, rim: 200 } });
+  });
+
+  it("counts misses by kind and never sends more than the missed shots", () => {
+    recordPlay({ shots: 1, misses: { short: 1 } });
+    recordPlay({ shots: 1, misses: { short: 1 } });
+    recordPlay({ shots: 1, makes: 1 });
+    recordPlay({ shots: 1, misses: { rim: 1 } });
+    expect(loadProgress().pending.misses).toEqual({ short: 2, rim: 1 });
+    const g = toGain({ shots: 3, makes: 1, swishes: 0, banks: 0, bestStreak: 1, runs: 0, daily: null, misses: { short: 2, rim: 1 } });
+    expect(Object.values(g.misses!).reduce((a, b) => a + b, 0)).toBe(2);
+  });
+
+  it("reads progress saved before misses were counted", () => {
+    localStorage.setItem("airhoops.progress", JSON.stringify({ local: 5, pending: { shots: 2, makes: 1, swishes: 0, banks: 0, bestStreak: 1, runs: 0, daily: null } }));
+    expect(loadProgress().pending.misses).toEqual({});
   });
 });

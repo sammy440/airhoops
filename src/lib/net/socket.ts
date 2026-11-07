@@ -134,6 +134,8 @@ export type ServerMessage =
   | { type: "challenge"; playerId: string; challenge: ShotKind; serverTime: number }
   /** Your XP from the match just finished (only you get yours) */
   | { type: "xp"; gained: number; xp: number; level: number; serverTime: number }
+  /** Achievements you just earned (ids: names in lib/game/achievements.ts), after `xp` at match end */
+  | { type: "achievements"; ids: string[]; serverTime?: number }
   | { type: "reaction"; playerId: string; reaction: ReactionId; serverTime: number }
   /** A chat message (free text, cleaned by the server, or a quick-chat id). Relayed, never stored. */
   | { type: "chat"; playerId: string; text?: string; quick?: QuickChatId; serverTime: number }

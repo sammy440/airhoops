@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Inter_Tight } from "next/font/google";
+import { ServiceWorker } from "@/components/app/ServiceWorker";
 import { Providers } from "@/components/motion/Providers";
 import "./globals.css";
 
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           Skip to content
         </a>
         <Providers>{children}</Providers>
+        <ServiceWorker />
       </body>
     </html>
   );

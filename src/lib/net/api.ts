@@ -1,5 +1,7 @@
 import type { Avatar } from "@/lib/game/avatar";
 import type { Loadout } from "@/lib/game/cosmetics";
+import type { GhostShot } from "@/lib/game/ghostRun";
+import type { MissKind } from "@/lib/game/physics";
 
 /**
  * REST client for the AirHoops API (airhoops-backend). Only small JSON
@@ -159,7 +161,81 @@ export const api = {
   myBests: (token: string, params: { mode: string; difficulty?: string }) => request<PersonalBests>(`/leaderboard/me?${query(params)}`, { token }),
   /** Solo play since the last sync, as stats: the server works out the XP (and caps it per day). */
   gainXp: (token: string, play: XpGain) => request<{ xp: number; level: number; gained: number; capped: boolean }>("/xp", { method: "POST", token, body: JSON.stringify(play) }),
+  /** Your finished multiplayer matches, newest first. Page with `before` = the last one's `started_at`. */
+  myMatches: (token: string, params: { limit?: number; before?: string } = {}) => request<HistoryMatch[]>(`/me/matches?${query(params)}`, { token }),
+  /** Your shooting over the last `days` days: solo + multiplayer, misses, and your match record. */
+  myStats: (token: string, days = 30) => request<ShootingStats>(`/me/stats?days=${days}`, { token }),
+  /** What you've earned, oldest first (ids: names and rules are in lib/game/achievements.ts). */
+  myAchievements: (token: string) => request<{ id: string; unlocked_at: string }[]>("/me/achievements", { token }),
+  /** Solo moments only the browser sees (buzzer_beater, green_light, world_tour). */
+  claimAchievement: (token: string, id: string) =>
+    request<{ id: string; unlocked_at: string; new: boolean }>(`/me/achievements/${encodeURIComponent(id)}`, { method: "POST", token }),
+  /** Your personal best per board (best key → summary). */
+  savedBests: (token: string) => request<Record<string, SavedBest>>("/me/bests", { token }),
+  savedGhost: (token: string, key: string) => request<GhostShot[]>(`/me/bests/${encodeURIComponent(key)}/ghost`, { token }),
+  /** The server keeps whichever is better, this or what it has (`updated` says which). */
+  saveBest: (token: string, key: string, best: { points: number; makes: number; streak: number; at: string; ghost?: GhostShot[] }) =>
+    request<SavedBest & { updated: boolean }>(`/me/bests/${encodeURIComponent(key)}`, { method: "PUT", token, body: JSON.stringify(best) }),
 };
+
+export interface SavedBest {
+  points: number;
+  makes: number;
+  streak: number;
+  at: string;
+  has_ghost: boolean;
+}
+
+export interface HistoryPlayer {
+  user_id: string;
+  nickname: string;
+  avatar?: Avatar | null;
+  rank: number;
+  won: boolean;
+  forfeited: boolean;
+  points: number;
+  shots: number;
+  makes: number;
+  swishes: number;
+  banks: number;
+  best_streak: number;
+  /** H-O-R-S-E only */
+  letters: number | null;
+}
+
+export interface HistoryMatch {
+  id: string;
+  mode: "shootout" | "race" | "horse";
+  difficulty: string;
+  race_seconds: number | null;
+  started_at: string;
+  ended_at: string | null;
+  /** "complete" | "time" | "forfeit" | "aborted"; null for matches from before this was kept */
+  reason: string | null;
+  you: HistoryPlayer;
+  /** Everyone, you included, best first */
+  players: HistoryPlayer[];
+}
+
+export interface ShotTotals {
+  shots: number;
+  makes: number;
+  swishes: number;
+  banks: number;
+  misses: Partial<Record<MissKind, number>>;
+}
+
+export interface ShootingStats {
+  days: number;
+  totals: ShotTotals;
+  solo: ShotTotals;
+  match: ShotTotals;
+  /** Days with play, oldest first; `day` is YYYY-MM-DD (UTC) */
+  by_day: { day: string; solo: ShotTotals | null; match: ShotTotals | null }[];
+  /** Where refereed misses came down, on average (m from the rim's centre): depth + = long, side + = right */
+  miss_bias: { misses: number; depth: number; side: number } | null;
+  record: Record<string, { played: number; wins: number }>;
+}
 
 export interface XpGain {
   shots: number;
@@ -169,6 +245,8 @@ export interface XpGain {
   best_streak: number;
   runs: number;
   daily?: string | null;
+  /** Misses by kind (no XP: they feed /me/stats) */
+  misses?: Partial<Record<MissKind, number>>;
 }
 
 function query(params: Record<string, string | number | undefined>) {

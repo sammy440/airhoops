@@ -5,7 +5,9 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { SiteNav } from "@/components/home/SiteNav";
+import { Achievements } from "./Achievements";
 import { Locker } from "./Locker";
+import { ProfileStats } from "./ProfileStats";
 import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
 import { GOOGLE_CLIENT_ID, GoogleButton } from "@/components/ui/GoogleButton";
 import {
@@ -260,6 +262,8 @@ export function ProfileClient() {
             </Panel>
 
             <Locker />
+            <ProfileStats />
+            <Achievements />
           </div>
         </div>
       </main>

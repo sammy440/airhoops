@@ -19,8 +19,11 @@ const ON_SERVER = [
   ["Google sign-in (optional)", "Only Google's account ID, so the same player works on your other devices. No email, name, contacts or photo"],
   ["Scores", "Each posted run: mode, difficulty, score, shots and makes"],
   ["Progress", "Your XP total and today's solo XP, worked out from play counts (shots, makes, swishes, banks, streaks, finished runs)"],
-  ["Matches", "Room code, mode, start/end time, winner"],
-  ["Throws (multiplayer)", "Power, angle, arc, aim, whether it was thrown on camera (for the green rim) and the result of each shot, so the server can referee"],
+  ["Matches", "Room code, mode, start/end time, how it ended, the winner, and each player's line (rank, points, shots, makes), for match history"],
+  ["Throws (multiplayer)", "Power, angle, arc, aim, whether it was thrown on camera (for the green rim) and the server's result of each shot (made, swish, bank, kind of miss, where it came down), so the server can referee and show your trends"],
+  ["Personal bests", "Your best run per mode and difficulty and, for runs on the clock, its ghost (the launches of each shot, never video), so they follow you to your other devices. Only you can see them"],
+  ["Achievements", "Which ones you've earned and when. Three solo moments (buzzer beater, green-rim swish, every court) are sent by this device; the rest the server works out from your play"],
+  ["Shooting trends", "Per day: shots, makes, swishes, banks and kinds of miss (short, long, left, right, rim, airball), solo and multiplayer. Only you can see them, on your profile"],
   ["Reactions (multiplayer)", "Passed on to the others in your room as they happen. Not stored"],
   ["Chat (multiplayer)", "Never stored. A message is checked (links and contact details removed, swearing masked), passed on to your room, and forgotten: not saved on our server, not in our logs, not on your device. Leave the room and it's gone. Quick match with strangers is preset quick chat only"],
 ];
@@ -99,7 +102,7 @@ export function PrivacyPage() {
         <Section title="Delete your data">
           <p>
             Your nickname, look and scores are public on the leaderboards, and your level shows to the players in your room. You can erase everything
-            we store online about you (your guest profile, XP, scores and throws) right here. It can&apos;t be undone.
+            we store online about you (your guest profile, XP, scores, personal bests and ghosts, achievements, throws, match history and shooting trends) right here. It can&apos;t be undone.
           </p>
           <DeleteData />
         </Section>

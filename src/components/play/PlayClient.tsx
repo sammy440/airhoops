@@ -27,12 +27,14 @@ import { courtFor, DIFFICULTIES, rollWind, type DifficultyId } from "@/lib/game/
 import { AimCenter, leanAim, MAX_LEAN_AIM } from "@/lib/game/aim";
 import { createGame, rendererId, type RendererId } from "@/lib/game/createGame";
 import type { GameCore } from "@/lib/game/engine";
+import { claim, courtFinished, shotMoments, syncAchievements, type Achievement } from "@/lib/game/achievements";
+import { pushBest, syncBests } from "@/lib/game/cloudBests";
 import { GhostPlayer, loadGhost, saveGhost, type GhostShot } from "@/lib/game/ghostRun";
 import { unlockedBetween } from "@/lib/game/cosmetics";
 import { loadProgress, recordPlay, shownXp, syncProgress } from "@/lib/game/progress";
 import { levelFor } from "@/lib/game/xp";
 import { useProgress } from "@/hooks/useProgress";
-import { untilGreen } from "@/lib/game/green";
+import { greenSounds, untilGreen } from "@/lib/game/green";
 import { ClipRecorder } from "@/lib/clips/clipRecorder";
 import { drawClipOverlay } from "@/lib/clips/overlay";
 import { siteUrl } from "@/lib/share";
@@ -49,7 +51,7 @@ import {
 } from "@/lib/game/modes";
 import type { Launch, ShotSim } from "@/lib/game/physics";
 import { addShot, EMPTY_TALLY, hotMultiplier, streakMultiplier, type Tally } from "@/lib/game/scoring";
-import { setMuted, unlockAudio } from "@/lib/game/sfx";
+import { setMuted, sfx, unlockAudio } from "@/lib/game/sfx";
 import { CHALLENGE_PARAM, challengeRun, decodeChallenge, type Challenge } from "@/lib/game/challenge";
 import { CLUTCH_MULTIPLIER, CLUTCH_SECONDS, clutchMotion, inClutch, shotCourt } from "@/lib/game/clutch";
 import { coachRun, type CoachReport, type CoachShot } from "@/lib/game/coach";
@@ -98,6 +100,8 @@ interface Prefs {
   /** Plays seated (hips can be hidden) or with one arm: what the camera expects to see */
   seated: boolean;
   oneArm: boolean;
+  /** Hear the green rim coming (a tick) and lighting (a chime), not only see it */
+  greenSound: boolean;
 }
 const DEFAULT_PREFS: Prefs = {
   camera: true,
@@ -114,6 +118,7 @@ const DEFAULT_PREFS: Prefs = {
   ghost: true,
   seated: false,
   oneArm: false,
+  greenSound: false,
   clips: true,
   clipCamera: false,
 };
@@ -166,6 +171,9 @@ export function PlayClient() {
     setCalibration(loadCalibration());
     setBests(loadBests());
     setHydrated(true);
+    // Bests and ghosts from your other devices (and this device's up to the account)
+    void syncBests().then((changed) => changed && setBests(loadBests()));
+    void syncAchievements(); // what's already earned isn't announced again
   }, []);
   useEffect(() => {
     if (!hydrated) return;
@@ -268,6 +276,7 @@ export function PlayClient() {
   const runXpRef = useRef(0);
   const [runXp, setRunXp] = useState<{ before: number; after: number } | null>(null);
   const [levelUp, setLevelUp] = useState<{ level: number; unlocks: string[] } | null>(null);
+  const [unlocked, setUnlocked] = useState<Achievement[]>([]);
   const progress = useProgress();
   // Clips: a recorder per engine (null when off or the browser can't encode video), the clip being shown,
   // and what the clip's overlay needs each frame
@@ -295,11 +304,22 @@ export function PlayClient() {
     // Finishing a run on the clock (or a streak) earns XP; the daily earns its bonus once.
     if (prefs.mode !== "free") recordPlay({ runs: 1, daily: prefs.mode === "daily" ? daily.key : null });
     setRunXp({ before: runXpRef.current, after: shownXp(loadProgress()) });
-    void syncProgress();
+    const everyCourt = courtFinished(prefs.courtTheme);
+    void (async () => {
+      if (everyCourt) await claim(["world_tour"]);
+      await syncProgress(); // the server counts the run's shots towards achievements
+      const got = await syncAchievements();
+      if (got.length) {
+        setUnlocked(got);
+        window.setTimeout(() => setUnlocked([]), 6000);
+      }
+    })();
     // A new best on the clock becomes the ghost to race next time.
     if (isBest && (prefs.mode === "timed" || prefs.mode === "daily")) {
       saveGhost(bestKey(prefs.mode, difficultyId, prefs.timedSeconds, daily.key), { points: t.points, shots: runShotsRef.current });
     }
+    // …and follows you to your other devices
+    if (isBest) void pushBest(bestKey(prefs.mode, difficultyId, prefs.timedSeconds, daily.key));
     // Free play has no clock or end condition, so it has no leaderboard.
     setRun(
       prefs.mode === "free"
@@ -460,7 +480,8 @@ export function PlayClient() {
       if (p) {
         const l = sim.launch;
         const r = sim.result;
-        const xp = recordPlay({ shots: 1, makes: r.scored ? 1 : 0, swishes: r.swish ? 1 : 0, banks: r.bank ? 1 : 0, bestStreak: t.streak });
+        const xp = recordPlay({ shots: 1, makes: r.scored ? 1 : 0, swishes: r.swish ? 1 : 0, banks: r.bank ? 1 : 0, bestStreak: t.streak, misses: r.miss ? { [r.miss]: 1 } : undefined });
+        void claim(shotMoments({ scored: r.scored, swish: r.swish, green: sim.green, at: p.at, seconds: mode.seconds }));
         const [was, now] = [levelFor(xp.before), levelFor(xp.after)];
         if (now > was) {
           setLevelUp({ level: now, unlocks: unlockedBetween(was, now) });
@@ -1124,7 +1145,7 @@ export function PlayClient() {
       {/* ── Shot feedback ── */}
       <div className="absolute inset-x-0 bottom-4 z-10 flex flex-col items-center gap-2 px-4 sm:bottom-6 sm:items-end sm:pr-6 xl:items-center xl:pr-4">
         {last && screen === "playing" && !replay && <ShotGauge shot={last} />}
-        {greenWindow !== null && screen === "playing" && !replay && <GreenCue gameRef={gameRef} window={greenWindow} />}
+        {greenWindow !== null && screen === "playing" && !replay && <GreenCue gameRef={gameRef} window={greenWindow} sound={prefs.greenSound} />}
         {prefs.camera && screen === "playing" && !replay && leanShown !== null && (
           <p className="glass rounded-full px-3 py-1 font-mono text-[11px] text-cream/80 tabular-nums" aria-live="off">
             Lean aim: {leanShown === 0 ? "straight" : `${Math.abs(leanShown)}° ${leanShown > 0 ? "right →" : "← left"}`}
@@ -1157,6 +1178,20 @@ export function PlayClient() {
           <div className="rounded-2xl bg-hoop px-5 py-2.5 text-center text-cream shadow-xl">
             <div className="display text-3xl leading-none">Level {levelUp.level}!</div>
             {levelUp.unlocks.length > 0 && <div className="mt-1 text-xs font-semibold">Unlocked: {levelUp.unlocks.join(", ")}</div>}
+          </div>
+        </div>
+      )}
+
+      {unlocked.length > 0 && (
+        <div className="animate-count-pop pointer-events-none absolute inset-x-0 top-4 z-20 flex justify-center px-4" aria-live="polite">
+          <div className="rounded-2xl bg-ink px-5 py-3 text-cream shadow-xl">
+            <div className="text-[11px] font-semibold tracking-wide text-sun uppercase">Achievement{unlocked.length > 1 ? "s" : ""} unlocked</div>
+            {unlocked.slice(0, 3).map((a) => (
+              <div key={a.id} className="mt-1 flex items-center gap-2 text-sm font-semibold">
+                <span aria-hidden>{a.icon}</span> {a.name}
+              </div>
+            ))}
+            {unlocked.length > 3 && <div className="mt-1 text-xs text-cream/60">and {unlocked.length - 3} more on your profile</div>}
           </div>
         </div>
       )}
@@ -1201,6 +1236,8 @@ export function PlayClient() {
           onReplays={(on) => set("replays", on)}
           ghost={prefs.ghost}
           onGhost={(on) => set("ghost", on)}
+          greenSound={prefs.greenSound}
+          onGreenSound={(on) => set("greenSound", on)}
           body={body}
           onBody={setBody}
           clips={{ record: prefs.clips, camera: prefs.clipCamera }}
@@ -1336,17 +1373,22 @@ function HudButton({
  * "Green rim in 1.2s" / "Rim is green: shoot now!". Its own component with its own 10 Hz tick, so
  * the rest of the screen doesn't re-render with it (the camera pipeline shares the main thread).
  */
-function GreenCue({ gameRef, window: greenWindow }: { gameRef: React.RefObject<GameCore | null>; window: number }) {
+function GreenCue({ gameRef, window: greenWindow, sound }: { gameRef: React.RefObject<GameCore | null>; window: number; sound: boolean }) {
   const [cue, setCue] = useState<number | null>(null);
+  const prev = useRef<number | null>(null);
   useEffect(() => {
     const id = window.setInterval(() => {
       const game = gameRef.current;
       // Tenths of a second until green (0 = green now); null while the ball's away
       const next = game?.canThrow() ? Math.ceil(untilGreen(game.hoopPhase, greenWindow) * 10) / 10 : null;
+      const sounds = sound ? greenSounds(prev.current, next) : null;
+      if (sounds === "soon") sfx.greenSoon();
+      else if (sounds === "on") sfx.greenOn();
+      prev.current = next;
       setCue((c) => (c === next ? c : next));
     }, 100);
     return () => window.clearInterval(id);
-  }, [gameRef, greenWindow]);
+  }, [gameRef, greenWindow, sound]);
   if (cue === null) return null;
   return (
     <p className={`rounded-full px-3 py-1 text-xs font-bold transition-colors ${cue === 0 ? "bg-[#3dff7a] text-ink" : "glass text-cream/75"}`} aria-live="off">
