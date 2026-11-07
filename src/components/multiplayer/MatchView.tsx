@@ -40,7 +40,10 @@ const KEYBOARD_THROW = { angle: 30, arc: 0.7 }; // → 52° launch, same as solo
 
 interface Props {
   room: RoomState;
+  /** Your player id ("" when watching: you're in no standings and never shoot) */
   you: string;
+  /** Watching, not playing: no camera, no chat or reactions to send */
+  spectating?: boolean;
   match: MatchState;
   /** id → nickname for everyone seen in the room (incl. players who left) */
   names: Record<string, string>;
@@ -95,7 +98,7 @@ function loadPlayPrefs(): { camera: boolean; sound: boolean; courtTheme: CourtTh
   }
 }
 
-export function MatchView({ room, you, match, names, isHost, serverNow, send, toast, reactions, chat, muted, onToggleMute, onLeave }: Props) {
+export function MatchView({ room, you, spectating = false, match, names, isHost, serverNow, send, toast, reactions, chat, muted, onToggleMute, onLeave }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -106,7 +109,7 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
   const predictedRef = useRef<ShotSim | null>(null);
   const handledShotRef = useRef<string | null>(null);
 
-  const [prefs] = useState(loadPlayPrefs);
+  const [prefs] = useState(() => (spectating ? { ...loadPlayPrefs(), camera: false } : loadPlayPrefs()));
   const [calibration] = useState(loadCalibration);
   // Aim by leaning (camera) or ←/→ (keyboard), as in solo play
   const [aimCenter] = useState(() => new AimCenter(calibration?.leanCenter ?? null));
@@ -525,8 +528,8 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
         The server referees every shot.
       </p>
 
-      {/* Chat: a bubble with an unread count; opens over the court (and the results) */}
-      <ChatLauncher
+      {/* Chat: a bubble with an unread count; opens over the court (and the results). Watchers only see the court. */}
+      {!spectating && <ChatLauncher
         placement="match"
         chat={chat}
         names={names}
@@ -537,10 +540,10 @@ export function MatchView({ room, you, match, names, isHost, serverNow, send, to
         onToggleMute={onToggleMute}
         send={send}
         toast={toast}
-      />
+      />}
 
       {/* Reactions: above the results too, for a "GG" */}
-      <ReactionBar send={send} keys className="absolute right-4 bottom-10 z-[35] sm:right-6" />
+      {!spectating && <ReactionBar send={send} keys className="absolute right-4 bottom-10 z-[35] sm:right-6" />}
       <ReactionBursts reactions={reactions} names={names} you={you} />
 
       {/* Countdown */}

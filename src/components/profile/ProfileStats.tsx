@@ -26,6 +26,7 @@ export function ProfileStats() {
   const [matches, setMatches] = useState<HistoryMatch[]>([]);
   const [more, setMore] = useState(false);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [rating, setRating] = useState<{ value: number; provisional: boolean } | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from localStorage
@@ -39,9 +40,10 @@ export function ProfileStats() {
       setState("loading");
       try {
         await syncProgress(); // so the shots you just took are in the numbers
-        const [s, m] = await Promise.all([api.myStats(token, range), api.myMatches(token, { limit: PAGE })]);
+        const [s, m, me] = await Promise.all([api.myStats(token, range), api.myMatches(token, { limit: PAGE }), api.me(token)]);
         if (!live) return;
         setStats(s);
+        setRating(me.rating !== undefined ? { value: me.rating, provisional: !!me.provisional } : null);
         setMatches(m);
         setMore(m.length === PAGE);
         setState("ready");
@@ -105,7 +107,7 @@ export function ProfileStats() {
         </p>
       ) : (
         <div className={state === "loading" ? "opacity-60 transition" : "transition"}>
-          <Tiles stats={stats} />
+          <Tiles stats={stats} rating={rating} />
           <Insights items={insights(stats)} />
           <RateChart stats={stats} />
           <History matches={matches} more={more} onMore={loadMore} />
@@ -115,7 +117,7 @@ export function ProfileStats() {
   );
 }
 
-function Tiles({ stats }: { stats: ShootingStats }) {
+function Tiles({ stats, rating }: { stats: ShootingStats; rating: { value: number; provisional: boolean } | null }) {
   const t = stats.totals;
   const record = Object.values(stats.record).reduce((a, r) => ({ played: a.played + r.played, wins: a.wins + r.wins }), { played: 0, wins: 0 });
   const tiles = [
@@ -123,9 +125,10 @@ function Tiles({ stats }: { stats: ShootingStats }) {
     { label: "From the floor", value: t.shots ? `${pct(t.makes, t.shots)}%` : "–" },
     { label: "Swishes", value: t.swishes.toLocaleString() },
     { label: "Matches won", value: record.played ? `${record.wins} of ${record.played}` : "–", note: "all time" },
+    ...(rating ? [{ label: "Rating", value: String(rating.value), note: rating.provisional ? "settling" : undefined }] : []),
   ];
   return (
-    <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <dl className={`grid grid-cols-2 gap-2 ${tiles.length > 4 ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}>
       {tiles.map((s) => (
         <div key={s.label} className="rounded-2xl bg-paper px-4 py-3">
           <dt className="text-xs text-ink/55">
@@ -279,6 +282,13 @@ function MatchRow({ m }: { m: HistoryMatch }) {
         <p className="font-mono text-sm tabular-nums">{yourLine}</p>
         <p className="text-xs text-ink/50 tabular-nums">
           {m.you.makes}/{m.you.shots} · {pct(m.you.makes, m.you.shots)}%
+          {typeof m.you.rating_change === "number" && (
+            <span className={m.you.rating_change > 0 ? "text-good" : m.you.rating_change < 0 ? "text-bad" : ""}>
+              {" "}
+              · {m.you.rating_change >= 0 ? "+" : "−"}
+              {Math.abs(m.you.rating_change)}
+            </span>
+          )}
         </p>
       </div>
     </li>

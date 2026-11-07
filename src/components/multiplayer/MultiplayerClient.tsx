@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SiteNav } from "@/components/home/SiteNav";
+import { InviteInbox, RecentOpponents, type Opponent } from "./PlayAgain";
 import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
 import { GOOGLE_CLIENT_ID, GoogleButton } from "@/components/ui/GoogleButton";
 import { useRoom, type Toast } from "@/hooks/useRoom";
@@ -55,6 +56,12 @@ function roomFromUrl() {
   return c ? c.toUpperCase() : null;
 }
 
+function watchFromUrl() {
+  if (typeof window === "undefined") return null;
+  const c = new URLSearchParams(window.location.search).get("watch");
+  return c ? c.toUpperCase().slice(0, ROOM_CODE_LENGTH) : null;
+}
+
 function setUrlRoom(code: string | null) {
   const url = new URL(window.location.href);
   if (code) url.searchParams.set("room", code);
@@ -93,6 +100,12 @@ export function MultiplayerClient() {
   const [invite, setInvite] = useState<RoomState | null>(null);
   /** Looking for a quick match at this difficulty. */
   const [searching, setSearching] = useState<QuickMatchDifficulty | null>(null);
+  /** Watching this room (a ?watch=CODE link) */
+  const [watching, setWatching] = useState<string | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reading the URL once
+    setWatching(watchFromUrl());
+  }, []);
 
   // Restore the guest session and validate it with the server.
   useEffect(() => {
@@ -207,6 +220,25 @@ export function MultiplayerClient() {
     }
   };
 
+  /** Play again: a room with the last game's settings, and an invite to that opponent. */
+  const inviteOpponent = async (o: Opponent) => {
+    if (!guest) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const m = o.last;
+      const room = await api.createRoom(guest.token, m.mode, m.difficulty, m.race_seconds ?? 60, 1);
+      await api.sendInvite(guest.token, o.player.user_id, room.code);
+      setCode(room.code);
+      setUrlRoom(room.code);
+      saveActiveRoom(room.code);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Couldn't send the invite");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const exitRoom = () => {
     setCode(null);
     setUrlRoom(null);
@@ -229,6 +261,17 @@ export function MultiplayerClient() {
             <p className="text-sm text-ink/60">Loading…</p>
           ) : !guest ? (
             <NicknameForm busy={busy} invite={invite} onSubmit={signIn} onGoogle={setGuest} />
+          ) : watching ? (
+            <WatchView
+              code={watching}
+              guest={guest}
+              onExit={() => {
+                setWatching(null);
+                const url = new URL(window.location.href);
+                url.searchParams.delete("watch");
+                window.history.replaceState(null, "", url);
+              }}
+            />
           ) : code ? (
             <RoomView
               code={code}
@@ -250,7 +293,7 @@ export function MultiplayerClient() {
               onCancel={() => setSearching(null)}
             />
           ) : (
-            <Hub guest={guest} busy={busy} onCreate={create} onJoin={(c) => enterRoom(guest, c)} onQuick={setSearching} />
+            <Hub guest={guest} busy={busy} onCreate={create} onJoin={(c) => enterRoom(guest, c)} onQuick={setSearching} onInvite={inviteOpponent} />
           )}
         </div>
       </main>
@@ -340,12 +383,14 @@ function Hub({
   onCreate,
   onJoin,
   onQuick,
+  onInvite,
 }: {
   guest: GuestSession;
   busy: boolean;
   onCreate: (m: MatchMode, d: DifficultyId, raceSeconds: number, bestOf: BestOf) => void;
   onJoin: (code: string) => void;
   onQuick: (d: QuickMatchDifficulty) => void;
+  onInvite: (o: Opponent) => void;
 }) {
   const [quickDifficulty, setQuickDifficulty] = useState<QuickMatchDifficulty>("any");
   const [mode, setMode] = useState<MatchMode>("shootout");
@@ -356,6 +401,7 @@ function Hub({
 
   return (
     <div className="grid gap-5 md:grid-cols-2">
+      <InviteInbox guest={guest} onJoin={onJoin} />
       <section className="rounded-3xl border border-hoop/40 bg-hoop/[0.08] p-6 md:col-span-2">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -438,6 +484,8 @@ function Hub({
           Join room
         </button>
       </form>
+
+      <RecentOpponents guest={guest} busy={busy} onInvite={onInvite} />
     </div>
   );
 }
@@ -597,7 +645,7 @@ function RoomView({
 }) {
   const { room, you, status, closedReason, rtt, toasts, error, send, leave, match, serverNow, toast, names, reactions, chat, muted, toggleMute } = useRoom(code, guest.token);
   const opponents = room ? room.players.filter((p) => p.id !== you).map((p) => ({ id: p.id, nickname: p.nickname })) : [];
-  const [copied, setCopied] = useState<"code" | "shared" | "link" | null>(null);
+  const [copied, setCopied] = useState<"code" | "shared" | "link" | "watch" | null>(null);
   const me = room?.players.find((p) => p.id === you);
   const isHost = room?.host_id === you;
   const seats = room ? Array.from({ length: room.max_players }, (_, i) => room.players[i] ?? null) : [];
@@ -609,6 +657,14 @@ function RoomView({
   const copyCode = async () => {
     await navigator.clipboard.writeText(code).catch(() => {});
     flash("code");
+  };
+  const shareWatch = async () => {
+    const r = await shareLink({
+      title: "Watch my AirHoops game",
+      text: `Watch us shoot hoops on AirHoops. Room ${code}.`,
+      url: `${window.location.origin}/multiplayer?watch=${code}`,
+    });
+    if (r !== "failed") flash("watch");
   };
   const invite = async () => {
     const what = room ? modeLabel(room.mode, room.race_seconds) : "AirHoops";
@@ -653,6 +709,11 @@ function RoomView({
               <button type="button" onClick={copyCode} className="rounded-full border border-ink/20 px-3 py-1 text-xs hover:border-ink/50">
                 {copied === "code" ? "Code copied!" : "Copy code"}
               </button>
+              {!room?.quick && (
+                <button type="button" onClick={shareWatch} className="rounded-full border border-ink/20 px-3 py-1 text-xs hover:border-ink/50">
+                  {copied === "watch" ? "Watch link copied!" : "Watch link"}
+                </button>
+              )}
             </div>
           </div>
           {room && (
@@ -926,6 +987,81 @@ function Toasts({ toasts }: { toasts: Toast[] }) {
           {t.text}
         </div>
       ))}
+    </div>
+  );
+}
+
+
+/* ───────── Watching ───────── */
+
+/** A ?watch=CODE link: the room's lobby, then its match, without a seat. */
+function WatchView({ code, guest, onExit }: { code: string; guest: GuestSession; onExit: () => void }) {
+  const { room, status, closedReason, rtt, toasts, error, match, names, serverNow, send, toast, reactions, chat, muted, toggleMute } = useRoom(code, guest.token, { watch: true });
+  const stop = () => {
+    send({ type: "leave" });
+    onExit();
+  };
+
+  if (error || (status === "closed" && closedReason)) {
+    return (
+      <div className="max-w-md rounded-3xl border border-ink/10 bg-card p-6">
+        <h2 className="display text-3xl">Can&apos;t watch</h2>
+        <p className="mt-2 text-sm text-ink/70">{error ?? `${closedReason}.`}</p>
+        <button type="button" onClick={onExit} className="mt-5 w-full rounded-full bg-ink text-cream py-3 font-semibold hover:bg-hoop">
+          Back to multiplayer
+        </button>
+      </div>
+    );
+  }
+  if (room && match && room.phase !== "lobby" && room.phase !== "ready") {
+    return (
+      <div>
+        <MatchView
+          room={room}
+          you=""
+          spectating
+          match={match}
+          names={names}
+          isHost={false}
+          serverNow={serverNow}
+          send={send}
+          toast={toast}
+          reactions={reactions}
+          chat={chat}
+          muted={muted}
+          onToggleMute={toggleMute}
+          onLeave={stop}
+        />
+        <Toasts toasts={toasts} />
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-3xl border border-ink/10 bg-card p-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs text-ink/50">Watching room <span className="font-mono">{code}</span></p>
+          <h2 className="display mt-1 text-3xl">{room ? "Waiting for the game to start" : "Connecting…"}</h2>
+          {room && (
+            <p className="mt-1 text-sm text-ink/60">
+              {modeLabel(room.mode, room.race_seconds)} · {DIFFICULTIES[room.difficulty as DifficultyId]?.name ?? room.difficulty}
+              {room.spectators ? ` · ${room.spectators} watching` : ""}
+            </p>
+          )}
+        </div>
+        <ConnectionPill status={status} rtt={rtt} />
+      </div>
+      {room && (
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          {room.players.map((p) => (
+            <PlayerCard key={p.id} player={p} isYou={false} />
+          ))}
+        </div>
+      )}
+      <button type="button" onClick={stop} className="mt-6 rounded-full border border-ink/20 px-5 py-2.5 text-sm font-semibold hover:border-ink/50">
+        Stop watching
+      </button>
+      <Toasts toasts={toasts} />
     </div>
   );
 }

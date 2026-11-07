@@ -179,7 +179,16 @@ function RoundAction({ icon, label, onClick, href, tone = "light" }: { icon: Ico
 
 /* ───────── Clip ───────── */
 
-export type ClipState = { status: "making" } | { status: "ready"; blob: Blob; url: string } | { status: "empty" };
+/** `keep`: a highlight, owned by the run (its URL outlives the dialog) */
+export type ClipState = { status: "making" } | { status: "ready"; blob: Blob; url: string; keep?: boolean } | { status: "empty" };
+
+/** An auto-saved highlight of the run (lib/clips/highlights.ts) */
+export interface Highlight {
+  label: string;
+  at: number;
+  blob: Blob;
+  url: string;
+}
 
 /** The clip just saved: a looping preview, then share or download. */
 export function ClipDialog({ clip, onClose }: { clip: ClipState; onClose: () => void }) {
@@ -752,6 +761,9 @@ export function GameOver(p: {
   challenge: Challenge | null;
   /** Save the last seconds of the run as a clip (absent when clips are off or unsupported) */
   onClip?: () => void;
+  /** Saved automatically during the run (clips on) */
+  highlights?: Highlight[];
+  onHighlight?: (h: Highlight) => void;
   onAgain: () => void;
   onMenu: () => void;
 }) {
@@ -817,6 +829,24 @@ export function GameOver(p: {
               : " "}
         </p>
       </div>
+
+      {!!p.highlights?.length && (
+        <div className="mt-3">
+          <p className="mb-1.5 text-xs font-semibold text-stone">Highlights</p>
+          <div className="flex flex-wrap gap-2">
+            {p.highlights.map((h) => (
+              <button
+                key={h.url}
+                type="button"
+                onClick={() => p.onHighlight?.(h)}
+                className="flex items-center gap-1.5 rounded-full bg-card px-3 py-1.5 text-xs font-semibold hover:bg-ink hover:text-cream"
+              >
+                <HugeiconsIcon icon={Film01Icon} size={14} /> {h.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <dl className="mt-3 grid grid-cols-4 gap-2 text-center">
         {[

@@ -1,6 +1,7 @@
 import type { NormalizedLandmark } from "@mediapipe/tasks-vision";
 import { describe, expect, it } from "vitest";
 import type { Recording } from "@/lib/recorder/recording";
+import expected from "./__fixtures__/expected-events.json";
 import fixture from "./__fixtures__/recordings.json";
 import { DribbleDetector, type BounceEvent } from "./dribbleDetector";
 import { KinematicsTracker, type ArmKinematics } from "./kinematics";
@@ -130,4 +131,28 @@ describe("DribbleDetector — real recording", () => {
   it("never fires a shot", () => {
     expect(replay().throws).toBe(0);
   });
+});
+
+describe("DribbleDetector — parity with the Python lab", () => {
+  // lab/airhoops_lab/dribble.py replays every clip too; parity.py exports its bounces with the throw events
+  const recordings = (fixture as { recordings: Recording[] }).recordings;
+  for (const clip of (expected as { clips: { id: string; label: string; hand: string; bounces: { t: number; hand: string }[] }[] }).clips) {
+    it(`finds the same bounces as Python in ${clip.label} clip ${clip.id.slice(0, 8)}`, () => {
+      const rec = recordings.find((r) => r.id === clip.id)!;
+      const smoother = new PoseSmoother([...UPPER_BODY, LM.LEFT_INDEX, LM.RIGHT_INDEX], DEFAULT_SMOOTHING);
+      const kin = new KinematicsTracker();
+      const det = new DribbleDetector();
+      const bounces: { t: number; hand: string }[] = [];
+      for (const f of rec.frames) {
+        let pose: NormalizedLandmark[] | undefined;
+        if (f.landmarks.length) {
+          pose = Array.from({ length: 33 }, () => ({ x: 0, y: 0, z: 0, visibility: 0 }));
+          for (const l of f.landmarks) pose[l.i] = { x: l.x, y: l.y, z: l.z, visibility: l.v };
+        }
+        const b = det.updateFrame(kin.update(smoother.apply(pose, f.t), f.t, rec.video.width / rec.video.height, rec.hand), f.t);
+        if (b) bounces.push({ t: b.t, hand: b.hand });
+      }
+      expect(bounces).toEqual(clip.bounces);
+    });
+  }
 });

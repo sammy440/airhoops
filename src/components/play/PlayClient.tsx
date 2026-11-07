@@ -28,6 +28,7 @@ import { AimCenter, leanAim, MAX_LEAN_AIM } from "@/lib/game/aim";
 import { createGame, rendererId, type RendererId } from "@/lib/game/createGame";
 import type { GameCore } from "@/lib/game/engine";
 import { claim, courtFinished, shotMoments, syncAchievements, type Achievement } from "@/lib/game/achievements";
+import { HIGHLIGHT_DELAY_S, highlightFor, roomForHighlight } from "@/lib/clips/highlights";
 import { pushBest, syncBests } from "@/lib/game/cloudBests";
 import { GhostPlayer, loadGhost, saveGhost, type GhostShot } from "@/lib/game/ghostRun";
 import { unlockedBetween } from "@/lib/game/cosmetics";
@@ -63,7 +64,7 @@ import type { ThrowEvent } from "@/lib/pose/throwDetector";
 import { CameraPip, useCourtInset } from "./CameraPip";
 import type { RunSubmission } from "@/lib/net/api";
 import { RaiseHandHint } from "./RaiseHandHint";
-import { CalibrationPanel, ClipDialog, GameOver, PauseMenu, SetupCheck, StartMenu, type ClipState } from "./Screens";
+import { CalibrationPanel, ClipDialog, GameOver, PauseMenu, SetupCheck, StartMenu, type ClipState, type Highlight } from "./Screens";
 import { ShotGauge, type LastShot } from "./ShotGauge";
 
 const PREFS_KEY = "airhoops.play.prefs";
@@ -283,6 +284,15 @@ export function PlayClient() {
   const recorderRef = useRef<ClipRecorder | null>(null);
   const [clipsOn, setClipsOn] = useState(false);
   const [clip, setClip] = useState<ClipState | null>(null);
+  // Auto-highlights of this run: reserved by run time as they happen, filled once the clip is packed
+  const highlightsRef = useRef<{ at: number; label: string; clip?: Highlight }[]>([]);
+  const [highlights, setHighlights] = useState<Highlight[]>([]);
+  useEffect(
+    () => () => {
+      for (const h of highlightsRef.current) if (h.clip) URL.revokeObjectURL(h.clip.url);
+    },
+    [],
+  );
   const clipPausedRef = useRef(false);
   const clipHudRef = useRef({ label: "", suddenDeath: false, camera: false });
   const loadoutKey = progress ? `${progress.loadout.ball}:${progress.loadout.trail}` : null;
@@ -482,6 +492,21 @@ export function PlayClient() {
         const r = sim.result;
         const xp = recordPlay({ shots: 1, makes: r.scored ? 1 : 0, swishes: r.swish ? 1 : 0, banks: r.bank ? 1 : 0, bestStreak: t.streak, misses: r.miss ? { [r.miss]: 1 } : undefined });
         void claim(shotMoments({ scored: r.scored, swish: r.swish, green: sim.green, at: p.at, seconds: mode.seconds }));
+        const label = recorderRef.current ? highlightFor({ scored: r.scored, swish: r.swish, green: sim.green, clutch: p.clutch, at: p.at, seconds: mode.seconds, streak: t.streak }) : null;
+        if (label && roomForHighlight(highlightsRef.current, p.at)) {
+          const slot = { at: p.at, label } as (typeof highlightsRef.current)[number];
+          highlightsRef.current.push(slot);
+          window.setTimeout(async () => {
+            const blob = await recorderRef.current?.save().catch(() => null);
+            if (!highlightsRef.current.includes(slot)) return; // a new run started meanwhile
+            if (!blob) {
+              highlightsRef.current = highlightsRef.current.filter((h) => h !== slot);
+              return;
+            }
+            slot.clip = { label, at: p.at, blob, url: URL.createObjectURL(blob) };
+            setHighlights(highlightsRef.current.flatMap((h) => h.clip ?? []));
+          }, HIGHLIGHT_DELAY_S * 1000);
+        }
         const [was, now] = [levelFor(xp.before), levelFor(xp.after)];
         if (now > was) {
           setLevelUp({ level: now, unlocks: unlockedBetween(was, now) });
@@ -667,6 +692,9 @@ export function PlayClient() {
   const startRun = useCallback(() => {
     gameRef.current?.skipReplay();
     recorderRef.current?.reset();
+    for (const h of highlightsRef.current) if (h.clip) URL.revokeObjectURL(h.clip.url);
+    highlightsRef.current = [];
+    setHighlights([]);
     runXpRef.current = shownXp(loadProgress());
     setRunXp(null);
     tallyRef.current = EMPTY_TALLY;
@@ -864,7 +892,7 @@ export function PlayClient() {
     setClip(blob ? { status: "ready", blob, url: URL.createObjectURL(blob) } : { status: "empty" });
   }, []);
   const closeClip = () => {
-    if (clip?.status === "ready") URL.revokeObjectURL(clip.url);
+    if (clip?.status === "ready" && !clip.keep) URL.revokeObjectURL(clip.url);
     setClip(null);
     if (clipPausedRef.current) gameRef.current?.setPaused(false);
     clipPausedRef.current = false;
@@ -1316,6 +1344,8 @@ export function PlayClient() {
           raced={raced}
           challenge={sendable}
           onClip={clipsOn ? () => void saveClip() : undefined}
+          highlights={highlights}
+          onHighlight={(h) => setClip({ status: "ready", blob: h.blob, url: h.url, keep: true })}
           onAgain={startRun}
           onMenu={() => setScreen("menu")}
         />

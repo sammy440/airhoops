@@ -25,7 +25,7 @@ const ON_SERVER = [
   ["Achievements", "Which ones you've earned and when. Three solo moments (buzzer beater, green-rim swish, every court) are sent by this device; the rest the server works out from your play"],
   ["Shooting trends", "Per day: shots, makes, swishes, banks and kinds of miss (short, long, left, right, rim, airball), solo and multiplayer. Only you can see them, on your profile"],
   ["Reactions (multiplayer)", "Passed on to the others in your room as they happen. Not stored"],
-  ["Chat (multiplayer)", "Never stored. A message is checked (links and contact details removed, swearing masked), passed on to your room, and forgotten: not saved on our server, not in our logs, not on your device. Leave the room and it's gone. Quick match with strangers is preset quick chat only"],
+  ["Chat (multiplayer)", "Never stored. A message is checked (links and contact details removed, swearing masked), passed on to your room (and anyone watching it with a watch link), and forgotten: not saved on our server, not in our logs, not on your device. Leave the room and it's gone. Quick match with strangers is preset quick chat only"],
 ];
 
 export function PrivacyPage() {

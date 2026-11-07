@@ -50,7 +50,8 @@ const CHAT_KEEP = 60;
 const BLIP_MS = 1500;
 
 /** Live room state over WebSocket, plus presence toasts and connection health. */
-export function useRoom(code: string | null, token: string | null, opts: { onShot?: (shot: ServerShot) => void } = {}) {
+export function useRoom(code: string | null, token: string | null, opts: { onShot?: (shot: ServerShot) => void; watch?: boolean } = {}) {
+  const watch = !!opts.watch;
   const [room, setRoom] = useState<RoomState | null>(null);
   const [you, setYou] = useState<string | null>(null);
   const [status, setStatus] = useState<SocketStatus>("connecting");
@@ -138,6 +139,10 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
             setMatch((m) => (m ? { ...m, xp } : m));
             break;
           }
+          case "rating": {
+            toast(`Rating ${msg.rating} (${msg.change >= 0 ? "+" : "−"}${Math.abs(msg.change)})`, "info");
+            break;
+          }
           case "achievements": {
             markSeen(msg.ids);
             for (const a of msg.ids.flatMap((id) => achievement(id) ?? [])) toast(`${a.icon} Achievement unlocked: ${a.name}`, "info");
@@ -209,7 +214,7 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
             break;
         }
       },
-    });
+    }, watch);
     socketRef.current = socket;
     socket.connect();
     const drops = pendingDrops.current;
@@ -222,7 +227,7 @@ export function useRoom(code: string | null, token: string | null, opts: { onSho
       setChat([]);
       setMuted(new Set());
     };
-  }, [code, token, toast]);
+  }, [code, token, toast, watch]);
 
   const send = useCallback((msg: ClientMessage) => socketRef.current?.send(msg), []);
   const serverNow = useCallback(() => socketRef.current?.serverNow() ?? null, []);

@@ -21,6 +21,9 @@ export interface User {
   level?: number;
   /** Ball skin and trail, as others see it (locked picks show as the default) */
   loadout?: Loadout | null;
+  /** Skill rating from multiplayer results (quick match pairs by it); provisional for the first 20 matches */
+  rating?: number;
+  provisional?: boolean;
 }
 
 export type RoomPhase = "lobby" | "ready" | "in_progress" | "finished";
@@ -58,6 +61,8 @@ export interface RoomState {
   series: Series;
   /** Made by quick match: strangers, and the first race starts by itself */
   quick?: boolean;
+  /** People watching */
+  spectators?: number;
 }
 
 export type QuickMatchDifficulty = "any" | "rookie" | "starter" | "allstar" | "legend";
@@ -170,6 +175,11 @@ export const api = {
   /** Solo moments only the browser sees (buzzer_beater, green_light, world_tour). */
   claimAchievement: (token: string, id: string) =>
     request<{ id: string; unlocked_at: string; new: boolean }>(`/me/achievements/${encodeURIComponent(id)}`, { method: "POST", token }),
+  /** Invite someone you've played a match with to your room. */
+  sendInvite: (token: string, to: string, code: string) => request<{ status: "sent" }>("/invites", { method: "POST", token, body: JSON.stringify({ to, code }) }),
+  /** Invites you can still take up, newest first. */
+  invites: (token: string) => request<Invite[]>("/invites", { token }),
+  dismissInvite: (token: string, fromId: string) => request<null>(`/invites/${encodeURIComponent(fromId)}`, { method: "DELETE", token }),
   /** Your personal best per board (best key → summary). */
   savedBests: (token: string) => request<Record<string, SavedBest>>("/me/bests", { token }),
   savedGhost: (token: string, key: string) => request<GhostShot[]>(`/me/bests/${encodeURIComponent(key)}/ghost`, { token }),
@@ -177,6 +187,19 @@ export const api = {
   saveBest: (token: string, key: string, best: { points: number; makes: number; streak: number; at: string; ghost?: GhostShot[] }) =>
     request<SavedBest & { updated: boolean }>(`/me/bests/${encodeURIComponent(key)}`, { method: "PUT", token, body: JSON.stringify(best) }),
 };
+
+export interface Invite {
+  from_id: string;
+  nickname: string;
+  avatar?: Avatar | null;
+  code: string;
+  mode: string;
+  difficulty: string;
+  race_seconds: number;
+  best_of: number;
+  players: number;
+  age_s: number;
+}
 
 export interface SavedBest {
   points: number;
@@ -201,6 +224,8 @@ export interface HistoryPlayer {
   best_streak: number;
   /** H-O-R-S-E only */
   letters: number | null;
+  /** Rating gained or lost (null: unrated) */
+  rating_change?: number | null;
 }
 
 export interface HistoryMatch {

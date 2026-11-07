@@ -2,6 +2,37 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Green rim sound
+- An opt-in **Green rim sound** (camera play, in the menu's extras): a soft tick **0.5 s** before the rim lights
+  (about a throw's length: time to go) and a chime when it's green, once a loop each (`greenSounds` in `green.ts`).
+  For players watching themselves on the camera rather than the rim.
+- Checked first whether the rim needed a colour-blind fix: it doesn't. Green `#3dff7a` against the rim's orange
+  `#c8623a` stays **ΔE 26** apart for deuteranopes (target ≥ 8), mostly on lightness, and the rim already pulses
+  thicker and the "Rim is green" text shows.
+
+## Skill rating and fairer quick matches
+- Every finished multiplayer match updates an Elo **rating** (API `app/game/rating.py`): shown on the profile
+  ("settling" for the first 20 matches), with each match's change in your history and a toast after the match.
+- Quick match pairs players within **150** points at once, **40** more per second waited, anyone after **20 s**.
+
+## Play again: invites to recent opponents
+- The multiplayer hub lists the people you've played (`PlayAgain.tsx`) with your record against them (by finishing
+  place). **Invite** makes a room with that game's settings and invites them; invites to you show at the top of the
+  hub (polled every **10 s** while it's open) with Join / Not now. Only people you've played can invite you.
+
+## Watch a game
+- The lobby has a **Watch link** (`/multiplayer?watch=CODE`): watchers see the lobby, then the match on the court,
+  with reactions, but no seat, no camera and nothing to send. Up to 20 a room; quick matches can't be watched.
+
+## Auto-highlights
+- With clips on, the run's best moments are saved as they happen (`lib/clips/highlights.ts`), **1.5 s** after the
+  make so the clip has the celebration: a buzzer beater, a green swish, a streak reaching 5/10/15/20…, a clutch
+  make. At most **5** a run, at least **3 s** apart. The end screen lists them to watch, share or save.
+
+## Dribble parity with the lab
+- The lab now has the dribble detector too (`airhoops_lab/dribble.py`), and the parity fixtures carry every clip's
+  bounces: the replay test checks the browser finds exactly the same 65.
+
 ## Offline: opens fast, plays solo without a connection
 - A service worker (`public/sw.js`, registered in production by `components/app/ServiceWorker.tsx` once the page has
   loaded) caches the big downloads the first time they're used: the pose model and its WebAssembly, only the

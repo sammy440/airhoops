@@ -74,6 +74,12 @@
      "pickedUp": true,
      "durationMs": 332.0
     }
+   ],
+   "bounces": [
+    {
+     "t": 1266.0,
+     "hand": "left"
+    }
    ]
   },
   {
@@ -111,7 +117,8 @@
      "pickedUp": false,
      "durationMs": 467.0
     }
-   ]
+   ],
+   "bounces": []
   },
   {
    "id": "f5a0f8e1-53a6-4395-95e8-779344c49ab8",
@@ -148,13 +155,45 @@
      "pickedUp": false,
      "durationMs": 133.0
     }
+   ],
+   "bounces": [
+    {
+     "t": 22397.0,
+     "hand": "left"
+    },
+    {
+     "t": 33240.0,
+     "hand": "left"
+    },
+    {
+     "t": 34038.0,
+     "hand": "right"
+    },
+    {
+     "t": 35296.0,
+     "hand": "right"
+    }
    ]
   },
   {
    "id": "7524a102-73a3-4398-ba97-2a7e8299dd0d",
    "hand": "right",
    "label": "scratch_head",
-   "events": []
+   "events": [],
+   "bounces": [
+    {
+     "t": 40763.0,
+     "hand": "right"
+    },
+    {
+     "t": 42195.0,
+     "hand": "right"
+    },
+    {
+     "t": 42729.0,
+     "hand": "right"
+    }
+   ]
   },
   {
    "id": "ffb442d7-f507-4118-b568-50f2b373144c",
@@ -175,6 +214,24 @@
      "height": 0.5551199389376512,
      "pickedUp": false,
      "durationMs": 334.0
+    }
+   ],
+   "bounces": [
+    {
+     "t": 28789.0,
+     "hand": "left"
+    },
+    {
+     "t": 29275.0,
+     "hand": "left"
+    },
+    {
+     "t": 29591.0,
+     "hand": "left"
+    },
+    {
+     "t": 30475.0,
+     "hand": "left"
     }
    ]
   },
@@ -483,13 +540,117 @@
      "pickedUp": false,
      "durationMs": 400.0
     }
+   ],
+   "bounces": [
+    {
+     "t": 22798.0,
+     "hand": "left"
+    },
+    {
+     "t": 23367.0,
+     "hand": "right"
+    },
+    {
+     "t": 46445.0,
+     "hand": "right"
+    },
+    {
+     "t": 47312.0,
+     "hand": "right"
+    }
    ]
   },
   {
    "id": "d8a8a130-7d60-40b3-9e6c-bb49e95a586e",
    "hand": "right",
    "label": "dribble",
-   "events": []
+   "events": [],
+   "bounces": [
+    {
+     "t": 928.0,
+     "hand": "right"
+    },
+    {
+     "t": 1662.0,
+     "hand": "right"
+    },
+    {
+     "t": 2395.0,
+     "hand": "right"
+    },
+    {
+     "t": 3062.0,
+     "hand": "right"
+    },
+    {
+     "t": 3861.0,
+     "hand": "right"
+    },
+    {
+     "t": 4595.0,
+     "hand": "right"
+    },
+    {
+     "t": 5396.0,
+     "hand": "right"
+    },
+    {
+     "t": 6128.0,
+     "hand": "right"
+    },
+    {
+     "t": 6927.0,
+     "hand": "right"
+    },
+    {
+     "t": 7595.0,
+     "hand": "right"
+    },
+    {
+     "t": 8328.0,
+     "hand": "right"
+    },
+    {
+     "t": 9061.0,
+     "hand": "right"
+    },
+    {
+     "t": 9796.0,
+     "hand": "right"
+    },
+    {
+     "t": 10329.0,
+     "hand": "right"
+    },
+    {
+     "t": 11262.0,
+     "hand": "right"
+    },
+    {
+     "t": 12061.0,
+     "hand": "right"
+    },
+    {
+     "t": 12663.0,
+     "hand": "left"
+    },
+    {
+     "t": 13348.0,
+     "hand": "left"
+    },
+    {
+     "t": 14161.0,
+     "hand": "left"
+    },
+    {
+     "t": 14655.0,
+     "hand": "left"
+    },
+    {
+     "t": 16050.0,
+     "hand": "left"
+    }
+   ]
   },
   {
    "id": "95862cb6-c9e0-492f-9823-5fc0ecdd76b6",
@@ -691,6 +852,20 @@
      "pickedUp": true,
      "durationMs": 178.0
     }
+   ],
+   "bounces": [
+    {
+     "t": 24820.0,
+     "hand": "right"
+    },
+    {
+     "t": 25992.0,
+     "hand": "right"
+    },
+    {
+     "t": 27557.0,
+     "hand": "left"
+    }
    ]
   },
   {
@@ -833,6 +1008,24 @@
      "pickedUp": false,
      "durationMs": 218.0
     }
+   ],
+   "bounces": [
+    {
+     "t": 28191.0,
+     "hand": "left"
+    },
+    {
+     "t": 28859.0,
+     "hand": "left"
+    },
+    {
+     "t": 29492.0,
+     "hand": "left"
+    },
+    {
+     "t": 30567.0,
+     "hand": "right"
+    }
    ]
   },
   {
@@ -945,6 +1138,28 @@
      "pickedUp": false,
      "durationMs": 466.0
     }
+   ],
+   "bounces": [
+    {
+     "t": 16264.0,
+     "hand": "left"
+    },
+    {
+     "t": 16797.0,
+     "hand": "left"
+    },
+    {
+     "t": 17831.0,
+     "hand": "left"
+    },
+    {
+     "t": 18229.0,
+     "hand": "left"
+    },
+    {
+     "t": 18565.0,
+     "hand": "left"
+    }
    ]
   },
   {
@@ -967,13 +1182,37 @@
      "pickedUp": false,
      "durationMs": 133.0
     }
+   ],
+   "bounces": [
+    {
+     "t": 16654.0,
+     "hand": "left"
+    },
+    {
+     "t": 17771.0,
+     "hand": "left"
+    },
+    {
+     "t": 18693.0,
+     "hand": "right"
+    }
    ]
   },
   {
    "id": "0be50b6d-feac-4d1d-a350-bbc3e744c955",
    "hand": "right",
    "label": "throw",
-   "events": []
+   "events": [],
+   "bounces": [
+    {
+     "t": 22198.0,
+     "hand": "left"
+    },
+    {
+     "t": 22932.0,
+     "hand": "right"
+    }
+   ]
   },
   {
    "id": "dc7dcd88-f62f-4d49-a2d5-b192cd8fc432",
@@ -1085,6 +1324,24 @@
      "pickedUp": false,
      "durationMs": 134.0
     }
+   ],
+   "bounces": [
+    {
+     "t": 16124.0,
+     "hand": "right"
+    },
+    {
+     "t": 16656.0,
+     "hand": "right"
+    },
+    {
+     "t": 17390.0,
+     "hand": "right"
+    },
+    {
+     "t": 17924.0,
+     "hand": "right"
+    }
    ]
   },
   {
@@ -1166,6 +1423,24 @@
      "height": 0.5173176478091891,
      "pickedUp": false,
      "durationMs": 300.0
+    }
+   ],
+   "bounces": [
+    {
+     "t": 17349.0,
+     "hand": "left"
+    },
+    {
+     "t": 17886.0,
+     "hand": "left"
+    },
+    {
+     "t": 18483.0,
+     "hand": "right"
+    },
+    {
+     "t": 19183.0,
+     "hand": "left"
     }
    ]
   },
@@ -1263,6 +1538,20 @@
      "height": 0.6968969057290199,
      "pickedUp": false,
      "durationMs": 300.0
+    }
+   ],
+   "bounces": [
+    {
+     "t": 18278.0,
+     "hand": "left"
+    },
+    {
+     "t": 19170.0,
+     "hand": "left"
+    },
+    {
+     "t": 19527.0,
+     "hand": "left"
     }
    ]
   }

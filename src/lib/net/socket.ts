@@ -100,7 +100,8 @@ export interface MatchEnd {
 }
 
 export type ServerMessage =
-  | { type: "room_state"; room: RoomState; you: string }
+  /** `you` is empty when watching (`spectating`) */
+  | { type: "room_state"; room: RoomState; you: string | null; spectating?: boolean }
   | { type: "presence"; event: PresenceEvent; player: { id: string; nickname: string } }
   | { type: "pong"; t: number | null; serverTime: number }
   | { type: "error"; code: string; message: string }
@@ -136,6 +137,8 @@ export type ServerMessage =
   | { type: "xp"; gained: number; xp: number; level: number; serverTime: number }
   /** Achievements you just earned (ids: names in lib/game/achievements.ts), after `xp` at match end */
   | { type: "achievements"; ids: string[]; serverTime?: number }
+  /** Your new skill rating after a match, and the change */
+  | { type: "rating"; rating: number; change: number; serverTime?: number }
   | { type: "reaction"; playerId: string; reaction: ReactionId; serverTime: number }
   /** A chat message (free text, cleaned by the server, or a quick-chat id). Relayed, never stored. */
   | { type: "chat"; playerId: string; text?: string; quick?: QuickChatId; serverTime: number }
@@ -189,6 +192,8 @@ export class RoomSocket {
     private readonly code: string,
     private readonly token: string,
     private readonly handlers: RoomSocketHandlers,
+    /** Watch instead of taking a seat: everything the players see, no actions */
+    private readonly watch = false,
   ) {}
 
   connect() {
@@ -222,7 +227,7 @@ export class RoomSocket {
 
   private open() {
     this.handlers.onStatus(this.attempts ? "reconnecting" : "connecting");
-    const ws = new WebSocket(`${WS_URL}/ws/${encodeURIComponent(this.code)}?token=${encodeURIComponent(this.token)}`);
+    const ws = new WebSocket(`${WS_URL}/ws/${encodeURIComponent(this.code)}?token=${encodeURIComponent(this.token)}${this.watch ? "&watch=1" : ""}`);
     this.ws = ws;
 
     ws.onopen = () => {
