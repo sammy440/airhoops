@@ -14,6 +14,8 @@ import { beats, loadBests, putBest, type Best } from "./modes";
 
 /** The API's best keys; anything else (e.g. the pre-date "daily") stays on this device. */
 const KEY = /^((timed\d{2,4}|streak|free):(rookie|starter|allstar|legend)|daily\d{8})$/;
+/** Ghosts saved before the hoop stopped moving (GHOST_VERSION 2) flew on other courts: leave them on the server. */
+export const GHOSTS_SINCE = "2026-11-09T00:00:00Z";
 /** The account lists dailies from the last two days only: older ones have nothing left to race. */
 const DAILY_DAYS = 2;
 
@@ -68,7 +70,7 @@ export function syncBests(now = new Date()): Promise<boolean> {
         if (r && beats(key, r, l)) {
           putBest(key, { points: r.points, makes: r.makes, streak: r.streak, at: r.at });
           changed = true;
-          if (r.has_ghost && hasClock(key)) {
+          if (r.has_ghost && hasClock(key) && Date.parse(r.at) >= Date.parse(GHOSTS_SINCE)) {
             const shots = await api.savedGhost(guest.token, key).catch(() => null);
             if (shots?.length) saveGhost(key, { points: r.points, shots });
           }

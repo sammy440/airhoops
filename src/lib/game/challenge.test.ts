@@ -62,9 +62,9 @@ describe("challenge links", () => {
   });
 
   it("refuses garbage and tampering", () => {
-    const wire = (o: object) => btoa(JSON.stringify({ v: 1, n: "x", m: "t", s: 60, d: "allstar", c: "park", p: 0, x: [], ...o }));
+    const wire = (o: object) => btoa(JSON.stringify({ v: 2, n: "x", m: "t", s: 60, d: "allstar", c: "park", p: 0, x: [], ...o }));
     expect(decodeChallenge(wire({}))).not.toBeNull();
-    for (const bad of [null, "", "not base64!", btoa("{}"), wire({ v: 2 }), wire({ d: "godmode" }), wire({ s: 7 }), wire({ p: -1 }), wire({ m: "d" }), wire({ x: [[1, 2]] }), wire({ x: [[0, 0, 0, 0, 0, 0, 0]] })]) {
+    for (const bad of [null, "", "not base64!", btoa("{}"), wire({ v: 1 }) /* a link from before the hoop stopped moving */, wire({ v: 3 }), wire({ d: "godmode" }), wire({ s: 7 }), wire({ p: -1 }), wire({ m: "d" }), wire({ x: [[1, 2]] }), wire({ x: [[0, 0, 0, 0, 0, 0, 0]] })]) {
       expect(decodeChallenge(bad)).toBeNull();
     }
   });

@@ -1,7 +1,18 @@
-import { DEFAULT_COURT, type Court, type HoopMotion } from "./physics";
+import { DEFAULT_COURT, type Court } from "./physics";
 
 export type DifficultyId = "rookie" | "starter" | "allstar" | "legend";
 
+/**
+ * Difficulty is where you shoot from, not a moving hoop: the hoop always stands still, and the
+ * harder levels move the shooter back (free-throw line → three-point line → deep three). A longer
+ * shot needs more power, so the same wobble in effort misses by more, it's in the air longer for the
+ * wind to push, and the rim is a smaller target to aim at (aim tolerance ≈ 1.35° at 4.6 m, 0.92° at
+ * 6.75 m, 0.78° at 8 m). Wind, how much your effort wobble counts (`sensitivity`) and the green
+ * window tighten with it.
+ *
+ * Make rates for a steady shooter (power within ±0.05 of ideal, aim within ±1.5° of the wind-corrected
+ * line): Rookie 39%, Starter 20%, All-Star 12%, Legend 11%. The old sliding hoops gave 15% and 13%.
+ */
 export interface Difficulty {
   id: DifficultyId;
   name: string;
@@ -9,7 +20,6 @@ export interface Difficulty {
   /** Release point → rim centre (m) */
   distance: number;
   rimRadius: number;
-  hoopMotion: HoopMotion | null;
   /** Max |wind| (m/s²); a new value is drawn for every shot */
   windMax: number;
   /**
@@ -27,10 +37,9 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
   rookie: {
     id: "rookie",
     name: "Rookie",
-    blurb: "Close, oversized rim, forgiving",
+    blurb: "Close in, oversized rim, forgiving",
     distance: 3.6,
     rimRadius: 0.27,
-    hoopMotion: null,
     windMax: 0,
     sensitivity: 0.35,
     scoreMultiplier: 1,
@@ -42,7 +51,6 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     blurb: "Free-throw line, regulation rim",
     distance: 4.6,
     rimRadius: 0.2286,
-    hoopMotion: null,
     windMax: 0,
     sensitivity: 0.5,
     scoreMultiplier: 1,
@@ -51,10 +59,10 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
   allstar: {
     id: "allstar",
     name: "All-Star",
-    blurb: "Longer shot, sliding hoop, light wind",
-    distance: 5.8,
+    blurb: "Three-point line, light wind",
+    // On the arc (FIBA three-point line, 6.75 m): the court's markings put your feet right on it
+    distance: 6.75,
     rimRadius: 0.2286,
-    hoopMotion: { amplitude: 0.45, frequency: 0.22 },
     windMax: 0.6,
     sensitivity: 0.6,
     scoreMultiplier: 1.5,
@@ -63,10 +71,10 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
   legend: {
     id: "legend",
     name: "Legend",
-    blurb: "From downtown, fast hoop, gusty",
-    distance: 6.75,
+    blurb: "Deep three, gusty",
+    // A step and a half behind the arc: deep, but still on the painted floor (it reaches 9.2 m back)
+    distance: 8,
     rimRadius: 0.2286,
-    hoopMotion: { amplitude: 0.7, frequency: 0.3 },
     windMax: 1.2,
     sensitivity: 0.75,
     scoreMultiplier: 2,
@@ -77,7 +85,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
 export const DIFFICULTY_ORDER: DifficultyId[] = ["rookie", "starter", "allstar", "legend"];
 
 export function courtFor(d: Difficulty): Court {
-  return { ...DEFAULT_COURT, hoopDistance: d.distance, rimRadius: d.rimRadius, hoopMotion: d.hoopMotion };
+  return { ...DEFAULT_COURT, hoopDistance: d.distance, rimRadius: d.rimRadius, hoopMotion: null };
 }
 
 /** Wind for the next shot, in 0.1 m/s² steps so the HUD shows exactly what the physics uses. */

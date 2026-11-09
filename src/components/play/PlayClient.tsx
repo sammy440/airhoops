@@ -54,7 +54,7 @@ import type { Launch, ShotSim } from "@/lib/game/physics";
 import { addShot, EMPTY_TALLY, hotMultiplier, streakMultiplier, type Tally } from "@/lib/game/scoring";
 import { setMuted, sfx, unlockAudio } from "@/lib/game/sfx";
 import { CHALLENGE_PARAM, challengeRun, decodeChallenge, type Challenge } from "@/lib/game/challenge";
-import { CLUTCH_MULTIPLIER, CLUTCH_SECONDS, clutchMotion, inClutch, shotCourt } from "@/lib/game/clutch";
+import { CLUTCH_MULTIPLIER, CLUTCH_SECONDS, inClutch } from "@/lib/game/clutch";
 import { coachRun, type CoachReport, type CoachShot } from "@/lib/game/coach";
 import { coachShot, DEFAULT_TUNING, keyboardThrow, throwAimFor, throwToLaunch } from "@/lib/game/shot";
 import type { KinematicsFrame, Side } from "@/lib/pose/kinematics";
@@ -253,7 +253,6 @@ export function PlayClient() {
   // Clutch time (the last seconds of a timed run), and the game clock the hoop phase counts from (for its slide)
   const [clutch, setClutch] = useState(false);
   const clutchRef = useRef(false);
-  const phaseStartRef = useRef(0);
   const [newBest, setNewBest] = useState(false);
   const [run, setRun] = useState<(RunSubmission & { id: number }) | null>(null);
   const [calSamples, setCalSamples] = useState<PracticeThrow[]>([]);
@@ -515,9 +514,7 @@ export function PlayClient() {
         // Free play has no end: send play every couple of dozen shots
         if (loadProgress().pending.shots >= 25) void syncProgress();
         runShotsRef.current.push({ t: p.at, speed: l.speed, angle: l.angle, aim: l.aim ?? 0, wind: p.wind, phase: p.phase, points: score.points });
-        // Judged on the court it was thrown on (in clutch time, a still hoop slides)
-        const thrownOn = mode.seconds ? shotCourt(court, { t: p.at, phase: p.phase }, mode.seconds) : court;
-        const coach = coachShot(sim.launch, thrownOn, DEFAULT_TUNING, { wind: p.wind, phase: p.phase });
+        const coach = coachShot(sim.launch, court, DEFAULT_TUNING, { wind: p.wind, phase: p.phase });
         const judged = {
           power: p.power,
           angle: p.angle,
@@ -541,14 +538,12 @@ export function PlayClient() {
     handlers.current.onReady = () => nextWind();
   }, [difficulty, court, mode, endGame, nextWind]);
 
-  // Clutch time starts: the badge, a cue, and a still hoop starts sliding from the middle, from the exact moment
-  // clutch time began (a shot released in it can get here before the shot clock's next tick)
+  // Clutch time starts: the badge and a cue (a shot released in it can get here before the shot clock's next tick)
   const enterClutch = useCallback(() => {
     const game = gameRef.current;
     if (clutchRef.current || !game || endsAtRef.current === null) return;
     clutchRef.current = true;
     setClutch(true);
-    game.setHoopMotion(clutchMotion(game.court, endsAtRef.current - CLUTCH_SECONDS - phaseStartRef.current));
     beep(988, 160);
   }, []);
 
@@ -715,18 +710,16 @@ export function PlayClient() {
     coachShotsRef.current = [];
     clutchRef.current = false;
     setClutch(false);
-    // The moving hoop starts from the same spot every run (its clock starts with the countdown): the same for
-    // everyone on the daily, and the same as your ghost's run.
+    // The hoop's clock (the green rim's loop) starts with the countdown: the same for everyone on the daily,
+    // and the same as your ghost's run.
     if (game) {
       const start = game.clock;
-      phaseStartRef.current = start;
       game.setPhaseSource(() => game.clock - start);
       // A friend's challenge with its settings picked is raced instead of your own ghost.
       const racing = vsActive ? vs : null;
       racingRef.current = racing;
       const ghost = racing ? challengeRun(racing) : mode.seconds && prefs.ghost ? loadGhost(bestKey(prefs.mode, difficultyId, prefs.timedSeconds, daily.key)) : null;
-      const seconds = mode.seconds;
-      rivalRef.current = ghost && new GhostPlayer(ghost, seconds ? (shot) => shotCourt(court, shot, seconds) : court);
+      rivalRef.current = ghost && new GhostPlayer(ghost, court);
       setRivalName(racing ? racing.name || "friend" : null);
       game.setRival(null); // until GO
     }

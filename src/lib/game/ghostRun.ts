@@ -22,7 +22,15 @@ export interface GhostShot {
 export interface GhostRun {
   points: number;
   shots: GhostShot[];
+  /** Courts the run was played on (GHOST_VERSION); older ghosts flew on courts that no longer exist */
+  v?: number;
 }
+
+/**
+ * 2: the hoop stopped moving (Nov 2026), All-Star and Legend moved back to 6.75 m and 8 m, and clutch time
+ * stopped sliding the hoop. A ghost re-flies its launches on today's court, so older ones would miss.
+ */
+export const GHOST_VERSION = 2;
 
 const GHOSTS_KEY = "airhoops.ghosts";
 /** A long timed run is ~100 shots; anything beyond is not a real run. */
@@ -40,7 +48,7 @@ function loadAll(): Ghosts {
 
 export function loadGhost(key: string): GhostRun | null {
   const g = loadAll()[key];
-  return g && Array.isArray(g.shots) && g.shots.length ? g : null;
+  return g && g.v === GHOST_VERSION && Array.isArray(g.shots) && g.shots.length ? g : null;
 }
 
 /** Saves the ghost for a best key. Old daily ghosts are dropped: only today's challenge can be raced. */
@@ -48,7 +56,7 @@ export function saveGhost(key: string, run: GhostRun) {
   if (!run.shots.length || run.shots.length > MAX_SHOTS) return;
   const all = loadAll();
   for (const k of Object.keys(all)) if (k.startsWith("daily") && k !== key) delete all[k];
-  all[key] = run;
+  all[key] = { ...run, v: GHOST_VERSION };
   try {
     localStorage.setItem(GHOSTS_KEY, JSON.stringify(all));
   } catch {}
@@ -58,11 +66,9 @@ export function saveGhost(key: string, run: GhostRun) {
 export class GhostPlayer {
   private sims: { shot: GhostShot; sim: ShotSim; scoredAt: number }[];
 
-  /** `court`: the court, or the court each shot was thrown on (clutch time changes the hoop's motion late in a run). */
-  constructor(run: GhostRun, court: Court | ((shot: GhostShot) => Court)) {
-    const courtOf = typeof court === "function" ? court : () => court;
+  constructor(run: GhostRun, court: Court) {
     this.sims = run.shots.map((shot) => {
-      const sim = simulateShot({ speed: shot.speed, angle: shot.angle, aim: shot.aim }, courtOf(shot), { wind: shot.wind, phase: shot.phase });
+      const sim = simulateShot({ speed: shot.speed, angle: shot.angle, aim: shot.aim }, court, { wind: shot.wind, phase: shot.phase });
       const score = sim.events.find((e) => e.type === "score");
       return { shot, sim, scoredAt: shot.t + (score ? score.t : sim.duration) };
     });

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { CourtThemeId } from "./courts";
 import type { Court3D } from "./courts3d";
+import { DIFFICULTIES } from "./difficulty";
 
 /**
  * The world around each 3D court: an arena bowl, a city park on a street, a beach at sunset,
@@ -41,6 +42,14 @@ export interface Venue {
 
 /** The court (and the space just round it) that only flat things may touch, in the venue frame. */
 export const CLEAR = { xfMin: -13, xfMax: 3.4, zrHalf: 8.3 };
+
+/**
+ * The camera's widest orbit, in the venue frame, at the longest shot any level plays from: game3d.ts puts
+ * the camera 5.2 m behind the shooter (portrait), aimed 55% of the way to the hoop, and lets the view zoom
+ * out ×1.9. Tall scenery stays outside it (scatter), with a little margin. Moving a level back moves it.
+ */
+const FARTHEST = Math.max(...Object.values(DIFFICULTIES).map((d) => d.distance));
+export const ORBIT = { cx: -0.45 * FARTHEST, r: Math.hypot(0.55 * FARTHEST + 5.2, 0.7, 0.8) * 1.9 + 0.3 };
 
 /** Venue frame → three.js, in the group's local space (physics (x, y, z) → three (z, y, −x)). */
 const V = (xf: number, y: number, zr: number) => new THREE.Vector3(zr, y, -xf);
@@ -396,8 +405,8 @@ function palms(k: Kit, spots: [number, number][], trunkMat: THREE.Material, crow
 }
 
 /**
- * Spots for tall things: outside the camera's orbit (17.2 m round the orbit centre, plus `reach`, how far
- * the thing spreads from its spot: a tree's crown, a palm's fronds) and off the `avoid` boxes.
+ * Spots for tall things: outside the camera's orbit (ORBIT, plus `reach`, how far the thing spreads from
+ * its spot: a tree's crown, a palm's fronds) and off the `avoid` boxes.
  */
 function scatter(
   k: Kit,
@@ -411,7 +420,7 @@ function scatter(
   for (let tries = 0; out.length < n && tries < n * 60; tries++) {
     const xf = k.r(...area.xf);
     const zr = k.r(...area.zr);
-    if (Math.hypot(xf + 3.1, zr) < 17.5 + reach) continue;
+    if (Math.hypot(xf - ORBIT.cx, zr) < ORBIT.r + reach) continue;
     if (avoid.some((a) => xf > a.xf[0] && xf < a.xf[1] && zr > a.zr[0] && zr < a.zr[1])) continue;
     if (out.some(([x, z]) => Math.hypot(x - xf, z - zr) < gap)) continue;
     out.push([xf, zr]);

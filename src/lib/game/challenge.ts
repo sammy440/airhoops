@@ -27,7 +27,8 @@ export interface Challenge {
 }
 
 export const CHALLENGE_PARAM = "vs";
-const VERSION = 1;
+// 2: the hoop stands still and All-Star/Legend moved back (ghostRun.ts GHOST_VERSION): older runs re-fly wrong
+const VERSION = 2;
 export const MAX_NAME = 20;
 /** About two minutes of fast shooting; longer runs send their first shots only (the race is decided by then). */
 const MAX_SHOTS = 120;

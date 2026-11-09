@@ -5,7 +5,9 @@ import { loadGhost, saveGhost, type GhostShot } from "./ghostRun";
 import { beats, loadBests, putBest } from "./modes";
 
 const NOW = new Date("2026-11-06T12:00:00Z");
-const AT = "2026-11-01T10:00:00.000Z";
+const AT = "2026-11-10T10:00:00.000Z";
+/** Before the hoop stopped moving (GHOSTS_SINCE): such ghosts flew on other courts */
+const OLD_AT = "2026-11-01T10:00:00.000Z";
 const shot = (points: number, t = 2): GhostShot => ({ t, speed: 7, angle: 52, aim: 0, wind: 0, phase: 1, points });
 
 /** A fake API: GET /me/bests, GET …/ghost, PUT /me/bests/{key} (keeps the better, like the server). */
@@ -56,6 +58,20 @@ describe("bests that follow you", () => {
     expect(await syncBests(NOW)).toBe(true);
     expect(loadBests()["timed60:rookie"]).toMatchObject({ points: 12, makes: 4 });
     expect(loadGhost("timed60:rookie")?.shots).toHaveLength(4);
+  });
+
+  it("takes an old-court best but leaves its ghost behind", async () => {
+    fakeServer({ "timed60:legend": { points: 12, makes: 4, streak: 2, at: OLD_AT, ghost: [shot(3), shot(3, 4), shot(3, 6), shot(3, 8)] } });
+    expect(await syncBests(NOW)).toBe(true);
+    expect(loadBests()["timed60:legend"]).toMatchObject({ points: 12 });
+    expect(loadGhost("timed60:legend")).toBeNull();
+  });
+
+  it("ignores ghosts saved on this device before the hoop stopped moving", () => {
+    localStorage.setItem("airhoops.ghosts", JSON.stringify({ "timed60:legend": { points: 3, shots: [shot(3)] } }));
+    expect(loadGhost("timed60:legend")).toBeNull();
+    saveGhost("timed60:legend", { points: 3, shots: [shot(3)] });
+    expect(loadGhost("timed60:legend")?.v).toBe(2);
   });
 
   it("sends this device's better bests up, with their ghost", async () => {

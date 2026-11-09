@@ -2,6 +2,33 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Difficulty is distance: the hoop stands still
+- A sliding hoop looked fake, so no level moves it any more. The harder levels move **you** back instead
+  (`difficulty.ts`, mirrored in the API's `rules.py`):
+
+  | Level | Was | Now |
+  |---|---|---|
+  | Rookie | 3.6 m, big rim | unchanged |
+  | Starter | 4.6 m, free-throw line | unchanged |
+  | All-Star | 5.8 m, hoop sliding 0.45 m | **6.75 m**, on the three-point line, light wind |
+  | Legend | 6.75 m, hoop sliding 0.7 m | **8 m**, a deep three, gusty |
+
+- Distance does the work a moving hoop did: more power means the same wobble in effort misses by more, a longer
+  flight gives the wind more time, and the rim is a smaller target (aim tolerance **0.92°** at 6.75 m, **0.78°** at
+  8 m, against 1.35° at the line). Sensitivity, wind and the green window still tighten level by level. Simulated
+  make rates for a steady shooter (power ±0.05, aim ±1.5° off the wind-corrected line): **39 / 20 / 12 / 11%**;
+  the sliding hoops gave 15% and 13%, so the top two levels are about as hard as before, a little harder.
+- **Clutch time** still doubles makes but no longer slides the hoop.
+- The 3D camera still frames the hoop in the upper third at 8 m (checked by projecting it, landscape and portrait).
+  Tall scenery's clearance from the camera's orbit now follows the farthest level (`ORBIT` in `venues3d.ts`): at
+  8 m a park tree had ended up in it.
+- **Ghosts and challenge links** re-fly launches on today's court, so ones from the old courts would miss: ghosts
+  are now versioned (`GHOST_VERSION` 2; older ones are ignored, and the account's ghosts from before Nov 9 stay on
+  the server), and challenge links are version 2 (an old link says it's too old). Personal bests and leaderboard
+  scores are kept.
+- **API (deploy with it):** the server referees multiplayer on the same courts; the physics parity fixtures are
+  regenerated for the new distances.
+
 ## Green rim sound
 - An opt-in **Green rim sound** (camera play, in the menu's extras): a soft tick **0.5 s** before the rim lights
   (about a throw's length: time to go) and a chime when it's green, once a loop each (`greenSounds` in `green.ts`).

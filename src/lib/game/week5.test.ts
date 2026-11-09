@@ -68,7 +68,7 @@ describe("difficulty", () => {
   });
 });
 
-describe("moving hoop and wind", () => {
+describe("hoop and wind", () => {
   const court = courtFor(DIFFICULTIES.legend);
   const launch = { speed: idealSpeed(DEFAULT_TUNING.baseAngle, court)!, angle: DEFAULT_TUNING.baseAngle };
 
@@ -85,10 +85,11 @@ describe("moving hoop and wind", () => {
     expect(at(1.2)[1]).toBe(at(0)[1]);
   });
 
-  it("the hoop position follows the shared offset function", () => {
-    expect(hoopOffset(court, 0)).toBe(0);
-    const quarter = 1 / (4 * court.hoopMotion!.frequency);
-    expect(hoopOffset(court, quarter)).toBeCloseTo(court.hoopMotion!.amplitude, 6);
+  it("the hoop position follows the shared offset function (no level moves it; the physics still can)", () => {
+    expect(court.hoopMotion).toBeNull();
+    const moving = { ...court, hoopMotion: { amplitude: 0.45, frequency: 0.22 } };
+    expect(hoopOffset(moving, 0)).toBe(0);
+    expect(hoopOffset(moving, 1 / (4 * 0.22))).toBeCloseTo(0.45, 6);
   });
 });
 

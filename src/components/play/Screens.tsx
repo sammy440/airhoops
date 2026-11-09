@@ -438,7 +438,7 @@ export function StartMenu(p: {
               options={DIFFICULTY_ORDER.map((id) => ({ id, label: DIFFICULTIES[id].name }))}
             />
             <p className="mt-2 text-xs text-stone">
-              {d.blurb} · {d.distance} m{d.hoopMotion ? " · moving hoop" : ""}
+              {d.blurb} · {d.distance} m
               {d.windMax ? ` · wind ±${d.windMax}` : ""}
               {d.scoreMultiplier > 1 ? ` · ×${d.scoreMultiplier} points` : ""}
             </p>
@@ -537,7 +537,7 @@ function DailyCard({ rules }: { rules: DailyRules }) {
         <IconLink href={`/leaderboard?mode=${rules.key}`} icon={ChampionIcon} label="Today's board" tone="light" size={38} />
       </div>
       <p className="mt-3 text-xs leading-relaxed text-cream/80">
-        {d.distance} m{d.hoopMotion ? " · moving hoop" : ""}
+        {d.distance} m
         {d.windMax ? " · the same wind as everyone, shot for shot" : ""}
         {d.scoreMultiplier > 1 ? ` · ×${d.scoreMultiplier} points` : ""}. Play as often as you like: your best run counts.
       </p>

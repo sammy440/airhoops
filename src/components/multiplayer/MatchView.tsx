@@ -119,7 +119,7 @@ export function MatchView({ room, you, spectating = false, match, names, isHost,
   const difficulty = DIFFICULTIES[start.difficulty as DifficultyId] ?? DIFFICULTIES.starter;
   const court = useMemo(() => courtFor(difficulty), [difficulty]);
 
-  // ── Server-synced clock for timers, turn clocks and the moving hoop ──
+  // ── Server-synced clock for timers, turn clocks and the green rim ──
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     const id = window.setInterval(() => setNow(serverNow()), 100);
