@@ -11,10 +11,11 @@ export type { GameCallbacks, GamePhase } from "./engine";
  * 2D canvas renderer (side view): the court seen from the side, x = toward the hoop.
  * Kept as the fallback for devices without WebGL; game logic lives in GameCore.
  *
- * The side view can't show anything sideways (aim, crosswind, the hoop sliding), so
- * z is ignored here.
+ * The side view can't show anything sideways (aim, crosswind), so z is ignored here, and
+ * solo play in this view shoots straight with no wind (GameCore.sideways).
  */
 export class Game extends GameCore {
+  override readonly sideways = false;
   private ctx: CanvasRenderingContext2D;
   private dpr = 1;
   /** Static scenery + floor, re-rendered only on resize / court / theme change. */

@@ -3,7 +3,7 @@ import { calibrate, calibratedLaunch, consistency, isOutlier, JUMP_GAIN } from "
 import { courtFor, DIFFICULTIES, DIFFICULTY_ORDER, rollWind } from "./difficulty";
 import { hoopOffset, idealSpeed, simulateShot } from "./physics";
 import { addShot, EMPTY_TALLY, scoreShot, streakMultiplier } from "./scoring";
-import { DEFAULT_TUNING } from "./shot";
+import { DEFAULT_TUNING, guideOffset, guideSpeed } from "./shot";
 
 const make = { scored: true, swish: false, bank: false, miss: null, error: 0, lateral: 0 };
 const swish = { ...make, swish: true };
@@ -62,7 +62,7 @@ describe("difficulty", () => {
     expect(rollWind(DIFFICULTIES.rookie)).toBe(0);
     for (let i = 0; i < 50; i++) {
       const w = rollWind(DIFFICULTIES.legend);
-      expect(Math.abs(w)).toBeLessThanOrEqual(1.2);
+      expect(Math.abs(w)).toBeLessThanOrEqual(DIFFICULTIES.legend.windMax);
       expect(Math.round(w * 10)).toBeCloseTo(w * 10, 6);
     }
   });
@@ -83,6 +83,24 @@ describe("hoop and wind", () => {
     expect(at(1.2)[3]).toBeGreaterThan(0.15);
     expect(at(-1.2)[3]).toBeLessThan(-0.15);
     expect(at(1.2)[1]).toBe(at(0)[1]);
+  });
+
+  it("aiming the guide's end at the hoop scores, whatever the wind (the guide bends with it)", () => {
+    const flat = guideSpeed(court);
+    for (const wind of [-DIFFICULTIES.legend.windMax, -0.2, 0.3, DIFFICULTIES.legend.windMax]) {
+      // The aim that puts the guide's end under the rim
+      let lo = -12;
+      let hi = 12;
+      for (let i = 0; i < 60; i++) {
+        const mid = (lo + hi) / 2;
+        if (guideOffset(court.hoopDistance, mid, wind, flat) > 0) hi = mid;
+        else lo = mid;
+      }
+      const aim = (lo + hi) / 2;
+      expect(simulateShot({ ...launch, aim }, court, { wind }).result.scored).toBe(true);
+      // Straight at the hoop, the same wind carries it off (the full gust on this level)
+      if (Math.abs(wind) === DIFFICULTIES.legend.windMax) expect(simulateShot(launch, court, { wind }).result.scored).toBe(false);
+    }
   });
 
   it("the hoop position follows the shared offset function (no level moves it; the physics still can)", () => {

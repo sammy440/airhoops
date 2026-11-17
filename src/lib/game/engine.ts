@@ -131,6 +131,12 @@ export abstract class GameCore {
   private lastTs = 0;
   /** Crosswind (m/s²) applied to the next shot and shown by the flag. */
   protected wind = 0;
+  /**
+   * Whether this view can show sideways movement (aim, crosswind). The 2D side view can't:
+   * a ball that passes beside the rim looks like it went through, so solo play there
+   * shoots straight with no wind.
+   */
+  readonly sideways: boolean = true;
 
   protected sim: ShotSim | null = null;
   private launchedAt: number | null = null;

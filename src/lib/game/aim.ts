@@ -12,7 +12,12 @@
  *
  * Tuned on the Oct 31 lean recordings: with these numbers 6 of 7 straight throws
  * stayed within ±1.3° (still a make), and the two lean clips aimed opposite ways
- * (10 of 12 and 9 of 9). Their labels can't be trusted for the direction (the
+ * (10 of 12 and 9 of 9).
+ *
+ * Those angles are at the free-throw line (REF_DISTANCE). Farther back, a lean picks the
+ * same sideways spot at the hoop rather than the same angle: otherwise the camera's
+ * wobble on a straight throw (well under a degree) would miss sideways on the deep
+ * levels, which should be hard because of the distance (power, wind), not the sensor. Their labels can't be trusted for the direction (the
  * preview is mirrored, so "left" was probably the screen's left): the sign comes
  * from the geometry instead. Camera frames reach MediaPipe unmirrored, and in the
  * recordings the right wrist sits on the image's left: a player's right is the
@@ -25,18 +30,25 @@ export const LEAN_DEADZONE = 0.01;
 export const LEAN_GAIN = 100;
 /** The steepest aim leaning can give (matches the shot tuning's maxAim). */
 export const MAX_LEAN_AIM = 12;
+/** The distance (m) LEAN_GAIN was tuned at: the free-throw line. */
+export const REF_DISTANCE = 4.6;
+
+const rad = (d: number) => (d * Math.PI) / 180;
+const deg = (r: number) => (r * 180) / Math.PI;
 
 /**
- * Launch aim in degrees (+ = right) for a lean, relative to the player's straight lean.
- * Lean is measured in image x, and the player's right is the image's left, so leaning
- * right lowers it.
+ * Launch aim in degrees (+ = right) for a lean, relative to the player's straight lean,
+ * shooting at a hoop `distance` metres away. Lean is measured in image x, and the
+ * player's right is the image's left, so leaning right lowers it.
  */
-export function leanAim(lean: number | null, center: number): number {
+export function leanAim(lean: number | null, center: number, distance = REF_DISTANCE): number {
   if (lean === null || !Number.isFinite(lean)) return 0;
   const d = center - lean; // + = leaning to the player's right
   const beyond = Math.abs(d) - LEAN_DEADZONE;
   if (beyond <= 0) return 0;
-  return Math.sign(d) * Math.min(MAX_LEAN_AIM, beyond * LEAN_GAIN);
+  // The sideways spot at the hoop this lean picks at the free-throw line, kept at any distance.
+  const side = REF_DISTANCE * Math.tan(rad(Math.min(80, beyond * LEAN_GAIN)));
+  return Math.sign(d) * Math.min(MAX_LEAN_AIM, deg(Math.atan2(side, distance)));
 }
 
 /**

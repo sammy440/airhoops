@@ -33,7 +33,7 @@ export function untilGreen(phase: number, window: number) {
 }
 
 const ANGLE = 52;
-/** Wider than a thrown shot's ±12°: on Legend, full wind plus the hoop at the end of its slide needs ~14°. */
+/** Wider than a thrown shot's ±12°, so the green rim can always find a swish, whatever the wind. */
 const MAX_AIM = 20;
 /** Speed nudges (fraction) and aim nudges (degrees) tried, in this order, until one swishes. */
 const SPEED_STEPS = [0, 0.005, -0.005, 0.01, -0.01, 0.015, -0.015, 0.02, -0.02, 0.03, -0.03, 0.04, -0.04];

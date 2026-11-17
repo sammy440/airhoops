@@ -2,7 +2,23 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
-## Difficulty is distance: the hoop stands still
+## Sideways at a distance: wind, lean aim and the 2D view
+Playtesting the new distances: in 3D throws drifted off "the wrong way", and in 2D balls that dropped through the
+net didn't count. Both were sideways misses: at 6.75–8 m the ball flies ~1.3 s, and the rim only allows 0.11 m of
+sideways error.
+- **Wind** cut to **0.3** (All-Star, was 0.6) and **0.5** (Legend, was 1.2) m/s², in `difficulty.ts` and the API's
+  `rules.py`. A full gust now moves the ball ≈0.24 m / 0.48 m by the hoop, which one deliberate lean (0.04–0.06 torso
+  lengths in the lab) corrects; Legend's old 1.2 moved it 1.14 m, which needed a lean (~8°) no one made.
+- **Lean aim follows distance** (`aim.ts`): a lean now picks the same sideways spot at the hoop it did at the
+  free-throw line (where `LEAN_GAIN` was tuned) instead of the same angle. Before, the camera's wobble on straight
+  throws (±1.3°, a make at 4.6 m) missed on Legend (0.78° tolerance); now the lab's straight throws stay makes there.
+- **The 3D aim guide bends with the wind** (`guideOffset` in `shot.ts`): it shows where a well-hit shot actually
+  goes, so lining its end up with the hoop scores.
+- **2D shoots straight**: the side view can't show sideways, so in solo play it has no wind and ignores aim
+  (`GameCore.sideways`). Multiplayer wind is still the server's, in either view.
+- Make rates for a shooter who corrects for the wind (power ±0.05, sideways ±0.15 m at the hoop):
+  37 / 17 / 18 / 16%. Camera players also get the higher `sensitivity` of the deep levels on top.
+
 - A sliding hoop looked fake, so no level moves it any more. The harder levels move **you** back instead
   (`difficulty.ts`, mirrored in the API's `rules.py`):
 
@@ -11,7 +27,7 @@ Every tuned threshold is recorded here with the reason, as the project README as
   | Rookie | 3.6 m, big rim | unchanged |
   | Starter | 4.6 m, free-throw line | unchanged |
   | All-Star | 5.8 m, hoop sliding 0.45 m | **6.75 m**, on the three-point line, light wind |
-  | Legend | 6.75 m, hoop sliding 0.7 m | **8 m**, a deep three, gusty |
+  | Legend | 6.75 m, hoop sliding 0.7 m | **8 m**, a deep three, windy |
 
 - Distance does the work a moving hoop did: more power means the same wobble in effort misses by more, a longer
   flight gives the wind more time, and the rim is a smaller target (aim tolerance **0.92°** at 6.75 m, **0.78°** at

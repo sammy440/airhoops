@@ -132,3 +132,21 @@ export function coachShot(
   const aimTolerance = deg(Math.atan2(court.rimRadius - court.ballRadius, court.hoopDistance));
   return { window: makeWindow(launch.angle, court, tuning, cond, aimTarget), aimTarget, aimTolerance };
 }
+/**
+ * The aim guide's path on the floor: how far right (m) of straight a well-hit shot with
+ * this launch aim is at `x` metres downcourt, crosswind included (the same drift as
+ * coachShot: vz·t + ½·wind·t², t = x / vx). `flat` is the shot's horizontal speed;
+ * guideSpeed gives a well-hit one for the court.
+ */
+export function guideOffset(x: number, aim: number, wind: number, flat: number): number {
+  const a = (aim * Math.PI) / 180;
+  const vx = Math.max(1e-6, flat * Math.cos(a));
+  const t = x / vx;
+  return flat * Math.sin(a) * t + 0.5 * wind * t * t;
+}
+
+/** Horizontal speed of a well-hit shot on this court (for guideOffset). */
+export function guideSpeed(court: Court = DEFAULT_COURT, tuning: LaunchTuning = DEFAULT_TUNING): number {
+  const v = idealSpeed(tuning.baseAngle, court) ?? tuning.maxSpeed;
+  return v * Math.cos((tuning.baseAngle * Math.PI) / 180);
+}

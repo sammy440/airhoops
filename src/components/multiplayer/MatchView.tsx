@@ -243,7 +243,7 @@ export function MatchView({ room, you, spectating = false, match, names, isHost,
   const onThrow = useCallback(
     (ev: ThrowEvent) => {
       // The server gets the same numbers and simulates the shot itself (aim included).
-      const aim = throwAimFor(leanAim(ev.lean, aimCenter.value));
+      const aim = throwAimFor(leanAim(ev.lean, aimCenter.value, court.hoopDistance));
       aimCenter.observe(ev.lean);
       if (calibration) {
         const { launch, power } = calibratedLaunch({ ...ev, aim }, calibration, court, difficulty);
@@ -258,11 +258,11 @@ export function MatchView({ room, you, spectating = false, match, names, isHost,
     (smoothed: NormalizedLandmark[] | undefined, kin: KinematicsFrame | null) => {
       if (!watchingRef.current) {
         gameRef.current?.setPose(smoothed);
-        gameRef.current?.setAim(kin ? leanAim(kin.lean, aimCenter.value) : null);
+        gameRef.current?.setAim(kin ? leanAim(kin.lean, aimCenter.value, court.hoopDistance) : null);
       }
       pipRef.current?.draw(smoothed, { kin });
     },
-    [aimCenter],
+    [aimCenter, court],
   );
   // Your dribbles show on court only while it's your player out there.
   const onBounce = useCallback((ev: BounceEvent) => {

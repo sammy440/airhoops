@@ -411,8 +411,10 @@ export function PlayClient() {
   }, [hydrated, prefs.renderer]);
 
   // Wind lives in state; the engine just mirrors it. Daily runs draw shot n's wind from today's seed.
+  // The 2D side view can't show a crosswind, so there's none there.
   const nextWind = useCallback(
-    (d = difficulty) => setWind(rollWind(d, isDaily ? dailyRandom(daily, tallyRef.current.shots) : Math.random)),
+    (d = difficulty) =>
+      setWind(gameRef.current?.sideways === false ? 0 : rollWind(d, isDaily ? dailyRandom(daily, tallyRef.current.shots) : Math.random)),
     [difficulty, isDaily, daily],
   );
   useEffect(() => {
@@ -550,6 +552,8 @@ export function PlayClient() {
   const shoot = useCallback((launch: Launch, power: number, input: LastShot["input"], jump?: number) => {
     const game = gameRef.current;
     if (screenRef.current !== "playing" || buzzerRef.current || !game) return false;
+    // The 2D side view can't show aim: shots there go straight (and its wind is always 0).
+    if (!game.sideways) launch = { ...launch, aim: 0 };
     // During a replay: a camera throw cuts it short and still shoots (it can't be thrown again);
     // keys and taps just skip it, and the ball is back in hand a moment later.
     if (game.replaying) {
@@ -563,7 +567,8 @@ export function PlayClient() {
     const clutchShot = !!mode.seconds && inClutch(at, mode.seconds);
     if (clutchShot) enterClutch();
     const phase = game.hoopPhase;
-    const w = wind;
+    const w = game.sideways ? wind : 0;
+    game.setWind(w);
     if (!game.throwBall(launch, input === "camera")) return false;
     const hot = hotHand.shoot(performance.now());
     setHotBounces(0);
@@ -588,7 +593,7 @@ export function PlayClient() {
       }
       if (s !== "playing") return;
       // Aim: how far they leaned at release, as the throw's sideways angle
-      const thrown = { ...ev, aim: throwAimFor(leanAim(ev.lean, aimCenter.value)) };
+      const thrown = { ...ev, aim: throwAimFor(leanAim(ev.lean, aimCenter.value, court.hoopDistance)) };
       aimCenter.observe(ev.lean);
       if (calibration) {
         const { launch, power } = calibratedLaunch(thrown, calibration, court, difficulty);
@@ -604,7 +609,7 @@ export function PlayClient() {
       const game = gameRef.current;
       game?.setPose(smoothed);
       // The guide shows where a throw right now would go, and so does the readout (whole degrees, only on change).
-      const aim = kin ? leanAim(kin.lean, aimCenter.value) : null;
+      const aim = kin && game?.sideways !== false ? leanAim(kin.lean, aimCenter.value, court.hoopDistance) : null;
       game?.setAim(aim);
       const shown = aim === null ? null : Math.round(aim);
       if (shown !== leanShownRef.current) {
@@ -613,7 +618,7 @@ export function PlayClient() {
       }
       pipRef.current?.draw(smoothed, { kin });
     },
-    [aimCenter],
+    [aimCenter, court],
   );
   const onBounce = useCallback(
     (ev: BounceEvent) => {

@@ -3,12 +3,17 @@ import type { Side } from "@/lib/pose/kinematics";
 import type { Avatar } from "./avatar";
 import { trailColor, type BallSkin } from "./cosmetics";
 import { COURTS_3D, type Court3D } from "./courts3d";
+import { DIFFICULTIES } from "./difficulty";
 import { COLORS, GameCore, GREEN, type FloatText, type GameCallbacks, type Vec3 } from "./engine";
 import { hoopOffset, type Court } from "./physics";
+import { guideOffset, guideSpeed } from "./shot";
 import { Player3D } from "./player3d";
 import { restBody, Retargeter, type Body } from "./pose3d";
 import { buildVenue, type Venue } from "./venues3d";
 import { buildWeather, type Weather } from "./weather3d";
+
+/** The strongest wind any level rolls: the flag's full length. */
+const WIND_MAX = Math.max(...Object.values(DIFFICULTIES).map((d) => d.windMax));
 
 /**
  * 3D WebGL renderer (three.js): the court from behind the shooter's right shoulder.
@@ -93,7 +98,10 @@ export class Game3D extends GameCore {
   private sparks: THREE.Points;
   /** Dashed line on the floor from the shooter towards the hoop, swung by the aim. */
   private guide: THREE.Group;
-  private guideLen = 0;
+  /** Guide cache: the court its speed is for, that speed, and the aim | wind | distance it was laid out for. */
+  private guideCourt: Court | null = null;
+  private guideFlat = 1;
+  private guideKey = "";
   private textSprites = new Map<FloatText, THREE.Sprite>();
 
   // Player
@@ -765,26 +773,44 @@ export class Game3D extends GameCore {
     this.camera.lookAt(look);
   }
 
-  /** Aim guide: from the release spot towards the hoop, turned by the aim; only while the ball is in hand. */
+  /**
+   * Aim guide: from the release spot to under the rim, along the path a well-hit shot
+   * would take with this aim, bent by the crosswind, so lining its end up with the hoop
+   * is what scores. Only while the ball is in hand.
+   */
   private updateGuide() {
     this.guide.visible = this.aim !== null && this.phase === "ready" && !this.paused;
     if (!this.guide.visible) return;
+    const c = this.court;
+    if (this.guideCourt !== c) {
+      this.guideCourt = c;
+      this.guideFlat = guideSpeed(c);
+    }
+    const aim = this.aim ?? 0;
+    const key = `${aim}|${this.wind}|${c.hoopDistance}`;
+    if (key === this.guideKey) return;
+    this.guideKey = key;
     // From just past the player (so their body doesn't hide it) to under the rim
     const start = 0.7;
-    const len = Math.max(1, this.court.hoopDistance - 0.25 - start);
-    toThree({ x: start, y: 0.012, z: 0 }, this.guide.position);
-    this.guide.rotation.y = (-(this.aim ?? 0) * Math.PI) / 180; // rotating −z towards +x (right) is a negative turn
-    if (len !== this.guideLen) {
-      this.guideLen = len;
-      const parts = this.guide.children;
-      for (let i = 0; i < GUIDE_DOTS; i++) parts[i].position.set(0, 0, (-len * i) / GUIDE_DOTS);
-      parts[GUIDE_DOTS].position.set(0, 0, -len);
+    const end = Math.max(start + 1, c.hoopDistance - 0.25);
+    const at = (x: number) => guideOffset(x, aim, this.wind, this.guideFlat);
+    this.guide.position.set(0, 0, 0);
+    this.guide.rotation.set(0, 0, 0);
+    const parts = this.guide.children;
+    for (let i = 0; i < GUIDE_DOTS; i++) {
+      const x = start + ((end - start) * i) / GUIDE_DOTS;
+      toThree({ x, y: 0.012, z: at(x) }, parts[i].position);
     }
+    const tip = parts[GUIDE_DOTS];
+    toThree({ x: end, y: 0.012, z: at(end) }, tip.position);
+    // Point the chevron along the path: lying flat, its local +y is downcourt (−z), and turning
+    // that towards +x (the player's right) is a negative turn about its local z.
+    tip.rotation.set(-Math.PI / 2, 0, -Math.atan2(at(end) - at(end - 0.05), 0.05));
   }
 
   /** Wind flag: points downwind (sideways), longer when stronger. */
   private updateFlag() {
-    const strength = Math.min(1, Math.abs(this.wind) / 1.2);
+    const strength = Math.min(1, Math.abs(this.wind) / WIND_MAX);
     const dir = this.wind === 0 ? 0 : Math.sign(this.wind);
     const flap = Math.sin(this.now / (90 - strength * 40)) * 0.25 * (0.3 + strength);
     const len = 0.15 + strength * 0.35;

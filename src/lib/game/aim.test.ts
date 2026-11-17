@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import expected from "@/lib/pose/__fixtures__/expected-events.json";
-import { AimCenter, LEAN_DEADZONE, leanAim, MAX_LEAN_AIM } from "./aim";
+import { courtFor, DIFFICULTIES } from "./difficulty";
+import { AimCenter, LEAN_DEADZONE, leanAim, MAX_LEAN_AIM, REF_DISTANCE } from "./aim";
 
 describe("leanAim", () => {
   it("is straight inside the dead zone, and signed outside it", () => {
@@ -15,6 +16,21 @@ describe("leanAim", () => {
     expect(leanAim(-1, 0)).toBe(MAX_LEAN_AIM);
     expect(leanAim(1, 0)).toBe(-MAX_LEAN_AIM);
     expect(leanAim(null, 0)).toBe(0);
+  });
+});
+
+describe("leanAim at a distance", () => {
+  const sideAt = (aim: number, d: number) => d * Math.tan((aim * Math.PI) / 180);
+
+  it("picks the same sideways spot at the hoop from any distance", () => {
+    const near = leanAim(-0.08, -0.05, REF_DISTANCE);
+    expect(near).toBe(leanAim(-0.08, -0.05));
+    for (const d of [3.6, 6.75, 8]) expect(sideAt(leanAim(-0.08, -0.05, d), d)).toBeCloseTo(sideAt(near, REF_DISTANCE), 6);
+    expect(Math.abs(leanAim(-0.08, -0.05, 8))).toBeLessThan(Math.abs(near));
+  });
+
+  it("can still reach the steepest aim", () => {
+    expect(leanAim(-1, 0, 8)).toBe(MAX_LEAN_AIM);
   });
 });
 
@@ -45,6 +61,13 @@ describe("leanAim on the lab's lean recordings", () => {
 
   it("keeps most straight throws within a make (±1.3°)", () => {
     expect(straight.filter((l) => Math.abs(leanAim(l, center)) <= 1.3).length).toBeGreaterThanOrEqual(straight.length - 1);
+  });
+
+  it("keeps them within a make on Legend too (the camera's wobble doesn't grow with distance)", () => {
+    const court = courtFor(DIFFICULTIES.legend);
+    const tolerance = (Math.atan2(court.rimRadius - court.ballRadius, court.hoopDistance) * 180) / Math.PI;
+    const ok = straight.filter((l) => Math.abs(leanAim(l, center, court.hoopDistance)) <= tolerance);
+    expect(ok.length).toBeGreaterThanOrEqual(straight.length - 1);
   });
 
   it("aims each lean clip one way, consistently, and the two clips opposite ways", () => {

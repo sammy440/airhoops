@@ -5,13 +5,14 @@ export type DifficultyId = "rookie" | "starter" | "allstar" | "legend";
 /**
  * Difficulty is where you shoot from, not a moving hoop: the hoop always stands still, and the
  * harder levels move the shooter back (free-throw line → three-point line → deep three). A longer
- * shot needs more power, so the same wobble in effort misses by more, it's in the air longer for the
- * wind to push, and the rim is a smaller target to aim at (aim tolerance ≈ 1.35° at 4.6 m, 0.92° at
- * 6.75 m, 0.78° at 8 m). Wind, how much your effort wobble counts (`sensitivity`) and the green
- * window tighten with it.
+ * shot needs more power, it's in the air longer for the wind to push (a full gust moves the ball
+ * ≈0.24 m sideways by the hoop on All-Star, ≈0.48 m on Legend: one deliberate lean corrects it,
+ * and the 3D aim guide bends to show it), and how much your effort wobble counts (`sensitivity`)
+ * and the green window tighten with it.
  *
- * Make rates for a steady shooter (power within ±0.05 of ideal, aim within ±1.5° of the wind-corrected
- * line): Rookie 39%, Starter 20%, All-Star 12%, Legend 11%. The old sliding hoops gave 15% and 13%.
+ * Aim from leaning picks a sideways spot at the hoop, not an angle (aim.ts), so the camera's
+ * wobble on a straight throw doesn't turn into misses just because the hoop is farther away.
+ * The 2D side view can't show sideways at all, so solo shots there go straight with no wind.
  */
 export interface Difficulty {
   id: DifficultyId;
@@ -63,7 +64,7 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
     // On the arc (FIBA three-point line, 6.75 m): the court's markings put your feet right on it
     distance: 6.75,
     rimRadius: 0.2286,
-    windMax: 0.6,
+    windMax: 0.3,
     sensitivity: 0.6,
     scoreMultiplier: 1.5,
     greenWindow: 0.8,
@@ -71,11 +72,11 @@ export const DIFFICULTIES: Record<DifficultyId, Difficulty> = {
   legend: {
     id: "legend",
     name: "Legend",
-    blurb: "Deep three, gusty",
+    blurb: "Deep three, windy",
     // A step and a half behind the arc: deep, but still on the painted floor (it reaches 9.2 m back)
     distance: 8,
     rimRadius: 0.2286,
-    windMax: 1.2,
+    windMax: 0.5,
     sensitivity: 0.75,
     scoreMultiplier: 2,
     greenWindow: 0.6,
