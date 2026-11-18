@@ -1,6 +1,7 @@
 import type { DifficultyId } from "./difficulty";
+import { isSpotMode, RACK_SHOTS } from "./spots";
 
-export type ModeId = "daily" | "free" | "timed" | "streak";
+export type ModeId = "daily" | "free" | "timed" | "streak" | "ladder" | "racks";
 
 export interface Mode {
   id: ModeId;
@@ -10,6 +11,10 @@ export interface Mode {
   seconds?: number;
   /** Game ends on the first miss */
   suddenDeath?: boolean;
+  /** Game ends after this many shots */
+  shots?: number;
+  /** You move between shooting spots (spots.ts): no difficulty pick */
+  spots?: boolean;
 }
 
 export const MODES: Record<ModeId, Mode> = {
@@ -17,9 +22,23 @@ export const MODES: Record<ModeId, Mode> = {
   free: { id: "free", name: "Free Play", blurb: "No clock, no pressure. Find your release." },
   timed: { id: "timed", name: "Timed", blurb: "Score as much as you can before the buzzer.", seconds: 60 },
   streak: { id: "streak", name: "Streak", blurb: "Keep making them. One miss and it's over.", suddenDeath: true },
+  ladder: {
+    id: "ladder",
+    name: "Ladder",
+    blurb: "60 seconds. Every make sends you a spot further back, every miss a spot closer. Deep makes score more.",
+    seconds: 60,
+    spots: true,
+  },
+  racks: {
+    id: "racks",
+    name: "Rack Run",
+    blurb: `${RACK_SHOTS} balls: five from each spot, close in to deep three. The last ball of every rack is gold: double points.`,
+    shots: RACK_SHOTS,
+    spots: true,
+  },
 };
 
-export const MODE_ORDER: ModeId[] = ["daily", "free", "timed", "streak"];
+export const MODE_ORDER: ModeId[] = ["daily", "free", "timed", "streak", "ladder", "racks"];
 
 /** Shot-clock choices for Timed mode (seconds). */
 export const TIMED_OPTIONS = [30, 60, 90, 120] as const;
@@ -50,10 +69,11 @@ export function modeWithClock(id: ModeId, seconds: number): Mode {
 
 /**
  * Bests key: Timed scores are only comparable at the same duration, Daily ones on the same day
- * (`dailyKey`, e.g. "daily20261030").
+ * (`dailyKey`, e.g. "daily20261030"); spot modes (Ladder, Rack Run) have one board each.
  */
 export function bestKey(mode: ModeId, difficulty: DifficultyId, timedSeconds?: number, dailyKey?: string) {
   if (mode === "daily") return dailyKey ?? "daily";
+  if (isSpotMode(mode)) return mode; // one board: the run moves through every spot
   return mode === "timed" ? `timed${timedSeconds ?? DEFAULT_TIMED_SECONDS}:${difficulty}` : `${mode}:${difficulty}`;
 }
 

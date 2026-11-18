@@ -4,6 +4,7 @@ import {
   Alert02Icon,
   ArmchairIcon,
   Basketball01Icon,
+  Basketball02Icon,
   BookOpen01Icon,
   Calendar03Icon,
   Camera01Icon,
@@ -25,6 +26,7 @@ import {
   PlayIcon,
   RepeatIcon,
   Settings02Icon,
+  Stairs01Icon,
   Share08Icon,
   Target02Icon,
   Tick02Icon,
@@ -49,6 +51,7 @@ import { webglAvailable, type RendererId } from "@/lib/game/createGame";
 import { CALIBRATION_THROWS, consistency, type Calibration } from "@/lib/game/calibration";
 import { dailyLabel, msUntilNextDaily, type DailyRules } from "@/lib/game/daily";
 import { DIFFICULTIES, DIFFICULTY_ORDER, type DifficultyId } from "@/lib/game/difficulty";
+import { GOLD_MULTIPLIER, isSpotMode, RACK_BALLS, SPOT_NAMES, SPOTS } from "@/lib/game/spots";
 import {
   formatDuration,
   MODES,
@@ -287,7 +290,14 @@ const HOW_TO: [IconSvgElement, string, string][] = [
   [FireIcon, "Heat up (optional)", "Dribble at your waist in a steady rhythm, then shoot: a hot hand scores one tier higher."],
 ];
 
-const MODE_ICON: Record<ModeId, IconSvgElement> = { daily: Calendar03Icon, free: Basketball01Icon, timed: Timer02Icon, streak: FireIcon };
+const MODE_ICON: Record<ModeId, IconSvgElement> = {
+  daily: Calendar03Icon,
+  free: Basketball01Icon,
+  timed: Timer02Icon,
+  streak: FireIcon,
+  ladder: Stairs01Icon,
+  racks: Basketball02Icon,
+};
 
 export function StartMenu(p: {
   /** A friend's challenge link: who to beat, whether its settings are picked, or why it can't be raced */
@@ -325,6 +335,7 @@ export function StartMenu(p: {
   onStart: () => void;
 }) {
   const isDaily = p.mode === "daily";
+  const spots = isSpotMode(p.mode);
   const d = DIFFICULTIES[isDaily ? p.daily.difficulty : p.difficulty];
   // Only rendered on the client (after hydration), so localStorage and browser probes are safe here.
   const [profile] = useState(loadProfile);
@@ -342,7 +353,13 @@ export function StartMenu(p: {
         </p>
         <p className="flex items-center gap-1 truncate text-[11px] text-stone">
           <HugeiconsIcon icon={ChampionIcon} size={12} />
-          {p.best ? (p.mode === "streak" ? `Best ${p.best.streak} in a row` : `Best ${p.best.points} pts`) : `${d.name} · ${d.distance} m`}
+          {p.best
+            ? p.mode === "streak"
+              ? `Best ${p.best.streak} in a row`
+              : `Best ${p.best.points} pts`
+            : spots
+              ? `${SPOTS.length} spots · ${DIFFICULTIES[SPOTS[0]].distance}–${DIFFICULTIES[SPOTS[SPOTS.length - 1]].distance} m`
+              : `${d.name} · ${d.distance} m`}
         </p>
       </div>
       <ArrowButton icon={PlayIcon} onClick={p.onStart}>
@@ -428,6 +445,8 @@ export function StartMenu(p: {
 
         {isDaily ? (
           <DailyCard rules={p.daily} />
+        ) : spots ? (
+          <SpotsCard mode={p.mode} />
         ) : (
           <div>
             <Label icon={DashboardSpeed01Icon}>Difficulty</Label>
@@ -509,6 +528,35 @@ export function StartMenu(p: {
         <p className="text-center text-[11px] text-stone">Video never leaves your device</p>
       </div>
     </Drawer>
+  );
+}
+
+/** The spots a Ladder or Rack Run moves through, near to far. */
+function SpotsCard({ mode }: { mode: ModeId }) {
+  return (
+    <div>
+      <Label icon={Stairs01Icon}>Spots</Label>
+      <ol className="grid grid-cols-4 gap-2">
+        {SPOTS.map((id, i) => {
+          const d = DIFFICULTIES[id];
+          return (
+            <li key={id} className="rounded-2xl bg-card p-2.5">
+              <span className="font-mono text-[10px] text-stone">{i + 1}</span>
+              <p className="text-xs leading-tight font-medium">{SPOT_NAMES[id]}</p>
+              <p className="mt-1 font-mono text-[10px] text-stone tabular-nums">
+                {d.distance} m{d.scoreMultiplier > 1 ? ` · ×${d.scoreMultiplier}` : ""}
+                {d.windMax ? " · wind" : ""}
+              </p>
+            </li>
+          );
+        })}
+      </ol>
+      <p className="mt-2 text-xs text-stone">
+        {mode === "racks"
+          ? `${RACK_BALLS} balls per spot. Ball ${RACK_BALLS} of each rack is gold: ×${GOLD_MULTIPLIER}.`
+          : "You start close in. Make it to move back; miss and you step in."}
+      </p>
+    </div>
   );
 }
 
@@ -773,7 +821,7 @@ export function GameOver(p: {
   // Only rendered on the client (after hydration), so localStorage is safe here.
   const [profile] = useState(loadProfile);
   const site = siteUrl();
-  const what = `${MODES[p.mode].name}${p.mode === "daily" ? ` ${dailyLabel(p.daily.key)}` : ""}${p.seconds ? ` · ${formatDuration(p.seconds)}` : ""} · ${DIFFICULTIES[p.difficulty].name}`;
+  const what = `${MODES[p.mode].name}${p.mode === "daily" ? ` ${dailyLabel(p.daily.key)}` : ""}${p.seconds ? ` · ${formatDuration(p.seconds)}` : ""}${isSpotMode(p.mode) ? "" : ` · ${DIFFICULTIES[p.difficulty].name}`}`;
   const card: ResultCardData = {
     context: what,
     headline: p.newBest ? "New best!" : "Beat that.",
@@ -811,7 +859,7 @@ export function GameOver(p: {
   return (
     <Drawer label="Game over" footer={footer}>
       <Tag>{what}</Tag>
-      <h2 className="display mt-4 text-4xl">{p.seconds ? "Buzzer!" : p.mode === "streak" ? "Streak over" : "Nice session"}</h2>
+      <h2 className="display mt-4 text-4xl">{p.seconds ? "Buzzer!" : p.mode === "streak" ? "Streak over" : p.mode === "racks" ? "Racks done" : "Nice session"}</h2>
 
       <div className="relative mt-4 overflow-hidden rounded-[1.5rem] bg-hoop p-5 text-cream">
         <svg viewBox="0 0 400 200" className="absolute -right-10 -bottom-10 w-72 text-white/10" aria-hidden>
@@ -822,7 +870,7 @@ export function GameOver(p: {
           {p.newBest && <Tag tone="dark" className="animate-count-pop">New best</Tag>}
         </div>
         <p className="relative mt-2 text-xs text-cream/75">
-          {p.newBest && p.seconds
+          {p.newBest && p.seconds && !isSpotMode(p.mode)
             ? "Saved as your ghost: race it next time."
             : p.best && !p.newBest
               ? `Your best: ${p.mode === "streak" ? `${p.best.streak} in a row` : `${p.best.points} pts`}`

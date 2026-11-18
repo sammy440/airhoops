@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { loadProfile, saveProfile, validName } from "@/lib/game/avatar";
 import { dailyLabel, isDailyKey } from "@/lib/game/daily";
 import { DIFFICULTIES, type DifficultyId } from "@/lib/game/difficulty";
+import { MODES } from "@/lib/game/modes";
+import { isSpotMode } from "@/lib/game/spots";
 import { api, ApiError, loadGuest, saveGuest, type RunSubmission } from "@/lib/net/api";
 
 type State =
@@ -53,8 +55,14 @@ export function LeaderboardPost({ run }: { run: RunSubmission & { id: number } }
 
   if (run.score <= 0) return null;
   const daily = isDailyKey(run.mode);
-  const board = daily ? `/leaderboard?mode=${run.mode}` : `/leaderboard?mode=${run.mode}&difficulty=${run.difficulty}`;
-  const where = daily ? `Daily, ${dailyLabel(run.mode)}` : `${DIFFICULTIES[run.difficulty as DifficultyId]?.name ?? run.difficulty}, all-time`;
+  // Daily and spot-mode boards are one board each (no difficulty pick)
+  const spots = isSpotMode(run.mode) ? run.mode : null;
+  const board = daily || spots ? `/leaderboard?mode=${run.mode}` : `/leaderboard?mode=${run.mode}&difficulty=${run.difficulty}`;
+  const where = daily
+    ? `Daily, ${dailyLabel(run.mode)}`
+    : spots
+      ? `${MODES[spots].name}, all-time`
+      : `${DIFFICULTIES[run.difficulty as DifficultyId]?.name ?? run.difficulty}, all-time`;
 
   return (
     <div className="mt-4 rounded-2xl border border-current/10 bg-current/[0.05] px-4 py-3 text-sm" aria-live="polite">

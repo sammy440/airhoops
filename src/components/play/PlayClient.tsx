@@ -24,6 +24,7 @@ import { loadProfile } from "@/lib/game/avatar";
 import { courtThemeId, DEFAULT_COURT_THEME, type CourtThemeId } from "@/lib/game/courts";
 import { dailyRandom, dailyRules } from "@/lib/game/daily";
 import { courtFor, DIFFICULTIES, rollWind, type DifficultyId } from "@/lib/game/difficulty";
+import { FIRST_SPOT, GOLD_MULTIPLIER, isSpotMode, nextSpot, RACK_BALLS, rackBall, SPOT_BOARD_DIFFICULTY, SPOT_NAMES, SPOTS, type SpotModeId } from "@/lib/game/spots";
 import { AimCenter, leanAim, MAX_LEAN_AIM } from "@/lib/game/aim";
 import { createGame, rendererId, type RendererId } from "@/lib/game/createGame";
 import type { GameCore } from "@/lib/game/engine";
@@ -142,6 +143,9 @@ interface PendingShot {
   jump?: number;
   /** Released in clutch time: scores double */
   clutch: boolean;
+  /** Spot modes: the spot it was shot from, and whether it was a gold ball (double) */
+  spot: DifficultyId;
+  gold: boolean;
 }
 
 export function PlayClient() {
@@ -188,7 +192,12 @@ export function PlayClient() {
   // Daily mode plays today's rules (loaded after mount, refreshed whenever the menu opens) instead of the player's picks.
   const [daily, setDaily] = useState(BEFORE_DAILY);
   const isDaily = prefs.mode === "daily";
-  const difficultyId = isDaily ? daily.difficulty : prefs.difficulty;
+  // Spot modes (Ladder, Rack Run) move you between the levels' spots during the run: the spot sets the court.
+  const spotMode = isSpotMode(prefs.mode) ? prefs.mode : null;
+  const [spot, setSpot] = useState<DifficultyId>(FIRST_SPOT);
+  /** Where the next shot goes from, decided by the last result and taken up once the ball's back in hand */
+  const nextSpotRef = useRef<DifficultyId | null>(null);
+  const difficultyId = isDaily ? daily.difficulty : spotMode ? spot : prefs.difficulty;
   const difficulty = DIFFICULTIES[difficultyId];
   const mode = useMemo(
     () => modeWithClock(prefs.mode, isDaily ? daily.seconds : prefs.timedSeconds),
@@ -335,8 +344,8 @@ export function PlayClient() {
         ? null
         : {
             id: Date.now(),
-            mode: prefs.mode === "daily" ? daily.key : prefs.mode === "timed" ? `timed${prefs.timedSeconds}` : "streak",
-            difficulty: difficultyId,
+            mode: prefs.mode === "daily" ? daily.key : prefs.mode === "timed" ? `timed${prefs.timedSeconds}` : prefs.mode,
+            difficulty: isSpotMode(prefs.mode) ? SPOT_BOARD_DIFFICULTY : difficultyId,
             score: prefs.mode === "streak" ? t.best : t.points,
             shots: t.shots,
             makes: t.makes,
@@ -484,7 +493,11 @@ export function PlayClient() {
   useEffect(() => {
     handlers.current.onResult = (sim) => {
       const p = pendingRef.current;
-      const { tally: t, score } = addShot(tallyRef.current, sim.result, difficulty.scoreMultiplier * (p?.clutch ? CLUTCH_MULTIPLIER : 1), p?.hot);
+      const shotLevel = p ? DIFFICULTIES[p.spot] : difficulty;
+      const multiplier = shotLevel.scoreMultiplier * (p?.clutch ? CLUTCH_MULTIPLIER : 1) * (p?.gold ? GOLD_MULTIPLIER : 1);
+      const { tally: t, score } = addShot(tallyRef.current, sim.result, multiplier, p?.hot);
+      // Spot modes: where the next shot goes from (moved to once the ball is back in hand)
+      if (spotMode && p) nextSpotRef.current = nextSpot(spotMode, p.spot, t.shots, sim.result.scored);
       tallyRef.current = t;
       setTally(t);
       gameRef.current?.setStreak(t.streak);
@@ -516,7 +529,7 @@ export function PlayClient() {
         // Free play has no end: send play every couple of dozen shots
         if (loadProgress().pending.shots >= 25) void syncProgress();
         runShotsRef.current.push({ t: p.at, speed: l.speed, angle: l.angle, aim: l.aim ?? 0, wind: p.wind, phase: p.phase, points: score.points });
-        const coach = coachShot(sim.launch, court, DEFAULT_TUNING, { wind: p.wind, phase: p.phase });
+        const coach = coachShot(sim.launch, courtFor(shotLevel), DEFAULT_TUNING, { wind: p.wind, phase: p.phase });
         const judged = {
           power: p.power,
           angle: p.angle,
@@ -535,10 +548,17 @@ export function PlayClient() {
         else if (buzzerRef.current) window.setTimeout(endGame, 900);
       }
       if (!score.points) return;
-      return `+${score.points}${score.multiplier > 1 ? `  ×${score.multiplier}` : ""}${score.hot ? "  HOT" : ""}${p?.clutch ? "  CLUTCH" : ""}`;
+      return `+${score.points}${score.multiplier > 1 ? `  ×${score.multiplier}` : ""}${score.hot ? "  HOT" : ""}${p?.clutch ? "  CLUTCH" : ""}${p?.gold ? "  GOLD" : ""}`;
     };
-    handlers.current.onReady = () => nextWind();
-  }, [difficulty, court, mode, endGame, nextWind]);
+    handlers.current.onReady = () => {
+      const next = nextSpotRef.current;
+      nextSpotRef.current = null;
+      if (next && next !== difficultyId && screenRef.current === "playing") {
+        setSpot(next);
+        nextWind(DIFFICULTIES[next]);
+      } else nextWind();
+    };
+  }, [difficulty, difficultyId, mode, endGame, nextWind, spotMode]);
 
   // Clutch time starts: the badge and a cue (a shot released in it can get here before the shot clock's next tick)
   const enterClutch = useCallback(() => {
@@ -573,9 +593,13 @@ export function PlayClient() {
     const hot = hotHand.shoot(performance.now());
     setHotBounces(0);
     game.setHot(false);
-    pendingRef.current = { power, angle: launch.angle, aim: launch.aim ?? 0, input, wind: w, phase, hot, at, jump, clutch: clutchShot };
+    const shotNo = tallyRef.current.shots;
+    const gold = spotMode === "racks" && !!rackBall(shotNo)?.gold;
+    pendingRef.current = { power, angle: launch.angle, aim: launch.aim ?? 0, input, wind: w, phase, hot, at, jump, clutch: clutchShot, spot: difficultyId, gold };
+    // A run of so many balls: the last one is the buzzer (no more throws; it ends once that ball lands)
+    if (mode.shots && shotNo + 1 >= mode.shots) buzzerRef.current = true;
     return true;
-  }, [wind, hotHand, mode.seconds, enterClutch]);
+  }, [wind, hotHand, mode.seconds, mode.shots, enterClutch, spotMode, difficultyId]);
 
   // ── Camera input ──
   const onThrow = useCallback(
@@ -708,9 +732,14 @@ export function PlayClient() {
     buzzerRef.current = false;
     endsAtRef.current = null;
     setTimeLeft(mode.seconds ?? null);
-    nextWind();
+    // Spot modes start close in
+    nextSpotRef.current = null;
+    if (spotMode) setSpot(FIRST_SPOT);
+    const startLevel = spotMode ? DIFFICULTIES[FIRST_SPOT] : difficulty;
+    const startCourt = spotMode ? courtFor(startLevel) : court;
+    nextWind(startLevel);
     const game = gameRef.current;
-    game?.setCourt(court);
+    game?.setCourt(startCourt);
     runShotsRef.current = [];
     coachShotsRef.current = [];
     clutchRef.current = false;
@@ -723,8 +752,10 @@ export function PlayClient() {
       // A friend's challenge with its settings picked is raced instead of your own ghost.
       const racing = vsActive ? vs : null;
       racingRef.current = racing;
-      const ghost = racing ? challengeRun(racing) : mode.seconds && prefs.ghost ? loadGhost(bestKey(prefs.mode, difficultyId, prefs.timedSeconds, daily.key)) : null;
-      rivalRef.current = ghost && new GhostPlayer(ghost, court);
+      // Ghosts re-fly launches on one court, so they're for timed and daily runs (spot modes move it).
+      const ghostable = prefs.mode === "timed" || prefs.mode === "daily";
+      const ghost = racing ? challengeRun(racing) : ghostable && prefs.ghost ? loadGhost(bestKey(prefs.mode, difficultyId, prefs.timedSeconds, daily.key)) : null;
+      rivalRef.current = ghost && new GhostPlayer(ghost, startCourt);
       setRivalName(racing ? racing.name || "friend" : null);
       game.setRival(null); // until GO
     }
@@ -732,7 +763,7 @@ export function PlayClient() {
     pause(false);
     setCountdown(3);
     setScreen("countdown");
-  }, [mode, court, pause, nextWind, hotHand, prefs.ghost, prefs.mode, prefs.timedSeconds, difficultyId, daily.key, vs, vsActive]);
+  }, [mode, court, difficulty, spotMode, pause, nextWind, hotHand, prefs.ghost, prefs.mode, prefs.timedSeconds, difficultyId, daily.key, vs, vsActive]);
 
   // A returning player who's already standing in a good spot goes straight to the countdown.
   const inPosition = prefs.setupPassed && tracking && stats.framing === null && stats.confidence >= 0.6;
@@ -1050,7 +1081,7 @@ export function PlayClient() {
           <Logo className="text-cream" />
           <span className="hidden rounded-full border border-white/20 bg-black/30 px-3 py-1 text-[11px] text-cream/80 backdrop-blur-md md:inline">
             {mode.name}
-            {mode.seconds ? ` ${formatDuration(mode.seconds)}` : ""} · {difficulty.name}
+            {mode.seconds ? ` ${formatDuration(mode.seconds)}` : ""} · {spotMode ? SPOT_NAMES[difficultyId] : difficulty.name}
           </span>
         </div>
 
@@ -1073,6 +1104,7 @@ export function PlayClient() {
             {mult > 1 && <span className="ml-2 rounded-full bg-hoop px-1.5 py-0.5 font-bold text-cream">×{mult}</span>}
             {!mode.suddenDeath && tally.streak >= 2 && <span className="ml-2 text-sun">🔥 {tally.streak}</span>}
           </div>
+          {spotMode && inRun && <SpotTrack mode={spotMode} spot={difficultyId} shots={tally.shots} />}
           {rivalPoints !== null && inRun && (
             <div className="mt-1 text-[11px] text-cream/55" title={rivalName ? `${rivalName}'s run, flown beside you as the see-through ball` : "Your best run, flown beside you as the see-through ball"}>
               vs {rivalName ?? "best"}{" "}
@@ -1352,6 +1384,40 @@ export function PlayClient() {
       {clip && <ClipDialog clip={clip} onClose={closeClip} />}
 
       {raiseAction && <RaiseHandHint label={RAISE_LABELS[raiseAction]} state={raiseHand} />}
+    </div>
+  );
+}
+
+/**
+ * Where you're shooting from in a spot mode: the spots near → far with yours lit, its name and
+ * distance, and on a Rack Run which ball of the rack is next (the last one gold).
+ */
+function SpotTrack({ mode, spot, shots }: { mode: SpotModeId; spot: DifficultyId; shots: number }) {
+  const d = DIFFICULTIES[spot];
+  const ball = mode === "racks" ? rackBall(shots) : null;
+  return (
+    <div className="mt-2 flex flex-col items-center gap-1" aria-live="polite">
+      <div className="flex items-center gap-1" aria-hidden>
+        {SPOTS.map((id) => (
+          <span key={id} className={`h-1.5 rounded-full transition-all ${id === spot ? "w-6 bg-sun" : "w-3 bg-cream/25"}`} />
+        ))}
+      </div>
+      <p className="text-[11px] text-cream/75">
+        {SPOT_NAMES[spot]} · {d.distance} m{d.scoreMultiplier > 1 ? ` · ×${d.scoreMultiplier}` : ""}
+      </p>
+      {ball && (
+        <p className="flex items-center gap-1 text-[11px] text-cream/60">
+          Rack {ball.rack + 1}/{SPOTS.length}
+          {Array.from({ length: RACK_BALLS }, (_, i) => (
+            <span
+              key={i}
+              aria-hidden
+              className={`size-2 rounded-full ${i === RACK_BALLS - 1 ? "bg-sun" : "bg-hoop"} ${i < ball.ball ? "opacity-20" : i === ball.ball ? "ring-2 ring-cream" : ""}`}
+            />
+          ))}
+          {ball.gold && <b className="ml-1 text-sun">Gold ball ×{GOLD_MULTIPLIER}</b>}
+        </p>
+      )}
     </div>
   );
 }

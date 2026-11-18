@@ -2,6 +2,19 @@
 
 Every tuned threshold is recorded here with the reason, as the project README asks.
 
+## Shooting-spot modes: Ladder and Rack Run
+Two solo modes built on "difficulty is distance". Each **spot is a level's court** (close in 3.6 m, free-throw line
+4.6 m, three-point line 6.75 m, deep three 8 m), so a spot brings that level's rim, wind, sensitivity, green window
+and points multiplier: nothing is tuned separately (`spots.ts`).
+- **Ladder** (60 s, clutch time included): start close in; a make moves you back a spot, a miss moves you in.
+- **Rack Run** (20 balls, no clock): 5 balls from each spot, near to far; the last ball of each rack is **gold, ×2**.
+- The spot changes once the ball is back in hand (the court rebuilds then, never mid-flight). The HUD shows the spot,
+  its distance and multiplier, and on a Rack Run the rack and which ball is next.
+- One board each (`ladder`, `racks`): no difficulty pick. Runs are posted with Legend as their difficulty, the
+  deepest spot's, since the API caps points per make by difficulty. **API (deploy with it):** accepts the new mode
+  and best keys; a Ladder run is at most 60 shots, a Rack Run 20 with at most 4 gold makes.
+- No ghosts or challenge links for these modes: both re-fly launches on a single court.
+
 ## Sideways at a distance: wind, lean aim and the 2D view
 Playtesting the new distances: in 3D throws drifted off "the wrong way", and in 2D balls that dropped through the
 net didn't count. Both were sideways misses: at 6.75–8 m the ball flies ~1.3 s, and the rim only allows 0.11 m of

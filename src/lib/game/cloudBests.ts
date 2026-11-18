@@ -13,7 +13,7 @@ import { beats, loadBests, putBest, type Best } from "./modes";
  */
 
 /** The API's best keys; anything else (e.g. the pre-date "daily") stays on this device. */
-const KEY = /^((timed\d{2,4}|streak|free):(rookie|starter|allstar|legend)|daily\d{8})$/;
+const KEY = /^((timed\d{2,4}|streak|free):(rookie|starter|allstar|legend)|daily\d{8}|ladder|racks)$/;
 /** Ghosts saved before the hoop stopped moving (GHOST_VERSION 2) flew on other courts: leave them on the server. */
 export const GHOSTS_SINCE = "2026-11-09T00:00:00Z";
 /** The account lists dailies from the last two days only: older ones have nothing left to race. */

@@ -6,11 +6,12 @@ import { SiteNav } from "@/components/home/SiteNav";
 import { AvatarCanvas } from "@/components/ui/AvatarCanvas";
 import { DIFFICULTIES, DIFFICULTY_ORDER, type DifficultyId } from "@/lib/game/difficulty";
 import { dailyLabel, dailyRules, isDailyKey, rulesForKey } from "@/lib/game/daily";
-import { formatDuration } from "@/lib/game/modes";
+import { formatDuration, MODES } from "@/lib/game/modes";
+import { isSpotMode } from "@/lib/game/spots";
 import { api, ApiError, loadGuest, type LeaderboardEntry, type Period, type PersonalBests } from "@/lib/net/api";
 
 const BOARDS = [
-  { group: "Solo", modes: ["timed60", "timed30", "timed90", "timed120", "streak"] },
+  { group: "Solo", modes: ["timed60", "timed30", "timed90", "timed120", "streak", "ladder", "racks"] },
   { group: "Multiplayer", modes: ["shootout", "race60", "race30", "race90", "race120"] },
 ];
 const PERIODS: { id: Period; label: string }[] = [
@@ -18,7 +19,7 @@ const PERIODS: { id: Period; label: string }[] = [
   { id: "week", label: "This week" },
   { id: "all", label: "All time" },
 ];
-const MODE_RE = /^(streak|timed\d{2,4}|daily\d{8}|shootout|race\d{2,4})$/;
+const MODE_RE = /^(streak|ladder|racks|timed\d{2,4}|daily\d{8}|shootout|race\d{2,4})$/;
 const DAY_MS = 86_400_000;
 
 /** Today's and yesterday's Daily Challenge boards. */
@@ -30,6 +31,7 @@ function dailyKeys() {
 export function boardName(mode: string) {
   if (isDailyKey(mode)) return dailyLabel(mode);
   if (mode === "streak") return "Streak";
+  if (isSpotMode(mode)) return MODES[mode].name;
   if (mode === "shootout") return "Shootout";
   const timed = mode.match(/^timed(\d+)$/);
   if (timed) return `Timed ${formatDuration(Number(timed[1]))}`;
@@ -50,9 +52,11 @@ export function LeaderboardClient() {
   // Today's and yesterday's keys: set after mount, since the page is prerendered at build time.
   const [days, setDays] = useState<string[]>([]);
   // A daily board is already one day, with that day's difficulty: no period or difficulty filter.
+  // Spot modes move through every level's spot, so they have no difficulty filter either.
   const daily = isDailyKey(mode);
+  const spots = isSpotMode(mode);
   const boardPeriod: Period = daily ? "all" : period;
-  const boardDifficulty = daily ? "" : difficulty;
+  const boardDifficulty = daily || spots ? "" : difficulty;
   const [mine, setMine] = useState<PersonalBests | null>(null);
   const [me, setMe] = useState<{ id: string; token: string } | null>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -77,7 +81,7 @@ export function LeaderboardClient() {
   useEffect(() => {
     if (!hydrated) return;
     const url = new URL(window.location.href);
-    url.search = new URLSearchParams(daily ? { mode } : { mode, period, ...(difficulty ? { difficulty } : {}) }).toString();
+    url.search = new URLSearchParams(daily ? { mode } : { mode, period, ...(boardDifficulty ? { difficulty: boardDifficulty } : {}) }).toString();
     window.history.replaceState(null, "", url);
 
     let live = true;
@@ -158,7 +162,10 @@ export function LeaderboardClient() {
                 </button>
               ))}
             </div>
-            <label className="flex items-center gap-2 text-sm text-ink/70">
+            {spots ? (
+              <p className="text-sm text-ink/70">Every spot, close in to deep three: one board.</p>
+            ) : (
+              <label className="flex items-center gap-2 text-sm text-ink/70">
               Difficulty
               <select
                 value={difficulty}
@@ -172,7 +179,8 @@ export function LeaderboardClient() {
                   </option>
                 ))}
               </select>
-            </label>
+              </label>
+            )}
           </div>
         )}
 
@@ -206,7 +214,7 @@ export function LeaderboardClient() {
                 ? `Daily Challenge · ${dailyLabel(mode)}`
                 : `${boardName(mode)} · ${difficulty ? DIFFICULTIES[difficulty].name : "All difficulties"} · ${PERIODS.find((p) => p.id === period)?.label}`}
             </span>
-            <span>{mode.startsWith("timed") || mode === "streak" || daily ? "Best run per player" : "Server-verified matches"}</span>
+            <span>{mode.startsWith("timed") || mode === "streak" || spots || daily ? "Best run per player" : "Server-verified matches"}</span>
           </div>
           {board.kind === "loading" ? (
             <ol>
@@ -224,8 +232,8 @@ export function LeaderboardClient() {
             <div className="px-5 py-12 text-center">
               <p className="display text-3xl">No scores yet</p>
               <p className="mt-1 text-sm text-ink/60">Be the first on this board.</p>
-              <Link href={mode.startsWith("timed") || mode === "streak" || daily ? "/play" : "/multiplayer"} className="mt-4 inline-block rounded-full bg-ink text-cream px-6 py-2.5 text-sm font-semibold hover:bg-hoop">
-                {mode.startsWith("timed") || mode === "streak" || daily ? "Play" : "Start a match"}
+              <Link href={mode.startsWith("timed") || mode === "streak" || spots || daily ? "/play" : "/multiplayer"} className="mt-4 inline-block rounded-full bg-ink text-cream px-6 py-2.5 text-sm font-semibold hover:bg-hoop">
+                {mode.startsWith("timed") || mode === "streak" || spots || daily ? "Play" : "Start a match"}
               </Link>
             </div>
           ) : (

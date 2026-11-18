@@ -251,8 +251,10 @@ export abstract class GameCore {
 
   /** Switch difficulty: new distance / rim / motion. Clears the old ghost path. */
   setCourt(court: Court) {
-    this.court = court;
     this.ghost = null;
+    // The same court again (a run start, then the spot it set): nothing to rebuild.
+    if (court === this.court || JSON.stringify(court) === JSON.stringify(this.court)) return;
+    this.court = court;
     this.sceneChanged();
   }
 
